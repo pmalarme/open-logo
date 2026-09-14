@@ -1132,9 +1132,9 @@ test("a fragment truncated by a character no slug can hold is malformed, not a v
 });
 
 test("the canary refuses a document whose markdown this reader cannot follow", () => {
-  // A WHITELIST, not an enumeration. Two enumerating versions were defeated by constructs they did
-  // not list — `</div>`, `<![CDATA[`, `<?xml`, `&#x26;`, an inline comment, a nested-label link —
-  // and every miss was a false pass. All of those reproductions are pinned here.
+  // A PERMIT-LIST, not an enumeration. Earlier enumerating attempts were each defeated by constructs
+  // they did not list — `</div>`, `<![CDATA[`, `<?xml`, `&#x26;`, an inline comment, a nested-label
+  // link, `_` emphasis — and every miss was a false pass. All of those are pinned here.
   const constructs = (lines) =>
     unsupportedConstructs(lines).map(({ construct }) => construct);
   const refuses = (label, lines) =>
@@ -1177,6 +1177,16 @@ test("the canary refuses a document whose markdown this reader cannot follow", (
   // CommonMark trims a space from each end, and this reader would slug the padding.
   refuses("a padded code span", ["## ` foo `"]);
   refuses("a padded double-backtick span", ["## `` foo ``"]);
+  // CommonMark's "all spaces" is literally spaces, so space-tab-space IS trimmed. `trim()` treated
+  // the tab as whitespace and called it all-spaces, letting `#--` pass where GitHub publishes ``.
+  refuses("a span padded around a tab", ["## ` \t `"]);
+  // Checking only OUTSIDE code spans left the permit-list's own motivating character one backtick
+  // away — and spec/ headings are predominantly code spans, so that was the dominant shape.
+  refuses("a superscript inside a code span", ["## Area in `m²`"]);
+  refuses("a fraction inside a code span", ["## Half `½` done"]);
+  // GitHub's two commonest shortcodes start with `+`/`-`, which the first pattern could not match.
+  refuses("the :+1: shortcode", ["## Good :+1: work"]);
+  refuses("the :-1: shortcode", ["## Bad :-1: work"]);
   // A mismatched backtick run is NOT a code span, so the link it surrounds must still be seen.
   refuses("a link hidden behind a mismatched run", ["## `[Text](target)``"]);
   // Astral characters make `match.index` (UTF-16) disagree with a code-point array, which left a
@@ -1237,6 +1247,8 @@ test("the canary refuses a document whose markdown this reader cannot follow", (
   // when BOTH ends carry a space, so those two slug exactly as written.
   allows("an unpadded code span", ["## `foo`"]);
   allows("a code span padded on one side only", ["## ` foo`"]);
+  allows("a span whose content is only spaces", ["## `  `"]);
+  allows("an ellipsis inside a code span", ["### `set … to`"]);
   allows("prose between two code spans", [
     "## Shape-spec lists for `area` and `perimeter`",
   ]);
@@ -1247,6 +1259,64 @@ test("the canary refuses a document whose markdown this reader cannot follow", (
   assert.equal(containerContent("> 1. # X"), "# X");
 });
 
+test("the reader and the canary share ONE fence scanner, so they cannot drift apart", () => {
+  // The third divergence-by-duplication in this gate, after the mention pattern's group numbering
+  // and code-span pairing. Moving container stripping ahead of fence detection in the canary alone
+  // left the READER collecting `# Inside` from a fenced block inside a list item that the canary had
+  // correctly skipped — a heading GitHub publishes nowhere, resolving here and 404ing there, with
+  // the canary silent because it had stopped looking. Both sides are asserted together on purpose.
+  const agree = (label, lines, slugs) => {
+    assert.deepEqual(
+      documentHeadings(lines).map(({ slug }) => slug),
+      slugs,
+      `reader: ${label}`,
+    );
+    assert.deepEqual(unsupportedConstructs(lines), [], `canary: ${label}`);
+  };
+  agree(
+    "a fence inside a list item",
+    ["- ```markdown", "  # Inside", "  ```", "", "# Real"],
+    ["real"],
+  );
+  agree(
+    "a fence inside an ordered list item",
+    ["1. ```markdown", "   # Inside", "   ```", "", "# Real"],
+    ["real"],
+  );
+  agree(
+    "a fence inside a blockquote",
+    ["> ```md", "> # Inside", "> ```", "", "# Real"],
+    ["real"],
+  );
+  // The second harm from the same asymmetry: the list item's CLOSING fence opened one in the
+  // reader's view, so it went blind for the rest of the file and lost `dup-1` entirely.
+  agree(
+    "a container fence does not blind the reader afterwards",
+    ["- ```markdown", "  # Dup", "  ```", "", "# Dup", "", "# Dup"],
+    ["dup", "dup-1"],
+  );
+  agree(
+    "a top-level fence, unchanged",
+    ["```logo", "# c", "```", "# Real"],
+    ["real"],
+  );
+});
+
+test("four-space indentation is not stripped into a container, and not read as a fence", () => {
+  // `    > ``` ` is an indented code block on GitHub. Stripping the container through that indent
+  // turned it into a fence opener that swallowed the real heading below it — so containerContent
+  // bounds the FIRST marker to three spaces, and a heading reachable only through deeper indentation
+  // is refused rather than guessed at.
+  const lines = ["    > ```", "## [Text](target)"];
+  assert.deepEqual(
+    documentHeadings(lines).map(({ slug }) => slug),
+    ["texttarget"],
+    "the heading is not hidden behind a phantom fence",
+  );
+  assert.ok(unsupportedConstructs(lines).length > 0, "and it is refused");
+  assert.equal(containerContent("    - ## Notes"), null);
+  assert.equal(containerContent("   - ## Notes"), "## Notes");
+});
 test("the LIVE spec is clean for the canary, which is what licenses the slug rule", () => {
   // The module note's "spec/ contains none today" is kept true by this, not by an assertion in a
   // comment. If a spec edit ever introduces one, this fails here and the gate fails in CI.

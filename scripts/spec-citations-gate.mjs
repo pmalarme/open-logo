@@ -142,12 +142,12 @@
  *
  * So {@link unsupportedConstructs} refuses to answer: a cited document containing any such construct
  * fails outright, naming it and its line, rather than being resolved against a slug this reader is
- * not entitled to compute. **It is a permit-list, not an enumeration** — three enumerating versions
- * were defeated by constructs they did not list, most tellingly `_` emphasis, which slips through
- * *because* the slug rule keeps `_` so that `` `set_xy` `` is right. A heading may therefore contain
- * only characters proven to survive rendering unchanged; everything else is refused. `spec/` is clean
- * today, kept so by the canary itself rather than by an assertion here. Issue #1190 decides whether
- * to replace the whole reader with a CommonMark parse; until it does, `spec/` cannot adopt a
+ * not entitled to compute. **It is a permit-list, not an enumeration** — earlier enumerating attempts
+ * were each defeated by constructs they did not list, most tellingly `_` emphasis, which slips
+ * through *because* the slug rule keeps `_` so that `` `set_xy` `` is right. A heading may therefore
+ * contain only characters proven to survive rendering unchanged; everything else is refused. `spec/`
+ * is clean today, kept so by the canary itself rather than by an assertion here. Issue #1190 decides
+ * whether to replace the whole reader with a CommonMark parse; until it does, `spec/` cannot adopt a
  * `<details>` block, a linked or emphasised heading, or a setext heading without turning the gate
  * red, which is a deliberate trade and not an accident.
  *
@@ -491,20 +491,13 @@ export function documentHeadings(lines) {
   let fence = null;
   for (const [index, raw] of lines.entries()) {
     const line = raw.replace(/\r$/, "");
-    const delimiter = /^ {0,3}(`{3,}|~{3,})(.*)$/.exec(line);
-    if (delimiter !== null) {
-      const marker = delimiter[1][0];
-      if (fence === null) {
-        if (marker === "~" || !delimiter[2].includes("`")) {
-          fence = { marker, length: delimiter[1].length };
-        }
-      } else if (
-        marker === fence.marker &&
-        delimiter[1].length >= fence.length &&
-        delimiter[2].trim() === ""
-      ) {
-        fence = null;
-      }
+    // Fence state is tracked on the CONTAINER-STRIPPED line, exactly as the canary does, so a fenced
+    // block inside a list item or blockquote hides its contents from both readers alike. Headings are
+    // still matched on the raw line, so one nested in a container stays uncollected — the canary
+    // refuses those documents outright.
+    const transition = advanceFence(fence, containerContent(line) ?? line);
+    if (transition !== null) {
+      fence = transition.fence;
       continue;
     }
     if (fence !== null) {
@@ -580,16 +573,6 @@ export function suggestionDistance(fragment) {
 }
 
 /**
- * Strip inline code spans from one line, pairing backtick runs the way CommonMark does: a span is
- * delimited by two runs of **exactly equal length**, and an unmatched run is literal text.
- *
- * A regex cannot express that. `/(`+)[\s\S]*?\1/` lets a two-backtick run close a one-backtick
- * opener, so `` ## `[Text](target)`` `` — which CommonMark reads as literal backticks around a real
- * link — came out stripped, hiding the `[` from {@link unsupportedConstructs} and restoring exactly
- * the quiet false pass the canary exists to prevent. So this scans runs and pairs them explicitly,
- * and **leaves an unmatched run in place** so the heading rule still sees what it surrounds.
- */
-/**
  * The inline code spans in one line, paired the way CommonMark does: a span is delimited by two runs
  * of **exactly equal length**, and an unmatched run is literal text.
  *
@@ -662,7 +645,7 @@ export function stripCodeSpans(text) {
 function hasPaddedCodeSpan(text) {
   return codeSpans(text).some(
     ({ content }) =>
-      content.startsWith(" ") && content.endsWith(" ") && content.trim() !== "",
+      content.startsWith(" ") && content.endsWith(" ") && !/^ +$/.test(content),
   );
 }
 
@@ -687,18 +670,37 @@ function hasPaddedCodeSpan(text) {
  * `*` and `~` are permitted because rendering **and** the slug rule both delete them, so they cannot
  * disagree. `&` and `:` are permitted for `Turtle & Rendering` and ordinary prose, and policed
  * separately as an entity and an emoji shortcode. Everything absent — `_`, `[`, `]`, `<`, `>`, `|`,
- * `\`, `{`, `}`, a stray backtick, `²`, `×`, an emoji — is refused. Measured across every `spec/`
- * heading that costs the corpus nothing: it contains no non-ASCII letter or digit outside a code
- * span. Some refusals are harmless — `## Times a × b` slugs identically either way — and that is the
- * deliberate price of a list the next construct cannot defeat.
+ * `\`, `{`, `}`, a stray backtick, `²`, `×`, an emoji — is refused **outside a code span**; inside
+ * one, {@link CODE_SPAN_PERMITTED} applies instead, because there the content is literal. Measured
+ * across every `spec/` heading both lists cost the corpus nothing. Some refusals are harmless —
+ * `## Time 10:30:00` trips the shortcode rule though both readers slug it identically — and that is
+ * the deliberate price of lists the next construct cannot defeat.
  */
 const HEADING_PERMITTED = /[A-Za-z0-9 \t\-,.;:!?'"()/+=%@$#*~^&—–…]/;
+
+/**
+ * The characters a **code span's content** may contain.
+ *
+ * A span's content is literal, so the markdown ambiguities that force `_`, `[` and `<` out of
+ * {@link HEADING_PERMITTED} do not apply — `` `set_xy` `` must keep working. What *does* still apply
+ * is the character-class difference between {@link headingSlug} and `github-slugger`, and checking
+ * only outside spans left it wide open: `` ## Area in `m²` `` slugged to `area-in-m²` here and
+ * `area-in-m` there, so `#area-in-m²` passed and 404'd — the same `²` the permit-list was written to
+ * catch, one backtick away. `spec/` headings are *predominantly* code spans, so that exemption
+ * covered the dominant shape.
+ *
+ * Every **ASCII** character agrees inside a span: both sides keep letters, digits, `-`, `_` and
+ * space, and both delete all other ASCII punctuation. So this admits ASCII plus the three non-ASCII
+ * punctuation marks checked against the real slugger class — which is what keeps the five live
+ * `` `set … to` ``-shaped headings green.
+ */
+const CODE_SPAN_PERMITTED = /[\x20-\x7E\t—–…]/;
 
 /** A complete HTML entity, which renders as one character this reader would spell out. */
 const HTML_ENTITY = /&(?:[A-Za-z][A-Za-z0-9]*|#[0-9]+|#[xX][0-9A-Fa-f]+);/;
 
 /** A GFM emoji shortcode, which GitHub replaces with a character the slug rule then deletes. */
-const EMOJI_SHORTCODE = /:[a-z0-9][a-z0-9+-]*:/;
+const EMOJI_SHORTCODE = /:[a-z0-9+_-]+:/;
 
 /**
  * Strip every leading blockquote and list-item marker, returning the content inside them, or `null`
@@ -712,7 +714,14 @@ export function containerContent(line) {
   let rest = line;
   let stripped = false;
   for (;;) {
-    const marker = /^[ \t]*(?:>|[-*+][ \t]+|\d+[.)][ \t]+)/.exec(rest);
+    // The FIRST marker may be indented at most three spaces. Four is an indented code block, and
+    // stripping through it let `    > ``` ` — code, on GitHub — be read as a fence opener, which then
+    // swallowed a real heading below it.
+    const marker = (
+      stripped
+        ? /^[ \t]*(?:>|[-*+][ \t]+|\d+[.)][ \t]+)/
+        : /^ {0,3}(?:>|[-*+][ \t]+|\d+[.)][ \t]+)/
+    ).exec(rest);
     if (marker === null) {
       break;
     }
@@ -720,6 +729,41 @@ export function containerContent(line) {
     stripped = true;
   }
   return stripped ? rest : null;
+}
+
+/**
+ * Advance fenced-block state across one line's content, or `null` when the line is not a fence
+ * delimiter at all.
+ *
+ * **One scanner, two callers.** {@link documentHeadings} and {@link unsupportedConstructs} both need
+ * this, and when each kept its own copy they drifted the moment one was fixed: moving container
+ * stripping ahead of fence detection in the canary alone left the reader collecting `# Inside` from a
+ * fenced block inside a list item that the canary had correctly skipped — a heading GitHub publishes
+ * nowhere, resolving here and 404ing there, with the canary silent because it had stopped looking.
+ * That is the third divergence-by-duplication in this gate, after the mention pattern's group
+ * numbering and code-span pairing, so the rule now lives in one place: **any rule both readers
+ * consult belongs in a single function.**
+ */
+function advanceFence(fence, content) {
+  const delimiter = /^ {0,3}(`{3,}|~{3,})(.*)$/.exec(content);
+  if (delimiter === null) {
+    return null;
+  }
+  const marker = delimiter[1][0];
+  if (fence === null) {
+    // A backtick opener may not carry a backtick in its info string; a tilde opener may.
+    return {
+      fence:
+        marker === "~" || !delimiter[2].includes("`")
+          ? { marker, length: delimiter[1].length }
+          : null,
+    };
+  }
+  const closes =
+    marker === fence.marker &&
+    delimiter[1].length >= fence.length &&
+    delimiter[2].trim() === "";
+  return { fence: closes ? null : fence };
 }
 
 /**
@@ -758,20 +802,9 @@ export function unsupportedConstructs(lines) {
     // the perfectly safe heading inside it as a nested one.
     const inside = containerContent(line);
     const content = inside ?? line;
-    const delimiter = /^ {0,3}(`{3,}|~{3,})(.*)$/.exec(content);
-    if (delimiter !== null) {
-      const marker = delimiter[1][0];
-      if (fence === null) {
-        if (marker === "~" || !delimiter[2].includes("`")) {
-          fence = { marker, length: delimiter[1].length };
-        }
-      } else if (
-        marker === fence.marker &&
-        delimiter[1].length >= fence.length &&
-        delimiter[2].trim() === ""
-      ) {
-        fence = null;
-      }
+    const transition = advanceFence(fence, content);
+    if (transition !== null) {
+      fence = transition.fence;
       previousWasBlank = false;
       continue;
     }
@@ -800,11 +833,29 @@ export function unsupportedConstructs(lines) {
     if (heading !== null && inside !== null) {
       report("a heading nested in a blockquote or list item");
     }
+    // The same thing four spaces in, where `containerContent` deliberately stops: that indent is
+    // either an indented code block or a nested list and this reader cannot tell which, so a heading
+    // reachable through it is refused rather than guessed at.
+    if (/^ {4,}[ \t>*+\-\d.)]*#{1,6}[ \t]/.test(line)) {
+      report("an indented line that may be a heading inside a nested list");
+    }
     if (heading !== null && inside === null) {
       // A padded code span is checked on the RAW heading, before stripping makes it invisible.
       if (hasPaddedCodeSpan(heading[1])) {
         report(
           "a code span CommonMark trims, which this reader slugs with the padding still on",
+        );
+      }
+      // A span's content is literal, so it gets the in-span list; everything else gets the
+      // markdown-aware one. Checking only outside spans left `` `m²` `` — the very character the
+      // permit-list exists for — passing, and `spec/` headings are mostly code spans.
+      const offendingInSpan = codeSpans(heading[1])
+        .flatMap(({ content: span }) => [...span])
+        .find((character) => !CODE_SPAN_PERMITTED.test(character));
+      if (offendingInSpan !== undefined) {
+        report(
+          "a code-span character this reader cannot prove it slugs the way GitHub does " +
+            `(${JSON.stringify(offendingInSpan)})`,
         );
       }
       const bare = stripCodeSpans(heading[1]);
