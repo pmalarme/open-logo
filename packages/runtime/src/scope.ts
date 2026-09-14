@@ -46,9 +46,12 @@
  * The semantic checker must restate these rules lexically rather than reuse them — `@openlogo/parser`
  * cannot depend on `@openlogo/runtime` (the dependency runs the other way), and the checker answers a
  * different question anyway: it reports a name only when **no** execution order could make it
- * visible, where this module answers "what is visible *now*". The two therefore agree exactly within
- * one scope's straight-line statement list and diverge only where the spec says they may
- * (`spec/execution-model.md:416-424`). Keep them in step: this module's `findVisibleFrame` and the
+ * visible, where this module answers "what is visible *now*". The two therefore agree exactly on
+ * **visibility** within one scope's straight-line statement list — which is all the checker
+ * resolves — and diverge only where the spec says they may (`spec/execution-model.md:416-424`).
+ * Visibility is not the whole of a successful read here: {@link UNBOUND} makes a name visible while
+ * it holds no value, so a bare `local`'s read fails in this module while the checker is correctly
+ * silent (issue #1173). Keep them in step: this module's `findVisibleFrame` and the
  * checker's scope walk are two encodings of the same four bullet points above, and
  * `checker-runtime-agreement.test.mjs` in this package is what holds them there — it runs `check()`
  * and `execute()` over one corpus and asserts they report the same code and params wherever the spec

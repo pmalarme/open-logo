@@ -555,8 +555,12 @@ test("assigning an undeclared name always declares it — a later read is never 
 // the spec grants forward references only to `define`/`struct` (`spec/execution-model.md:83`),
 // **never to variables**."* The test that used to sit here pinned that self-declared deviation, not
 // a spec guarantee. `spec/execution-model.md:416-419` now requires the opposite — the checker
-// "MUST resolve them lexically and conservatively", and "within one scope's straight-line statement
-// list the two agree exactly" — so a read the evaluator would fail on is reported.
+// "MUST resolve them lexically and conservatively", and within one scope's straight-line statement
+// list the two "agree exactly on **visibility**, which is all the checker resolves" — so a read of
+// a name that is not yet visible is reported. The narrowing to *visibility* does not weaken this
+// test's warrant: `:later` is genuinely not visible at this read, and `print :later` / `:later = 1`
+// raises `ol-undefined-var` from **both** stages (measured), so the expectation rests on the
+// visibility rule alone rather than on the broader wording that sentence used to carry.
 test("a read before the statement that binds the name in the SAME scope is reported (spec/execution-model.md:398-399,416-419)", () => {
   const findings = checkSource("print :later\n:later = 1\n").filter(
     isUndefinedVar,
