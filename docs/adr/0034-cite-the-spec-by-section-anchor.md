@@ -62,10 +62,12 @@ already thinking about.
    ordinary edit — text inserted, deleted or reflowed above and around it — that invalidates a line
    number. It does not survive renaming or removing that heading, nor a duplicate heading inserted
    ahead of it, which takes the plain slug and pushes the cited section onto a suffixed one. Those
-   are the breakages this form trades for, and they differ in kind: once #1181 lands, a rename or a
-   removal is **loud**, because the cited slug stops existing — while the duplicate case stays
-   **silent**, since both slugs still resolve and only a reader can tell that the anchor now lands
-   on the wrong section. That residual belongs to the wrong-passage class below, undiminished.
+   are the breakages this form trades for, and they differ in kind. Once #1181 lands, a rename or a
+   removal is **loud whenever it leaves no heading answering to the cited slug**. Where duplicate
+   headings are in play the slug is instead *inherited* — by one inserted ahead of the cited
+   section, or by a later duplicate when an earlier one is renamed or removed — and the citation
+   goes on resolving while landing somewhere else. **Slug reassignment is therefore silent**, and
+   belongs to the wrong-passage class below, undiminished.
 2. **A line number is permitted only where line precision is genuinely required** — pinning one
    production, one table row, one sentence — **and then it carries the anchor too**, so the durable
    half survives the next spec edit and re-pointing the line never loses the reference. A bare line
@@ -95,8 +97,9 @@ Slice #1181 of this saga adds anchor resolution to `npm run spec-citations`: it 
 of the file an anchor names and checks that one of them matches. **That check does not exist yet** —
 until it lands, an anchor is enumerated as a mention and never resolved, and the gate's printed
 coverage statement says so. When it lands, it will answer exactly one question: **does this anchor
-name a real heading?** A misspelled or renamed heading then fails loudly, naming file, anchor and
-citing site, instead of passing unseen.
+name a real heading?** A misspelled heading, or a renamed one that leaves the slug unclaimed, then
+fails loudly, naming file, anchor and citing site, instead of passing unseen. A slug another heading
+has taken over resolves, and says nothing.
 
 It answers nothing else — **it proves the heading exists, and nothing more.** The wrong-passage and
 misstating-prose modes of #934 survive an anchor exactly as they survive a line number: a resolving
@@ -132,12 +135,13 @@ commit that offence.
   corpus converts; it does not vanish at once, and a line-precise citation still has to be
   re-pointed when the text above it moves. What goes away with each conversion is both the busywork
   and the defect source the busywork carries.
-- **Once #1181 lands, renaming or removing a heading breaks citations loudly.** That cost is real
-  and it is the trade being made: it moves the breakage from *every* insertion (silent) to *renames
-  and removals* (noisy, because the cited slug stops existing). Renaming a section in `spec/`
-  becomes a visible event with a bounded fix, where the gate names every citing site. A **duplicate
-  heading inserted ahead of a cited one** is the exception and stays silent — both slugs resolve, so
-  resolution cannot see it; it is the wrong-passage class, not a case this decision closes.
+- **Once #1181 lands, renaming or removing a heading breaks citations loudly** — when it leaves the
+  cited slug unclaimed. That cost is real and it is the trade being made: it moves the breakage from
+  *every* insertion (silent) to *renames and removals* (noisy). Renaming a section in `spec/`
+  becomes a visible event with a bounded fix, where the gate names every citing site. **Duplicate
+  headings are the exception, and they stay silent**: whenever another heading inherits the cited
+  slug — one inserted ahead of the section, or a later duplicate promoted when an earlier one goes —
+  resolution still succeeds. That is the wrong-passage class, not a case this decision closes.
 - **The corpus stays mixed for a long time, on purpose.** Both forms are accepted; neither is a
   defect. A green run does not mean the tree has converted, and the line-form count the gate already
   prints — recounted by #1181, ratcheted by #1183 — is the honest measure of where the migration
