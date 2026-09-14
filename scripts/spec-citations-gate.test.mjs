@@ -16,7 +16,13 @@
 
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import {
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, test } from "node:test";
@@ -27,11 +33,16 @@ import {
   SPEC_DIRECTORY,
   STATUS_CLAIM_PHRASES,
   auditRunQuotations,
+  closestHeadingSlug,
   collectCitations,
   collectStatusClaims,
+  documentHeadings,
+  editDistance,
   expandCommaTail,
   flattenProseRun,
+  formatAnchor,
   formatCitation,
+  headingSlug,
   isProseLine,
   lineLookup,
   listCitationFiles,
@@ -41,6 +52,8 @@ import {
   proseRuns,
   quotationIsPresent,
   readTextFile,
+  rejoinedFragment,
+  resolveAnchor,
   resolveCitation,
   runSpecCitationsGate,
   siteFingerprint,
@@ -165,7 +178,7 @@ test("expandCommaTail enumerates the form neither an anchor nor a bare reference
   ]);
 });
 
-test("collectCitations enumerates anchors, comma tails and bare references together", () => {
+test("collectCitations enumerates explicit citations, comma tails and bare references together", () => {
   const text = [
     "// see contract/grammar.md:4-6,9 and also :5 for the postfix rule",
     "// and contract/other.md then :7 belongs to that one",
@@ -176,7 +189,7 @@ test("collectCitations enumerates anchors, comma tails and bare references toget
       (citation) => `${citation.file}:${citation.start}:${citation.form}`,
     ),
     [
-      "grammar.md:4:anchor",
+      "grammar.md:4:explicit",
       "grammar.md:9:comma-tail",
       "grammar.md:5:context-reference",
       "other.md:7:context-reference",
@@ -469,9 +482,14 @@ test("a tree of correct citations passes, and the report states what it does not
   assert.equal(result.counts.failed, 0);
   assert.equal(result.counts.quotations, 1);
   const summary = result.lines.join("\n");
-  assert.match(summary, /does NOT check/);
+  assert.match(summary, /does NOT prove the section supports the claim/);
   assert.match(summary, /wrong-passage and misstating-prose modes/);
-  assert.match(summary, /section anchor .* not checked/i);
+  // The blind-spot sentence this replaced claimed anchors "pass unseen". Issue #1181 resolves them,
+  // so the statement must no longer say they are unchecked — a coverage statement that understates
+  // the gate is as wrong as one that overstates it.
+  assert.match(summary, /names a heading that exists in the file it cites/);
+  assert.doesNotMatch(summary, /passes unseen/);
+  assert.doesNotMatch(summary, /not checked either/);
 });
 
 test("an unresolvable citation fails, naming the citing site, and suggests a manifest entry", () => {
@@ -780,7 +798,419 @@ test("without a specRoot override the gate reads the real specification director
   assert.equal(result.counts.citations, 1);
 });
 
-// --- MUTATION: every way this gate is supposed to go red, proved to actually go red -------------
+// --- Section anchors (issue #1181) ---------------------------------------------------------------
+
+test("headingSlug lowercases, drops punctuation, and turns spaces into hyphens", () => {
+  assert.equal(
+    headingSlug("Profile and source contract"),
+    "profile-and-source-contract",
+  );
+  assert.equal(
+    headingSlug("  Lexical form and encoding  "),
+    "lexical-form-and-encoding",
+  );
+  assert.equal(
+    headingSlug("Keywords, primitives, and built-in names"),
+    "keywords-primitives-and-built-in-names",
+  );
+  assert.equal(headingSlug("Tutor (AI)"), "tutor-ai");
+  assert.equal(headingSlug("`<place> = <value>`"), "place--value");
+  assert.equal(headingSlug("`is_a?`"), "is_a");
+});
+
+test("headingSlug KEEPS an underscore — `set_xy` is reachable at #set_xy, not #set-xy", () => {
+  // A live-corpus heading. `_` is one of the two characters GitHub's rule keeps and a reader would
+  // expect it to normalise away; anyone "tidying" this into a hyphen breaks every anchor naming an
+  // underscored command, of which the commands document has many.
+  assert.equal(headingSlug("`set_xy`"), "set_xy");
+  assert.equal(headingSlug("`clear_screen`"), "clear_screen");
+  assert.equal(headingSlug("Names use `snake_case`"), "names-use-snake_case");
+});
+
+test("headingSlug NEVER collapses a run of hyphens — `Turtle & Rendering` is #turtle--rendering", () => {
+  // Two live-corpus headings, both from the conformance document, and both with a DOUBLE hyphen: the
+  // `&` is deleted and the spaces on either side of it each become a hyphen. Collapsing the run — the
+  // obvious "clean-up" — silently breaks the 3 anchors in this tree that name these two sections.
+  assert.equal(headingSlug("Turtle & Rendering"), "turtle--rendering");
+  assert.equal(headingSlug("Interaction & Events"), "interaction--events");
+});
+
+test("headingSlug slugs a heading's rendered text, so an inline link contributes only its label", () => {
+  assert.equal(headingSlug("See [the grammar](grammar.md)"), "see-the-grammar");
+  assert.equal(headingSlug("See [the grammar][grammar]"), "see-the-grammar");
+});
+
+test("documentHeadings ignores a `#` line inside a fenced block", () => {
+  // Load-bearing, not tidiness: this corpus writes OpenLogo comments inside fences, so `# primary
+  // line comment` in the grammar document would otherwise be offered as a heading — and an anchor
+  // naming it would resolve HERE while failing on GitHub, which is a false pass.
+  const headings = documentHeadings([
+    "# Grammar",
+    "",
+    "```logo",
+    "# primary line comment",
+    "```",
+    "",
+    "~~~text",
+    "## not a heading either",
+    "~~~",
+    "## Real heading",
+  ]);
+  assert.deepEqual(
+    headings.map(({ slug }) => slug),
+    ["grammar", "real-heading"],
+  );
+});
+
+test("documentHeadings closes a fence only on its own delimiter with nothing after it", () => {
+  const headings = documentHeadings([
+    "```ebnf",
+    "~~~",
+    "``` still inside, because this one carries an info string",
+    "## hidden",
+    "```",
+    "## visible",
+  ]);
+  assert.deepEqual(
+    headings.map(({ slug }) => slug),
+    ["visible"],
+  );
+});
+
+test("documentHeadings suffixes a repeated slug -1, -2 in document order", () => {
+  // spec/ has no duplicate headings today, so this rule has no live example to lean on. That is
+  // exactly why it is pinned on a fixture: an unpinned rule is one nobody notices breaking.
+  const headings = documentHeadings([
+    "## Notes",
+    "### Notes",
+    "## notes!",
+    "## Other",
+  ]);
+  assert.deepEqual(
+    headings.map(({ slug }) => slug),
+    ["notes", "notes-1", "notes-2", "other"],
+  );
+  assert.deepEqual(
+    headings.map(({ line }) => line),
+    [1, 2, 3, 4],
+  );
+});
+
+test("documentHeadings follows CommonMark on what is a heading at all", () => {
+  const headings = documentHeadings([
+    "   ### Three spaces is still a heading",
+    "    #### Four spaces is an indented code block",
+    "#NoSpaceAfterHash",
+    "####### Seven hashes is not a heading",
+    "## Closing sequence ##",
+    "## Carriage return survives a CRLF checkout\r",
+  ]);
+  assert.deepEqual(
+    headings.map(({ slug }) => slug),
+    [
+      "three-spaces-is-still-a-heading",
+      "closing-sequence",
+      "carriage-return-survives-a-crlf-checkout",
+    ],
+  );
+});
+
+test("editDistance and closestHeadingSlug find the nearest heading, or none at all", () => {
+  assert.equal(editDistance("", "abc"), 3);
+  assert.equal(editDistance("abc", ""), 3);
+  assert.equal(editDistance("abc", "abc"), 0);
+  assert.equal(editDistance("kitten", "sitting"), 3);
+  assert.equal(closestHeadingSlug("anything", []), null);
+  assert.deepEqual(
+    closestHeadingSlug("heritag", [{ slug: "sprites" }, { slug: "heritage" }]),
+    { slug: "heritage", distance: 1 },
+  );
+});
+
+test("resolveAnchor accepts a real heading and describes every way one is not", () => {
+  const headings = [{ slug: "heritage" }, { slug: "optional-profiles" }];
+  const anchor = (fragment) => ({
+    specDirectory: CONTRACT,
+    file: "conformance.md",
+    fragment,
+  });
+  assert.equal(resolveAnchor(anchor("heritage"), headings), null);
+  assert.deepEqual(resolveAnchor(anchor("heritage"), null), {
+    status: "missing-file",
+    detail: `${CONTRACT}/conformance.md does not exist`,
+  });
+
+  const near = resolveAnchor(anchor("heritag"), headings);
+  assert.equal(near.status, "missing-heading");
+  assert.match(near.detail, /did you mean "#heritage"\?/);
+
+  // A far miss is NOT dressed up as a suggestion. The nearest slug in a document is always some
+  // string, and naming it would invite a "fix" that resolves at the wrong passage — the gate
+  // manufacturing the defect it exists to catch.
+  const far = resolveAnchor(anchor("collections-"), headings);
+  assert.equal(far.status, "missing-heading");
+  assert.doesNotMatch(far.detail, /did you mean/);
+  assert.match(
+    far.detail,
+    /none of its 2 headings is close enough to guess at/,
+  );
+
+  const barren = resolveAnchor(anchor("anything"), []);
+  assert.match(barren.detail, /no headings at all/);
+});
+
+test("formatAnchor renders the citable form back", () => {
+  assert.equal(
+    formatAnchor({ specDirectory: "s", file: "g.md", fragment: "a-heading" }),
+    "s/g.md#a-heading",
+  );
+});
+
+test("rejoinedFragment identifies a slug hard-wrapped across a line break, and nothing else", () => {
+  const headings = [{ slug: "collections-records-and-comprehensions" }];
+  assert.equal(
+    rejoinedFragment(
+      "collections-",
+      "records-and-comprehensions`), not a lambda",
+      headings,
+    ),
+    "collections-records-and-comprehensions",
+  );
+  assert.equal(
+    rejoinedFragment(
+      "collections-",
+      " * records-and-comprehensions`)",
+      headings,
+    ),
+    "collections-records-and-comprehensions",
+  );
+  // Only an EXACT match is reported, so this is a finding rather than a guess.
+  assert.equal(
+    rejoinedFragment("collections-", "something else entirely", headings),
+    null,
+  );
+  assert.equal(rejoinedFragment("collections-", "", headings), null);
+  assert.equal(rejoinedFragment("collections-", undefined, headings), null);
+});
+
+test("collectCitations returns section anchors beside citations, from one pass", () => {
+  const text = [
+    "// contract/conformance.md#heritage names a section, contract/grammar.md:4 a line.",
+    "// A trailing colon is prose, not part of the slug: contract/conformance.md#sprites:",
+  ].join("\n");
+  const { citations, anchors } = collectCitations("a.ts", text, CONTRACT);
+  assert.deepEqual(
+    anchors.map((anchor) => `${anchor.line}:${formatAnchor(anchor)}`),
+    [
+      `1:${CONTRACT}/conformance.md#heritage`,
+      `2:${CONTRACT}/conformance.md#sprites`,
+    ],
+  );
+  // The line form is untouched: an anchored mention still yields exactly the citations it did.
+  assert.deepEqual(
+    citations.map(
+      (citation) => `${citation.file}:${citation.start}:${citation.form}`,
+    ),
+    ["grammar.md:4:explicit"],
+  );
+});
+
+/** A document with headings worth citing, plus a `#` line hidden inside a fence. */
+const SECTIONS = [
+  "# Conformance", // 1
+  "", // 2
+  "## Heritage", // 3
+  "", // 4
+  "```logo", // 5
+  "# Sprites", // 6
+  "```", // 7
+  "", // 8
+  "## Turtle & Rendering", // 9
+  "", // 10
+  "Prose.", // 11
+].join("\n");
+
+/** Write the sections fixture and return its citable name. */
+function writeSections() {
+  write(`${CONTRACT}/conformance.md`, SECTIONS);
+  return `${CONTRACT}/conformance.md`;
+}
+
+test("an anchor naming a real heading passes and is counted on its own counter", () => {
+  writeSections();
+  write("ok.md", `See ${CONTRACT}/conformance.md#heritage for the profile.\n`);
+  write("also.md", `And ${CONTRACT}/conformance.md#turtle--rendering.\n`);
+  const result = runOverTemp();
+  assert.equal(result.ok, true);
+  assert.equal(result.counts.sectionAnchors, 2);
+  // `explicit` is the line form and must not move; a file carrying only an anchor still counts as a
+  // citing file, which it did not before — nothing else in the tally changes.
+  assert.equal(result.counts.citations, 0);
+  assert.equal(result.counts.explicit, 0);
+  assert.equal(result.counts.files, 2);
+  assert.match(
+    result.lines.join("\n"),
+    /2 section anchor\(s\), 0 line fragment\(s\)/,
+  );
+});
+
+test("an anchor naming a heading that does not exist FAILS, naming file, anchor and site", () => {
+  writeSections();
+  write(
+    "bad.md",
+    `See ${CONTRACT}/conformance.md#educational for the profile.\n`,
+  );
+  const result = runOverTemp();
+  assert.equal(result.ok, false);
+  const report = result.lines.join("\n");
+  assert.match(
+    report,
+    /bad\.md:1: contract\/conformance\.md#educational does not resolve/,
+  );
+  assert.match(report, /no heading in conformance\.md slugs to "educational"/);
+  assert.match(report, /add to .*spec-citations-exceptions\.json/);
+});
+
+test("a `#` line inside a fenced block is not a heading an anchor can reach", () => {
+  // The false-pass this guards: `# Sprites` is an OpenLogo comment in a code sample, so GitHub
+  // renders no heading and #sprites resolves nowhere.
+  writeSections();
+  write("bad.md", `See ${CONTRACT}/conformance.md#sprites.\n`);
+  assert.equal(runOverTemp().ok, false);
+});
+
+test("an anchor naming a document that does not exist fails, and says so", () => {
+  writeSections();
+  write("gone.md", `See ${CONTRACT}/absent.md#heritage.\n`);
+  const result = runOverTemp();
+  assert.equal(result.ok, false);
+  assert.match(result.lines.join("\n"), /contract\/absent\.md does not exist/);
+});
+
+test("duplicate headings are both reachable — #dup and #dup-1 each resolve", () => {
+  write(
+    `${CONTRACT}/dupes.md`,
+    ["## Notes", "", "text", "", "## Notes", "", "more"].join("\n"),
+  );
+  write(
+    "ok.md",
+    `Both ${CONTRACT}/dupes.md#notes and ${CONTRACT}/dupes.md#notes-1 resolve.\n`,
+  );
+  assert.equal(runOverTemp().ok, true);
+
+  write("bad.md", `But ${CONTRACT}/dupes.md#notes-2 does not.\n`);
+  assert.equal(runOverTemp().ok, false);
+});
+
+test("a #L line fragment is resolved as the line claim it is, not hunted for among headings", () => {
+  writeSections();
+  write(
+    "ok.md",
+    `See ${CONTRACT}/conformance.md#L9 and ${CONTRACT}/conformance.md#L3-L9.\n`,
+  );
+  const passing = runOverTemp();
+  assert.equal(passing.ok, true);
+  assert.equal(passing.counts.lineFragments, 2);
+  assert.equal(passing.counts.sectionAnchors, 0);
+
+  write("bad.md", `See ${CONTRACT}/conformance.md#L9999.\n`);
+  const failing = runOverTemp();
+  assert.equal(failing.ok, false);
+  assert.match(
+    failing.lines.join("\n"),
+    /#L9999 does not resolve — conformance\.md has 11 line\(s\)/,
+  );
+});
+
+test("uppercase L is what separates a line fragment from a heading, and it is decidable", () => {
+  // A heading slug is lowercased by construction, so it can never begin with an uppercase `L`
+  // followed by digits. That is the whole separability argument, and here is the case that would
+  // break if it were ever weakened: a document whose heading really is "L9".
+  write(`${CONTRACT}/liney.md`, ["## L9", "", "text"].join("\n"));
+  assert.deepEqual(
+    documentHeadings(["## L9"]).map(({ slug }) => slug),
+    ["l9"],
+  );
+  write("ok.md", `The heading is ${CONTRACT}/liney.md#l9.\n`);
+  assert.equal(runOverTemp().ok, true);
+
+  // #L9 means line 9, and this document has three lines — so it fails as a line claim, which is
+  // exactly what it is, rather than being reported as a heading that does not exist.
+  write("ok.md", `The line is ${CONTRACT}/liney.md#L9.\n`);
+  const result = runOverTemp();
+  assert.equal(result.ok, false);
+  assert.match(result.lines.join("\n"), /liney\.md has 3 line\(s\)/);
+  assert.equal(result.counts.sectionAnchors, 0);
+  assert.equal(result.counts.lineFragments, 1);
+});
+
+test("an anchor broken by a line break says so, instead of reading as a misspelling", () => {
+  // The live instance this comes from: a design note wrapped a long slug across a line break, so the
+  // gate saw `#collections-`. Named as a wrap, the failure explains itself; left as a near-miss it
+  // sends the author hunting for a heading that was never wrong.
+  write(
+    `${CONTRACT}/grammar.md`,
+    [
+      "# Grammar",
+      "",
+      "## Collections, records, and comprehensions",
+      "",
+      "text",
+    ].join("\n"),
+  );
+  write(
+    "note.md",
+    [
+      `are recognized by their leading keyword (\`${CONTRACT}/grammar.md#collections-`,
+      "records-and-comprehensions`), not a lambda argument.",
+    ].join("\n"),
+  );
+  const result = runOverTemp();
+  assert.equal(result.ok, false);
+  const report = result.lines.join("\n");
+  assert.match(report, /hard-wrapped across a line break/);
+  assert.match(report, /reads "#collections-records-and-comprehensions"/);
+});
+
+test("an anchor finding is excused by a missing-anchor entry, and only by that kind", () => {
+  writeSections();
+  const context = `See ${CONTRACT}/conformance.md#educational for the profile.`;
+  write("bad.md", `${context}\n`);
+  const why = "Waiting on the section being written.";
+  const issue = "#1181";
+  const entry = {
+    subject: `${CONTRACT}/conformance.md#educational`,
+    observed: "missing-heading",
+    kind: "missing-anchor",
+    issue,
+    why,
+    fingerprint: siteFingerprint(
+      context,
+      `${CONTRACT}/conformance.md#educational`,
+      why,
+      issue,
+    ),
+  };
+  const excused = runOverTemp({ [keyFor("bad.md")]: [entry] });
+  assert.equal(excused.ok, true);
+  assert.equal(excused.counts.excused, 1);
+  assert.match(
+    excused.lines.join("\n"),
+    /UNRESOLVED .*#educational does not resolve/,
+  );
+
+  // An entry filed as the wrong family fails rather than excusing: the manifest's own totals are
+  // read as an audit signal, so a misfiled entry corrupts them.
+  const misfiled = runOverTemp({
+    [keyFor("bad.md")]: [{ ...entry, kind: "stale-citation" }],
+  });
+  assert.equal(misfiled.ok, false);
+  assert.match(
+    misfiled.lines.join("\n"),
+    /is filed as "stale-citation" .* but this is a anchor one/s,
+  );
+  assert.equal(EXCEPTION_KINDS["missing-anchor"], "anchor");
+});
 
 test("MUTATION mode 1: a citation moved past end-of-file fails; restoring it passes", () => {
   writeGrammar();
@@ -853,6 +1283,67 @@ test("MUTATION: a quotation whose wording drifts from the production fails", () 
     '// contract/grammar.md:6, `selector ::= "[" term "]"`, is the form.\n',
   );
   assert.equal(runOverTemp().ok, false);
+});
+
+test("MUTATION: a real heading from the LIVE corpus resolves; one corrupted character goes red", () => {
+  // The headline proof for issue #1181, and the discipline #934 records as most often skipped: a
+  // gate that passes on deliberately broken input asserts nothing.
+  //
+  // The citing fixture still names `contract/`, but `specRoot` points the READER at the real
+  // specification directory — so the heading being cited is a live one, read from the file that
+  // ships, while this test file (which the gate scans in CI) carries no real citation of its own.
+  // The slug is computed at run time for the same reason: a literal would be one.
+  const document = "conformance.md";
+  const headings = documentHeadings(
+    splitLines(readFileSync(join(SPEC_DIRECTORY, document), "utf8")),
+  );
+  const known = headings
+    .map(({ slug }) => slug)
+    .filter((slug) => /^[a-z]{8,}$/.test(slug))
+    .at(0);
+  assert.ok(known, `${document} must offer a single-word heading to cite`);
+
+  const runAgainstRealSpec = () =>
+    runSpecCitationsGate({
+      roots: [TEMP_DIR],
+      specDirectory: CONTRACT,
+      specRoot: SPEC_DIRECTORY,
+      exceptions: {},
+    });
+  const cite = (fragment) =>
+    write("site.md", `The profile is ${CONTRACT}/${document}#${fragment}.\n`);
+
+  cite(known);
+  const before = runAgainstRealSpec();
+  assert.equal(before.ok, true, "the known-good anchor must pass first");
+  assert.equal(before.counts.sectionAnchors, 1);
+
+  // One character, advanced to the next letter, so the result is a plausible typo rather than an
+  // obvious wreck — the shape a renamed or mistyped heading actually takes.
+  const nextLetter = String.fromCharCode(
+    ((known.at(-1).charCodeAt(0) - 97 + 1) % 26) + 97,
+  );
+  const corrupted = `${known.slice(0, -1)}${nextLetter}`;
+  assert.ok(
+    !headings.some(({ slug }) => slug === corrupted),
+    "the corruption must not collide with another real heading",
+  );
+  cite(corrupted);
+  const mutated = runAgainstRealSpec();
+  assert.equal(mutated.ok, false, "one corrupted character must go red");
+  assert.match(mutated.lines.join("\n"), /does not resolve/);
+  // A near miss is described and STILL fails. Suggesting is not accepting.
+  assert.match(
+    mutated.lines.join("\n"),
+    new RegExp(`did you mean "#${known}"`),
+  );
+
+  cite(known);
+  assert.equal(
+    runAgainstRealSpec().ok,
+    true,
+    "restoring must return the gate to green",
+  );
 });
 
 // --- CLI shell (subprocess; outside the loaded-module coverage set per ADR-0009) ----------------

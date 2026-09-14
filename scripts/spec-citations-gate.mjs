@@ -19,7 +19,9 @@
  * detectable without understanding the prose:
  *
  * 1. **It does not resolve** — the file is missing, the line is past end-of-file, the range is
- *    inverted, or the cited region holds no text at all. **COVERED** ({@link resolveCitation}).
+ *    inverted, or the cited region holds no text at all. **COVERED** ({@link resolveCitation}); a
+ *    section anchor is covered by {@link resolveAnchor}, which is the same claim in the heading
+ *    dimension: the heading it names must exist.
  * 2. **It resolves, but points at the wrong passage, and the prose paraphrases rather than quotes.**
  *    **NOT COVERED**, except in the one shape that is mechanically checkable: a citing site that
  *    **quotes an EBNF production** must cite a region containing it ({@link collectQuotations}).
@@ -81,12 +83,47 @@
  * different issue. No gate can decide whether a rationale is *true*; this one guarantees it cannot
  * drift away from the text it describes unnoticed.
  *
- * ## Known blind spots, stated rather than hidden
+ * ## Section anchors, and the slug rule written down
  *
- * A **section anchor** (`<file>.md#a-heading`) carries no line number, so it is enumerated as a
- * mention but never resolved: a renamed or misspelled heading passes unseen. That form is the one
- * issue #934 *recommends* adopting precisely because it cannot drift when lines shift, so checking it
- * is the obvious next increment. The printed coverage statement says so on every run.
+ * A **section anchor** (`<file>.md#a-heading`) names a heading rather than a line, so it does not
+ * drift when text is inserted above it — which is why saga #1180 makes it the preferred form. It was
+ * previously enumerated as a mention and never resolved, so a renamed or misspelled heading passed
+ * unseen; an unchecked *preferred* form is worse than the fragile one it replaces, so issue #1181
+ * resolves it: {@link resolveAnchor} requires some heading in the cited file to slugify to the
+ * fragment, and there is **no automatic tolerance** — a near miss is reported as a did-you-mean
+ * suggestion and **still fails**, because a suggestion the gate acted on would be the same
+ * indistinguishable-from-the-defect tolerance #893's reviewers deleted.
+ *
+ * **The slug rule is a choice, not an obvious fact, so it is stated here and pinned by tests.** It
+ * reimplements GitHub's (`github-slugger`), which is what actually resolves these fragments when a
+ * reader clicks one:
+ *
+ * 1. Unwrap inline links — `[text](target)` and `[text][ref]` slug as `text`, because GitHub slugs a
+ *    heading's *rendered* text. Other inline markup needs no unwrapping: backticks, `*`, `&` and
+ *    `(` `)` are punctuation and vanish at step 3 anyway, leaving exactly what a reader sees.
+ * 2. Lowercase, then trim.
+ * 3. Delete every character that is not a letter, a digit, a space, `-`, or `_`. **`_` survives**, so
+ *    `` `set_xy` `` slugs to `set_xy`; `&` does not, so `Turtle & Rendering` slugs to
+ *    `turtle--rendering` — **runs of hyphens are never collapsed**.
+ * 4. Replace each space with `-`.
+ * 5. Within one document, a slug already taken is suffixed `-1`, `-2`, … in heading order. `spec/`
+ *    has no duplicate headings today, so {@link documentHeadings}'s tests pin this on a fixture
+ *    rather than on the corpus — an unpinned rule is one nobody notices breaking.
+ *
+ * Headings are read with {@link documentHeadings}, which is **fence-aware**: `spec/` holds lines that
+ * begin with `#` inside fenced blocks — OpenLogo comments such as `# primary line comment` in
+ * `spec/grammar.md` — and counting those as headings would make anchors resolve that GitHub cannot.
+ *
+ * Two limits, stated rather than left to be discovered. The fragment is matched as ASCII
+ * (`[A-Za-z0-9_-]`), and the rule above is a reimplementation rather than a rendering, so an exotic
+ * heading could slug differently here than on GitHub; both diverge in the **loud** direction, where a
+ * correct anchor fails to resolve rather than a wrong one quietly passing. And a fragment of the form
+ * `#L30` or `#L28-L84` is GitHub's **line fragment**, not a heading: it names lines, so it is
+ * resolved against the file's length by {@link resolveCitation} like any other line claim. A heading
+ * slug is lowercased at step 2 and so can never begin with an uppercase `L`, which is what makes the
+ * two forms distinguishable without guessing.
+ *
+ * ## Known blind spots, stated rather than hidden
  *
  * The scanned set is the **tracked** set ({@link listCitationFiles} shells out to `git ls-files`), and
  * that has a consequence worth stating as a general rule, because it is not specific to this gate:
@@ -183,6 +220,8 @@ export const STATUS_CLAIM_PHRASES = Object.freeze([
 export const EXCEPTION_KINDS = Object.freeze({
   /** The citation does not resolve: missing file, past EOF, inverted, or a region with no text. */
   "stale-citation": "resolution",
+  /** A section anchor names a heading (or a file) that does not exist. */
+  "missing-anchor": "anchor",
   /** The citing site quotes an EBNF production the cited region does not contain. */
   "misquoted-production": "quotation",
   /** A bare `:N` no spec-file mention precedes, which is therefore not attributable. */
@@ -292,12 +331,197 @@ export function isProseLine(path, line) {
   return true;
 }
 
-/** Build the regex matching `<specDirectory>/<file>.md` with an optional line spec. */
+/**
+ * Build the regex matching `<specDirectory>/<file>.md` with an optional line spec and an optional
+ * `#fragment`.
+ *
+ * The fragment is captured as group 5 — appended rather than inserted — so the line-spec groups keep
+ * the numbers they had before issue #1181 and every existing reader of this pattern is unaffected.
+ */
 function mentionPattern(specDirectory) {
   return new RegExp(
-    `${specDirectory.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\/([A-Za-z0-9._-]+\\.md)(?::(\\d+)(?:-(\\d+))?((?:,\\d+(?:-\\d+)?)+)?)?`,
+    `${specDirectory.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\/([A-Za-z0-9._-]+\\.md)(?::(\\d+)(?:-(\\d+))?((?:,\\d+(?:-\\d+)?)+)?)?(?:#([A-Za-z0-9_-]+))?`,
     "g",
   );
+}
+
+/**
+ * GitHub's **line fragment** (`#L30`, `#L28-L84`), which names lines rather than a heading.
+ *
+ * A heading slug is lowercased ({@link headingSlug} step 2), so it can never begin with an uppercase
+ * `L` followed by digits. That is what lets the two fragment forms be told apart structurally instead
+ * of guessed at, and it is why this pattern is anchored and case-sensitive.
+ */
+const LINE_FRAGMENT = /^L(\d+)(?:-L(\d+))?$/;
+
+/**
+ * The fragment one markdown heading is reachable at, by GitHub's slug rule — reimplemented here, and
+ * spelled out step by step in the module note because it is a *choice* rather than an obvious fact.
+ *
+ * Duplicate suffixing is **not** applied here: it is a property of a heading's position in a
+ * document, not of its text, so {@link documentHeadings} owns it.
+ */
+export function headingSlug(heading) {
+  return heading
+    .replace(/\[([^\]]*)\]\([^)]*\)/g, "$1")
+    .replace(/\[([^\]]*)\]\[[^\]]*\]/g, "$1")
+    .toLowerCase()
+    .trim()
+    .replace(/[^\p{L}\p{N} _-]/gu, "")
+    .replace(/ /g, "-");
+}
+
+/**
+ * Every ATX heading in a markdown document, in order, with the fragment each is reachable at.
+ *
+ * **Fenced blocks are skipped**, which is load-bearing rather than tidy: this corpus writes OpenLogo
+ * comments inside fences, so `# primary line comment` would otherwise be offered as a heading and an
+ * anchor naming it would resolve here while failing on GitHub — a false pass, the one outcome a gate
+ * must never produce. A fence closes only on its own delimiter character with nothing after it, so a
+ * nested opener of the other kind cannot end it early.
+ *
+ * Indentation follows CommonMark: four spaces makes an indented code block, so both the fence and the
+ * heading patterns admit at most three.
+ *
+ * @returns `[{ line, heading, slug }]`, `slug` carrying the `-1`/`-2` duplicate suffix where one is
+ *   needed.
+ */
+export function documentHeadings(lines) {
+  const headings = [];
+  const taken = new Map();
+  let fence = null;
+  for (const [index, raw] of lines.entries()) {
+    const line = raw.replace(/\r$/, "");
+    const delimiter = /^ {0,3}(`{3,}|~{3,})(.*)$/.exec(line);
+    if (delimiter !== null) {
+      if (fence === null) {
+        fence = delimiter[1][0];
+      } else if (delimiter[1][0] === fence && delimiter[2].trim() === "") {
+        fence = null;
+      }
+      continue;
+    }
+    if (fence !== null) {
+      continue;
+    }
+    const heading = /^ {0,3}#{1,6}[ \t]+(.*)$/.exec(line);
+    if (heading === null) {
+      continue;
+    }
+    const text = heading[1].replace(/[ \t]+#+[ \t]*$/, "").trim();
+    const base = headingSlug(text);
+    const seen = taken.get(base) ?? 0;
+    taken.set(base, seen + 1);
+    headings.push({
+      line: index + 1,
+      heading: text,
+      slug: seen === 0 ? base : `${base}-${seen}`,
+    });
+  }
+  return headings;
+}
+
+/**
+ * The heading slug in `headings` closest to `fragment`, with its edit distance — for a did-you-mean.
+ *
+ * This is reported and **never acted on**. The gate fails on a near miss exactly as it fails on a
+ * wild one; a suggestion is help for the author, not evidence for the gate.
+ */
+export function closestHeadingSlug(fragment, headings) {
+  let best = null;
+  for (const { slug } of headings) {
+    const distance = editDistance(fragment, slug);
+    if (best === null || distance < best.distance) {
+      best = { slug, distance };
+    }
+  }
+  return best;
+}
+
+/** Levenshtein distance between two short strings, over a single rolling row. */
+export function editDistance(left, right) {
+  let previous = Array.from({ length: right.length + 1 }, (_, index) => index);
+  for (let row = 1; row <= left.length; row += 1) {
+    const current = [row];
+    for (let column = 1; column <= right.length; column += 1) {
+      const substitution =
+        previous[column - 1] + (left[row - 1] === right[column - 1] ? 0 : 1);
+      current.push(
+        Math.min(substitution, previous[column] + 1, current[column - 1] + 1),
+      );
+    }
+    previous = current;
+  }
+  return previous[right.length];
+}
+
+/**
+ * Resolve one section anchor against the headings of the document it names.
+ *
+ * @returns `null` when some heading slugs to the fragment, or `{ status, detail }` describing how it
+ *   does not. As everywhere else in this gate there is no third outcome: a near miss is described,
+ *   not accepted.
+ */
+export function resolveAnchor(anchor, headings) {
+  if (headings === null) {
+    return {
+      status: "missing-file",
+      detail: `${anchor.specDirectory}/${anchor.file} does not exist`,
+    };
+  }
+  if (headings.some(({ slug }) => slug === anchor.fragment)) {
+    return null;
+  }
+  const closest = closestHeadingSlug(anchor.fragment, headings);
+  // A did-you-mean is only offered for something that plausibly IS a mis-typing of the heading meant.
+  // The nearest slug in the document is always *some* string, and naming it unconditionally would
+  // dress an unrelated heading up as the fix — here `#collections-` reads as nearest to
+  // `#ebnf-notation`, which is not what the author meant by any reading. An unhelpful suggestion in a
+  // gate with no tolerance costs more than none, because acting on it produces a citation that
+  // resolves and is wrong: the wrong-passage mode, manufactured by the tool meant to catch it.
+  const near =
+    closest !== null &&
+    closest.distance <= Math.max(2, Math.floor(anchor.fragment.length / 3));
+  return {
+    status: "missing-heading",
+    detail:
+      `no heading in ${anchor.file} slugs to "${anchor.fragment}"` +
+      (closest === null
+        ? ` — it has no headings at all`
+        : near
+          ? ` — did you mean "#${closest.slug}"?`
+          : ` — and none of its ${headings.length} headings is close enough to guess at`),
+  };
+}
+
+/** Render an anchor back into the canonical `<spec-dir>/<file>.md#<fragment>` form. */
+export function formatAnchor(anchor) {
+  return `${anchor.specDirectory}/${anchor.file}#${anchor.fragment}`;
+}
+
+/**
+ * The fragment `nextLine` completes, when `fragment` is one slug **hard-wrapped across a line break**
+ * and the two halves joined back up name a real heading — otherwise `null`.
+ *
+ * This is diagnosis, never tolerance: the caller has already failed the anchor and only uses this to
+ * say *why* in a way the author can act on. A wrap is a hazard the anchor form brings with it, and it
+ * does not look like one from the failure alone — the live instance, in a design note citing
+ * `grammar.md`'s comprehension section, reads as `#collections-` and is indistinguishable from a
+ * misspelling until you see the next line. The suggestion is only offered when the rejoined fragment
+ * matches a heading **exactly**, so it is a finding rather than a guess.
+ */
+export function rejoinedFragment(fragment, nextLine, headings) {
+  if (nextLine === undefined) {
+    return null;
+  }
+  const continuation = /^(?:\/\/+|\*+|#+)?[ \t]*([A-Za-z0-9_-]+)/.exec(
+    nextLine.trim(),
+  );
+  if (continuation === null) {
+    return null;
+  }
+  const joined = `${fragment}${continuation[1]}`;
+  return headings.some(({ slug }) => slug === joined) ? joined : null;
 }
 
 /**
@@ -335,7 +559,7 @@ export function expandCommaTail(tail) {
 
 /** Which summary counter each {@link collectCitations} form increments. */
 const CITATION_FORM_COUNTS = Object.freeze({
-  anchor: "anchors",
+  explicit: "explicit",
   "comma-tail": "tails",
   "back-reference": "bare",
   "context-reference": "bare",
@@ -348,18 +572,23 @@ export function formatCitation(citation) {
 }
 
 /**
- * Enumerate every citation in one file's `text`, plus every bare `:N` that could not be attributed.
+ * Enumerate every citation in one file's `text`, every section anchor, plus every bare `:N` that
+ * could not be attributed.
  *
- * Anchors (`<spec-dir>/<file>.md:<line>`) are unambiguous. A bare `:<line>` is attributed by the two
- * rules the module note explains — back-reference first, then nearest preceding mention — and, when
- * neither applies, reported so that nothing is dropped without a trace.
+ * An **explicit** citation (`<spec-dir>/<file>.md:<line>`) is unambiguous. A bare `:<line>` is
+ * attributed by the two rules the module note explains — back-reference first, then nearest preceding
+ * mention — and, when neither applies, reported so that nothing is dropped without a trace.
  *
- * @returns `{ citations, unattributed }`.
+ * A `#fragment` is collected from the same single pass over mentions rather than by a second sweep,
+ * so the two forms can never disagree about what the file says.
+ *
+ * @returns `{ citations, anchors, unattributed }`.
  */
 export function collectCitations(path, text, specDirectory = SPEC_DIRECTORY) {
   const lines = splitLines(text);
   const lineAt = lineLookup(lines);
   const citations = [];
+  const anchors = [];
   const unattributed = [];
 
   const mentions = [];
@@ -374,15 +603,23 @@ export function collectCitations(path, text, specDirectory = SPEC_DIRECTORY) {
       stop: match[3] === undefined ? undefined : Number(match[3]),
     };
     mentions.push(mention);
+    const line = lineAt(mention.index);
+    if (match[5] !== undefined) {
+      anchors.push({
+        specDirectory,
+        file: mention.file,
+        fragment: match[5],
+        line,
+      });
+    }
     if (mention.start !== undefined) {
-      const line = lineAt(mention.index);
       citations.push({
         specDirectory,
         file: mention.file,
         start: mention.start,
         end: mention.stop,
         line,
-        form: "anchor",
+        form: "explicit",
       });
       for (const extra of expandCommaTail(match[4])) {
         citations.push({
@@ -398,7 +635,7 @@ export function collectCitations(path, text, specDirectory = SPEC_DIRECTORY) {
     match = pattern.exec(text);
   }
   if (mentions.length === 0) {
-    return { citations, unattributed };
+    return { citations, anchors, unattributed };
   }
 
   // Which file an earlier full anchor gave each exact line spec, so a bare back-reference sitting
@@ -465,7 +702,7 @@ export function collectCitations(path, text, specDirectory = SPEC_DIRECTORY) {
     bare = BARE_REFERENCE.exec(text);
   }
   citations.sort((left, right) => left.line - right.line);
-  return { citations, unattributed };
+  return { citations, anchors, unattributed };
 }
 
 /**
@@ -871,9 +1108,11 @@ export function runSpecCitationsGate({
   const counts = {
     files: 0,
     citations: 0,
-    anchors: 0,
+    explicit: 0,
     tails: 0,
     bare: 0,
+    sectionAnchors: 0,
+    lineFragments: 0,
     excused: 0,
     quotations: 0,
     statusClaims: 0,
@@ -981,6 +1220,18 @@ export function runSpecCitationsGate({
     return specCache.get(file);
   };
 
+  const headingCache = new Map();
+  const specHeadingsFor = (file) => {
+    if (!headingCache.has(file)) {
+      const specLines = specLinesFor(file);
+      headingCache.set(
+        file,
+        specLines === null ? null : documentHeadings(specLines),
+      );
+    }
+    return headingCache.get(file);
+  };
+
   const excluded = new Set(exclusions.map(toPosixPath));
   for (const file of listCitationFiles(roots)) {
     if (excluded.has(file)) {
@@ -1013,15 +1264,74 @@ export function runSpecCitationsGate({
     if (!text.includes(`${specDirectory}/`)) {
       continue;
     }
-    const { citations, unattributed } = collectCitations(
+    const { citations, anchors, unattributed } = collectCitations(
       file,
       text,
       specDirectory,
     );
-    if (citations.length === 0 && unattributed.length === 0) {
+    if (
+      citations.length === 0 &&
+      anchors.length === 0 &&
+      unattributed.length === 0
+    ) {
       continue;
     }
     counts.files += 1;
+
+    for (const anchor of anchors) {
+      const subject = formatAnchor(anchor);
+      const context = fileLines[anchor.line - 1];
+      const fragment = LINE_FRAGMENT.exec(anchor.fragment);
+      if (fragment !== null) {
+        // A line fragment names lines, so it is checked as the line claim it is rather than hunted
+        // for among the headings, where it could only ever be reported as a heading that does not
+        // exist.
+        counts.lineFragments += 1;
+        const failure = resolveCitation(
+          {
+            specDirectory,
+            file: anchor.file,
+            start: Number(fragment[1]),
+            end: fragment[2] === undefined ? undefined : Number(fragment[2]),
+          },
+          specLinesFor(anchor.file),
+        );
+        if (failure !== null) {
+          excuse({
+            file,
+            context,
+            subject,
+            observed: failure.status,
+            kind: "stale-citation",
+            describe: `${file}:${anchor.line}: ${subject} does not resolve — ${failure.detail}`,
+          });
+        }
+        continue;
+      }
+      counts.sectionAnchors += 1;
+      const headings = specHeadingsFor(anchor.file);
+      const failure = resolveAnchor(anchor, headings);
+      if (failure === null) {
+        continue;
+      }
+      const wrapped =
+        headings === null
+          ? null
+          : rejoinedFragment(anchor.fragment, fileLines[anchor.line], headings);
+      excuse({
+        file,
+        context,
+        subject,
+        observed: failure.status,
+        kind: "missing-anchor",
+        describe:
+          `${file}:${anchor.line}: ${subject} does not resolve — ${failure.detail}` +
+          (wrapped === null
+            ? ""
+            : `. It continues on the next line: this anchor is one slug hard-wrapped across a line break, ` +
+              `and joined back up it reads "#${wrapped}" — keep an anchor on one line`),
+      });
+    }
 
     for (const reference of unattributed) {
       excuse({
@@ -1122,17 +1432,22 @@ export function runSpecCitationsGate({
 
   lines.push(
     `spec citations: ${counts.citations} checked across ${counts.files} file(s) ` +
-      `(${counts.anchors} anchored, ${counts.tails} comma-appended, ${counts.bare} bare), ` +
+      `(${counts.explicit} explicit, ${counts.tails} comma-appended, ${counts.bare} bare), ` +
+      `${counts.sectionAnchors} section anchor(s), ${counts.lineFragments} line fragment(s), ` +
       `${counts.quotations} quoted production(s), ` +
       `${counts.statusClaims} status claim(s) — UNRESOLVED ${counts.excused}, ${counts.failed} failed`,
   );
   lines.push(
-    "  This gate checks that a citation RESOLVES to text, that a quoted EBNF production is in the range " +
-      "cited, and that a forward-looking status claim names a tracking issue. It does NOT check that a " +
-      "resolving citation supports the claim beside it when that claim paraphrases, nor that prose beside " +
-      "a correct line describes it correctly — the wrong-passage and misstating-prose modes of issue #934. " +
-      "A section anchor (<file>.md#a-heading) carries no line, so it is not checked either: a renamed or " +
-      "misspelled heading passes unseen. Do not read a green run as 'every citation is right'.",
+    "  This gate checks that a citation RESOLVES to text, that a section anchor (<file>.md#a-heading) names " +
+      "a heading that exists in the file it cites, that a quoted EBNF production is in the range cited, and " +
+      "that a forward-looking status claim names a tracking issue. Resolving an anchor proves THE HEADING " +
+      "EXISTS and nothing further: it does NOT prove the section supports the claim written beside it. The " +
+      "wrong-passage and misstating-prose modes of issue #934 survive an anchor exactly as they survive a " +
+      "line number — a citation that resolves may still paraphrase a passage that does not support it, and " +
+      "prose beside a correct heading may still misstate what that section says. The three line-form counts " +
+      "above, and the line fragment (<file>.md#L30), all name lines and so still drift whenever the spec is " +
+      "edited above them; only the section anchor is durable. Do not read a green run as 'every citation is " +
+      "right'.",
   );
   if (counts.excused > 0) {
     lines.push(
