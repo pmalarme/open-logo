@@ -415,11 +415,11 @@ declaration line is an ordinary `ol-undefined-var`.
 
 The evaluator resolves names as execution reaches them. The semantic checker MUST
 resolve them lexically and conservatively: it reports a name only when **no**
-execution order could make that name visible at the read, so within one scope's
-straight-line statement list the two agree exactly. A procedure reading a name
-its boundary hides is decidable for a different reason: the boundary is lexical
-and absolute, so no execution order can bring that binding inside, wherever in
-the body the read sits — including inside a `repeat` or `if` nested in the body.
+execution order could make that name visible at the read, so within one scope's straight-line
+statement list the two agree exactly on **visibility**, which is all the checker resolves. A
+procedure reading a name its boundary hides is decidable for a different reason: the boundary
+is lexical and absolute, so no execution order can bring that binding inside, wherever in the
+body the read sits — including inside a `repeat` or `if` nested in the body.
 Across scope boundaries the checker never reports a name that a later declaration
 or a deferred handler could reach.
 
