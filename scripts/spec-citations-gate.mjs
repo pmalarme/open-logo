@@ -589,9 +589,21 @@ export function suggestionDistance(fragment) {
  * the quiet false pass the canary exists to prevent. So this scans runs and pairs them explicitly,
  * and **leaves an unmatched run in place** so the heading rule still sees what it surrounds.
  */
-export function stripCodeSpans(text) {
+/**
+ * The inline code spans in one line, paired the way CommonMark does: a span is delimited by two runs
+ * of **exactly equal length**, and an unmatched run is literal text.
+ *
+ * A regex cannot express that. `/(`+)[\s\S]*?\1/` lets a two-backtick run close a one-backtick
+ * opener, so `` ## `[Text](target)`` `` — which CommonMark reads as literal backticks around a real
+ * link — came out stripped, hiding the `[` from {@link unsupportedConstructs} and restoring exactly
+ * the quiet false pass the canary exists to prevent.
+ *
+ * Offsets are UTF-16, matching `match.index`, because indexing a code-point array instead drifts by
+ * one element for every astral character earlier in the line.
+ */
+function codeSpans(text) {
   const runs = [...text.matchAll(/`+/g)];
-  const characters = [...text];
+  const spans = [];
   let open = 0;
   while (open < runs.length) {
     let close = open + 1;
@@ -605,13 +617,53 @@ export function stripCodeSpans(text) {
       open += 1;
       continue;
     }
-    const end = runs[close].index + runs[close][0].length;
-    for (let at = runs[open].index; at < end; at += 1) {
-      characters[at] = " ";
-    }
+    spans.push({
+      start: runs[open].index,
+      end: runs[close].index + runs[close][0].length,
+      content: text.slice(
+        runs[open].index + runs[open][0].length,
+        runs[close].index,
+      ),
+    });
     open = close + 1;
   }
-  return characters.join("");
+  return spans;
+}
+
+/**
+ * Blank out every inline code span, leaving an **unmatched** run in place so the heading rule still
+ * sees what it surrounds.
+ */
+export function stripCodeSpans(text) {
+  const units = text.split("");
+  for (const span of codeSpans(text)) {
+    for (let at = span.start; at < span.end; at += 1) {
+      units[at] = " ";
+    }
+  }
+  return units.join("");
+}
+
+/**
+ * Whether any code span in `text` is one CommonMark **normalizes**: content with a space at both
+ * ends, and something other than spaces between them, loses one space from each end.
+ *
+ * A code span is otherwise the one construct this reader may treat as literal, which is what makes
+ * this exception worth naming: `` ## ` foo ` `` renders as `<code>foo</code>`, so GitHub publishes
+ * `#foo` while slugging the source yields `#-foo-`. That is the same source-versus-rendered
+ * divergence as a link or an entity, hiding inside the construct the canary trusts — and
+ * {@link stripCodeSpans} would make it invisible — so it is refused explicitly.
+ *
+ * It is computed from the paired spans rather than by a pattern over the whole line. A pattern
+ * cannot tell a padded span from the ordinary prose *between* two spans: `` `area` and `perimeter` ``
+ * reads as a backtick, a space, `and`, a space and a backtick, and two live `spec/` headings were
+ * refused that way.
+ */
+function hasPaddedCodeSpan(text) {
+  return codeSpans(text).some(
+    ({ content }) =>
+      content.startsWith(" ") && content.endsWith(" ") && content.trim() !== "",
+  );
 }
 
 /**
@@ -620,19 +672,27 @@ export function stripCodeSpans(text) {
  * **This is the permit-list, and the whole point is that it is closed.** Blacklisting the constructs
  * that render differently from their source loses one construct at a time — `_` emphasis was the
  * fourth to get through, after links, entities and inline HTML, and it gets through precisely
- * *because* {@link headingSlug} keeps `_` so that `` `set_xy` `` slugs correctly. GitHub renders
- * `## _Text_` as emphasis and publishes `#text`; this reader publishes `#_text_`. The rule that makes
- * the corpus's underscored command names right is the rule that makes emphasis wrong, so no
- * blacklist of *constructs* can be trusted — only a list of characters proven to survive rendering
- * unchanged.
+ * *because* {@link headingSlug} keeps `_` so that `` `set_xy` `` slugs correctly.
+ *
+ * **It is deliberately ASCII, and that is a correction rather than a simplification.** An earlier
+ * version permitted `\p{L}\p{N}` — the very classes {@link headingSlug} keeps — so it validated the
+ * slug rule against itself and could never refuse a character that rule preserved. `²` is category
+ * `No`, so `\p{N}` kept it while `github-slugger` deletes it: `## Area in m²` slugs to `area-in-m²`
+ * here and `area-in-m` there, so `#area-in-m²` passes here and 404s on GitHub. A verifier built from
+ * the subject's own classes is a second opinion in name only, so this list is written independently
+ * and admits only what is *proven*: ASCII letters and digits, space and tab, and punctuation checked
+ * one by one against the real slugger class. Non-ASCII letters are refused — loudly — rather than
+ * assumed, because that class is generated against an older Unicode than the `\p{L}` Node applies.
  *
  * `*` and `~` are permitted because rendering **and** the slug rule both delete them, so they cannot
- * disagree. `&` is permitted for `Turtle & Rendering` and policed separately as an entity, and `:`
- * likewise for an emoji shortcode. Everything absent — `_`, `[`, `]`, `<`, `>`, `|`, `\`, `{`, `}`, a
- * stray backtick, an emoji — is refused. Measured across every `spec/` heading, the permitted set is
- * nowhere near binding: refusing `_` outside a code span costs the corpus nothing today.
+ * disagree. `&` and `:` are permitted for `Turtle & Rendering` and ordinary prose, and policed
+ * separately as an entity and an emoji shortcode. Everything absent — `_`, `[`, `]`, `<`, `>`, `|`,
+ * `\`, `{`, `}`, a stray backtick, `²`, `×`, an emoji — is refused. Measured across every `spec/`
+ * heading that costs the corpus nothing: it contains no non-ASCII letter or digit outside a code
+ * span. Some refusals are harmless — `## Times a × b` slugs identically either way — and that is the
+ * deliberate price of a list the next construct cannot defeat.
  */
-const HEADING_PERMITTED = /[\p{L}\p{N}\s\-,.;:!?'"()/+=%@$#*~^&—–…]/u;
+const HEADING_PERMITTED = /[A-Za-z0-9 \t\-,.;:!?'"()/+=%@$#*~^&—–…]/;
 
 /** A complete HTML entity, which renders as one character this reader would spell out. */
 const HTML_ENTITY = /&(?:[A-Za-z][A-Za-z0-9]*|#[0-9]+|#[xX][0-9A-Fa-f]+);/;
@@ -693,7 +753,12 @@ export function unsupportedConstructs(lines) {
   let previousWasBlank = true;
   for (const [index, raw] of lines.entries()) {
     const line = raw.replace(/\r$/, "");
-    const delimiter = /^ {0,3}(`{3,}|~{3,})(.*)$/.exec(line);
+    // Container stripping comes FIRST, so a fence inside a blockquote or list item is recognised as
+    // a fence. Detecting fences on the raw line left `> ```markdown` untracked, and then reported
+    // the perfectly safe heading inside it as a nested one.
+    const inside = containerContent(line);
+    const content = inside ?? line;
+    const delimiter = /^ {0,3}(`{3,}|~{3,})(.*)$/.exec(content);
     if (delimiter !== null) {
       const marker = delimiter[1][0];
       if (fence === null) {
@@ -715,11 +780,6 @@ export function unsupportedConstructs(lines) {
       continue;
     }
     const report = (construct) => found.push({ line: index + 1, construct });
-    // Containers nest, so their content is examined by the same rules as the top level: a heading, a
-    // setext rule or an HTML block is published by GitHub wherever it sits, and this reader can only
-    // see it at the top level.
-    const inside = containerContent(line);
-    const content = inside ?? line;
 
     // Any line opening with `<` — a tag, a closing tag, a comment, a declaration, a processing
     // instruction, CDATA, even an autolink. Deciding which of those starts an HTML block is the
@@ -741,6 +801,12 @@ export function unsupportedConstructs(lines) {
       report("a heading nested in a blockquote or list item");
     }
     if (heading !== null && inside === null) {
+      // A padded code span is checked on the RAW heading, before stripping makes it invisible.
+      if (hasPaddedCodeSpan(heading[1])) {
+        report(
+          "a code span CommonMark trims, which this reader slugs with the padding still on",
+        );
+      }
       const bare = stripCodeSpans(heading[1]);
       const offender = [...bare].find(
         (character) => !HEADING_PERMITTED.test(character),

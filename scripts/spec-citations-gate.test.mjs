@@ -1167,8 +1167,21 @@ test("the canary refuses a document whose markdown this reader cannot follow", (
   refuses("_emphasis_ in a heading", ["## _Text_"]);
   refuses("__strong__ in a heading", ["## __Bold__"]);
   refuses("mid-heading emphasis", ["## A _B_ C"]);
+  // The permit-list must not be built from the slug rule's own classes, or it can never refuse a
+  // character that rule keeps. `²` is category No: `\p{N}` kept it, github-slugger deletes it, so
+  // `#area-in-m²` passed here and 404'd there.
+  refuses("a superscript, which \\p{N} would have kept", ["## Area in m²"]);
+  refuses("a fraction", ["## Half ½ done"]);
+  refuses("a non-ASCII letter, refused rather than assumed", ["## Café mode"]);
+  // A code span is the one construct treated as literal, so the one way it is NOT literal matters:
+  // CommonMark trims a space from each end, and this reader would slug the padding.
+  refuses("a padded code span", ["## ` foo `"]);
+  refuses("a padded double-backtick span", ["## `` foo ``"]);
   // A mismatched backtick run is NOT a code span, so the link it surrounds must still be seen.
   refuses("a link hidden behind a mismatched run", ["## `[Text](target)``"]);
+  // Astral characters make `match.index` (UTF-16) disagree with a code-point array, which left a
+  // stray backtick behind and refused a valid heading. The refusal here is for `𐐀` itself.
+  refuses("an astral letter before a code span", ["## \u{10400} `<b>`"]);
   // Containers nest arbitrarily; encoding one marker in one position missed all of these.
   refuses("blockquoted setext `---`", ["> Title", "> ---"]);
   refuses("blockquoted setext `===`", ["> Title", "> ==="]);
@@ -1207,6 +1220,25 @@ test("the canary refuses a document whose markdown this reader cannot follow", (
     "===",
     "> ## Quoted",
     "```",
+  ]);
+  // A fence inside a container is still a fence. Detecting fences before stripping containers left
+  // this untracked and then refused the safe heading inside it.
+  allows("anything inside a BLOCKQUOTED fence", [
+    "> ```markdown",
+    "> ## [Text](target)",
+    "> ```",
+  ]);
+  allows("anything inside a list-item fence", [
+    "- ```markdown",
+    "  ## [Text](target)",
+    "  ```",
+  ]);
+  // An unpadded span, and one padded on a single side, are both left alone: CommonMark trims only
+  // when BOTH ends carry a space, so those two slug exactly as written.
+  allows("an unpadded code span", ["## `foo`"]);
+  allows("a code span padded on one side only", ["## ` foo`"]);
+  allows("prose between two code spans", [
+    "## Shape-spec lists for `area` and `perimeter`",
   ]);
   // Unmatched runs are left intact so the heading rule still sees what they surround.
   assert.equal(stripCodeSpans("a ``<b>`` c"), "a         c");
