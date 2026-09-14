@@ -1231,18 +1231,6 @@ test("the canary refuses a document whose markdown this reader cannot follow", (
     "> ## Quoted",
     "```",
   ]);
-  // A fence inside a container is still a fence. Detecting fences before stripping containers left
-  // this untracked and then refused the safe heading inside it.
-  allows("anything inside a BLOCKQUOTED fence", [
-    "> ```markdown",
-    "> ## [Text](target)",
-    "> ```",
-  ]);
-  allows("anything inside a list-item fence", [
-    "- ```markdown",
-    "  ## [Text](target)",
-    "  ```",
-  ]);
   // An unpadded span, and one padded on a single side, are both left alone: CommonMark trims only
   // when BOTH ends carry a space, so those two slug exactly as written.
   allows("an unpadded code span", ["## `foo`"]);
@@ -1259,12 +1247,11 @@ test("the canary refuses a document whose markdown this reader cannot follow", (
   assert.equal(containerContent("> 1. # X"), "# X");
 });
 
-test("the reader and the canary share ONE fence scanner, so they cannot drift apart", () => {
-  // The third divergence-by-duplication in this gate, after the mention pattern's group numbering
-  // and code-span pairing. Moving container stripping ahead of fence detection in the canary alone
-  // left the READER collecting `# Inside` from a fenced block inside a list item that the canary had
-  // correctly skipped — a heading GitHub publishes nowhere, resolving here and 404ing there, with
-  // the canary silent because it had stopped looking. Both sides are asserted together on purpose.
+test("the reader and the canary share ONE fence scanner, which owns the container decision", () => {
+  // Two earlier shapes of this bug: each function kept its own fence copy and they drifted, then
+  // both pre-stripped containers and a `- ``` ` INSIDE a top-level fence was read as a closer,
+  // publishing a heading from the code below it. The scanner now takes the raw line and decides for
+  // itself, because whether a container marker is syntax or code depends on the fence state.
   const agree = (label, lines, slugs) => {
     assert.deepEqual(
       documentHeadings(lines).map(({ slug }) => slug),
@@ -1273,36 +1260,54 @@ test("the reader and the canary share ONE fence scanner, so they cannot drift ap
     );
     assert.deepEqual(unsupportedConstructs(lines), [], `canary: ${label}`);
   };
+  agree("a top-level fence", ["```logo", "# c", "```", "# Real"], ["real"]);
+  // Inside a fence a container marker is CODE. Stripping it made these lines close the block, and
+  // the gate then published a heading GitHub renders as code.
   agree(
-    "a fence inside a list item",
-    ["- ```markdown", "  # Inside", "  ```", "", "# Real"],
-    ["real"],
+    "a list marker inside a top-level fence",
+    ["```logo", "- ```", "# Ghost", "```"],
+    [],
   );
   agree(
-    "a fence inside an ordered list item",
-    ["1. ```markdown", "   # Inside", "   ```", "", "# Real"],
-    ["real"],
+    "a blockquote marker inside a top-level fence",
+    ["```markdown", "> ```", "## Ghost", "```"],
+    [],
   );
-  agree(
-    "a fence inside a blockquote",
-    ["> ```md", "> # Inside", "> ```", "", "# Real"],
-    ["real"],
-  );
-  // The second harm from the same asymmetry: the list item's CLOSING fence opened one in the
-  // reader's view, so it went blind for the rest of the file and lost `dup-1` entirely.
-  agree(
-    "a container fence does not blind the reader afterwards",
-    ["- ```markdown", "  # Dup", "  ```", "", "# Dup", "", "# Dup"],
-    ["dup", "dup-1"],
-  );
-  agree(
-    "a top-level fence, unchanged",
-    ["```logo", "# c", "```", "# Real"],
-    ["real"],
-  );
+
+  // A fence OPENED in a container is refused outright: CommonMark closes it when the container does,
+  // both readers here track one flat fence state, and neither can follow that. Refusing is the loud
+  // direction and `spec/` has none, so it costs nothing today.
+  const refusedFence = (label, lines) =>
+    assert.ok(
+      unsupportedConstructs(lines).some(({ construct }) =>
+        construct.includes("fenced block opened inside"),
+      ),
+      `must refuse: ${label}`,
+    );
+  refusedFence("a fence in a list item", [
+    "- ```markdown",
+    "  # Inside",
+    "  ```",
+  ]);
+  refusedFence("a fence in an ordered list item", [
+    "1. ```md",
+    "   # Inside",
+    "   ```",
+  ]);
+  refusedFence("a fence in a blockquote", [
+    "> ```js",
+    "# Real Heading",
+    "> ```",
+  ]);
+  refusedFence("an unclosed fence in a list item", [
+    "- ```logo",
+    "  # comment",
+    "",
+    "# Real",
+  ]);
 });
 
-test("four-space indentation is not stripped into a container, and not read as a fence", () => {
+test("four-space OR TAB indentation is not stripped into a container, and not read as a fence", () => {
   // `    > ``` ` is an indented code block on GitHub. Stripping the container through that indent
   // turned it into a fence opener that swallowed the real heading below it — so containerContent
   // bounds the FIRST marker to three spaces, and a heading reachable only through deeper indentation
@@ -1316,6 +1321,17 @@ test("four-space indentation is not stripped into a container, and not read as a
   assert.ok(unsupportedConstructs(lines).length > 0, "and it is refused");
   assert.equal(containerContent("    - ## Notes"), null);
   assert.equal(containerContent("   - ## Notes"), "## Notes");
+  // A TAB-indented container falls between the three-space bound and a spaces-only refusal, and
+  // nothing else in CI would catch it: `.prettierignore` excludes `spec/`, `docs/`, `.github/` and
+  // `*.md`, so markdown is outside `format:check` entirely.
+  assert.ok(
+    unsupportedConstructs(["- outer", "\t- ## Notes"]).length > 0,
+    "a tab-indented nested heading must be refused",
+  );
+  assert.ok(
+    unsupportedConstructs(["> outer", "\t> ## Notes"]).length > 0,
+    "and the blockquote form of it too",
+  );
 });
 test("the LIVE spec is clean for the canary, which is what licenses the slug rule", () => {
   // The module note's "spec/ contains none today" is kept true by this, not by an assertion in a

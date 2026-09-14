@@ -491,11 +491,10 @@ export function documentHeadings(lines) {
   let fence = null;
   for (const [index, raw] of lines.entries()) {
     const line = raw.replace(/\r$/, "");
-    // Fence state is tracked on the CONTAINER-STRIPPED line, exactly as the canary does, so a fenced
-    // block inside a list item or blockquote hides its contents from both readers alike. Headings are
-    // still matched on the raw line, so one nested in a container stays uncollected — the canary
-    // refuses those documents outright.
-    const transition = advanceFence(fence, containerContent(line) ?? line);
+    // Fence state is tracked by the shared scanner, which takes the RAW line and decides for itself
+    // whether a container marker is syntax or code. Headings are still matched on the raw line, so
+    // one nested in a container stays uncollected — the canary refuses those documents outright.
+    const transition = advanceFence(fence, line);
     if (transition !== null) {
       fence = transition.fence;
       continue;
@@ -673,8 +672,9 @@ function hasPaddedCodeSpan(text) {
  * `\`, `{`, `}`, a stray backtick, `²`, `×`, an emoji — is refused **outside a code span**; inside
  * one, {@link CODE_SPAN_PERMITTED} applies instead, because there the content is literal. Measured
  * across every `spec/` heading both lists cost the corpus nothing. Some refusals are harmless —
- * `## Time 10:30:00` trips the shortcode rule though both readers slug it identically — and that is
- * the deliberate price of lists the next construct cannot defeat.
+ * `## Time 10:30:00` trips the shortcode rule though both readers slug it identically — though that
+ * same rule catches `:+1:`, which is *not* harmless — and that is the deliberate price of lists the
+ * next construct cannot defeat.
  */
 const HEADING_PERMITTED = /[A-Za-z0-9 \t\-,.;:!?'"()/+=%@$#*~^&—–…]/;
 
@@ -691,8 +691,8 @@ const HEADING_PERMITTED = /[A-Za-z0-9 \t\-,.;:!?'"()/+=%@$#*~^&—–…]/;
  *
  * Every **ASCII** character agrees inside a span: both sides keep letters, digits, `-`, `_` and
  * space, and both delete all other ASCII punctuation. So this admits ASCII plus the three non-ASCII
- * punctuation marks checked against the real slugger class — which is what keeps the five live
- * `` `set … to` ``-shaped headings green.
+ * punctuation marks checked against the real slugger class — which is what keeps the live
+ * `` `set … to` ``-shaped headings in `spec/commands.md` green.
  */
 const CODE_SPAN_PERMITTED = /[\x20-\x7E\t—–…]/;
 
@@ -732,19 +732,28 @@ export function containerContent(line) {
 }
 
 /**
- * Advance fenced-block state across one line's content, or `null` when the line is not a fence
+ * Advance fenced-block state across one **raw** line, or `null` when the line is not a fence
  * delimiter at all.
  *
- * **One scanner, two callers.** {@link documentHeadings} and {@link unsupportedConstructs} both need
- * this, and when each kept its own copy they drifted the moment one was fixed: moving container
- * stripping ahead of fence detection in the canary alone left the reader collecting `# Inside` from a
- * fenced block inside a list item that the canary had correctly skipped — a heading GitHub publishes
- * nowhere, resolving here and 404ing there, with the canary silent because it had stopped looking.
- * That is the third divergence-by-duplication in this gate, after the mention pattern's group
- * numbering and code-span pairing, so the rule now lives in one place: **any rule both readers
+ * **One scanner, two callers, and the container decision lives here.** {@link documentHeadings} and
+ * {@link unsupportedConstructs} both need this, and when each kept its own copy they drifted the
+ * moment one was fixed. Letting the callers pre-strip containers was the same mistake one level up:
+ * whether a container marker is syntax or code depends on the fence state, which only this function
+ * knows, so it takes the raw line and decides.
+ *
+ * The rule is that **inside a fence, content is literal**. `> ``` ` on a line of a top-level fenced
+ * block is code, not a closer; stripping the `>` first turned it into one and published a heading
+ * from the code below it. Outside a fence, a container's own opener is found by stripping the
+ * container — and such a fence is reported by the canary, because neither reader can follow where a
+ * container-scoped block ends.
+ *
+ * That this is the third rule to be extracted here — after the mention pattern's group numbering and
+ * code-span pairing — is the reason for the standing rule in the module note: **any rule both readers
  * consult belongs in a single function.**
  */
-function advanceFence(fence, content) {
+function advanceFence(fence, line) {
+  const inside = containerContent(line);
+  const content = fence === null ? (inside ?? line) : line;
   const delimiter = /^ {0,3}(`{3,}|~{3,})(.*)$/.exec(content);
   if (delimiter === null) {
     return null;
@@ -752,18 +761,17 @@ function advanceFence(fence, content) {
   const marker = delimiter[1][0];
   if (fence === null) {
     // A backtick opener may not carry a backtick in its info string; a tilde opener may.
+    const opens = marker === "~" || !delimiter[2].includes("`");
     return {
-      fence:
-        marker === "~" || !delimiter[2].includes("`")
-          ? { marker, length: delimiter[1].length }
-          : null,
+      fence: opens ? { marker, length: delimiter[1].length } : null,
+      openedInContainer: opens && inside !== null,
     };
   }
   const closes =
     marker === fence.marker &&
     delimiter[1].length >= fence.length &&
     delimiter[2].trim() === "";
-  return { fence: closes ? null : fence };
+  return { fence: closes ? null : fence, openedInContainer: false };
 }
 
 /**
@@ -777,19 +785,20 @@ function advanceFence(fence, content) {
  * **quiet** divergence: the reader invents a slug GitHub does not publish, and an anchor naming the
  * invented slug **passes here and 404s there**.
  *
- * **It is a whitelist, and that is the whole design.** Two earlier versions enumerated the
- * *unsupported* constructs, and reviewers defeated both — `</div>` and `<![CDATA[` and `<?xml` open
- * HTML blocks that `<!--`-and-`<letter` never matched; `&#x26;` is an entity that `&#\d+;` never
- * matched; `## See [a [b]](target)` is a link whose label the link pattern never matched. Enumerating
- * an open-ended grammar loses by one construct at a time, and each miss is a false pass. So this asks
- * the opposite question — *is every part of this document drawn from the small subset I can prove I
- * slug identically?* — and refuses everything else. Over-refusing is loud and costs a spec edit;
- * under-refusing is silent and costs a wrong citation.
+ * **It is a permit-list, and that is the whole design.** Earlier attempts enumerated the
+ * *unsupported* constructs, and reviewers defeated each of them — `</div>` and `<![CDATA[` and
+ * `<?xml` open HTML blocks that `<!--`-and-`<letter` never matched; `&#x26;` is an entity that
+ * `&#\d+;` never matched; `## See [a [b]](target)` is a link whose label the link pattern never
+ * matched; `_` emphasis carries no flagged character at all. Enumerating an open-ended grammar loses
+ * by one construct at a time, and each miss is a false pass. So this asks the opposite question —
+ * *is every part of this document drawn from the small subset I can prove I slug identically?* — and
+ * refuses everything else. Over-refusing is loud and costs a spec edit; under-refusing is silent and
+ * costs a wrong citation.
  *
  * The cost is real and worth stating: until issue #1190 replaces this reader with a CommonMark parse,
- * `spec/` cannot adopt a `<details>` block, a linked heading, or a setext heading without turning the
- * gate red. `spec/**` is CODEOWNERS-gated and the failure message names the alternatives, so that
- * trade is deliberate rather than an accident.
+ * `spec/` cannot adopt a `<details>` block, a linked or emphasised heading, a setext heading, or a
+ * fenced block inside a list item without turning the gate red. `spec/**` is CODEOWNERS-gated and the
+ * failure message names the alternatives, so that trade is deliberate rather than an accident.
  */
 export function unsupportedConstructs(lines) {
   const found = [];
@@ -802,8 +811,17 @@ export function unsupportedConstructs(lines) {
     // the perfectly safe heading inside it as a nested one.
     const inside = containerContent(line);
     const content = inside ?? line;
-    const transition = advanceFence(fence, content);
+    const transition = advanceFence(fence, line);
     if (transition !== null) {
+      // Neither reader can follow where a container-scoped fenced block ends: CommonMark closes it
+      // when the container does, and both readers here track one flat fence state. So the document
+      // is refused rather than answered — `spec/` has none, so it costs nothing today.
+      if (transition.openedInContainer) {
+        found.push({
+          line: index + 1,
+          construct: "a fenced block opened inside a blockquote or list item",
+        });
+      }
       fence = transition.fence;
       previousWasBlank = false;
       continue;
@@ -833,10 +851,12 @@ export function unsupportedConstructs(lines) {
     if (heading !== null && inside !== null) {
       report("a heading nested in a blockquote or list item");
     }
-    // The same thing four spaces in, where `containerContent` deliberately stops: that indent is
-    // either an indented code block or a nested list and this reader cannot tell which, so a heading
-    // reachable through it is refused rather than guessed at.
-    if (/^ {4,}[ \t>*+\-\d.)]*#{1,6}[ \t]/.test(line)) {
+    // The same thing where `containerContent` deliberately stops: an indent of four spaces OR a tab
+    // is either an indented code block or a nested list and this reader cannot tell which, so a
+    // heading reachable through it is refused rather than guessed at. The tab half matters because
+    // markdown is outside `format:check` entirely (`.prettierignore` excludes `spec/`, `docs/`,
+    // `.github/` and `*.md`), so nothing else in CI would ever normalise it away.
+    if (/^(?: {4,}|\t)[ \t>*+\-\d.)]*#{1,6}[ \t]/.test(line)) {
       report("an indented line that may be a heading inside a nested list");
     }
     if (heading !== null && inside === null) {
