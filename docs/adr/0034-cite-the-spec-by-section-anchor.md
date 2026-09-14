@@ -18,18 +18,22 @@ We write them by **line**: `spec/<file>.md:<line>`. A line number is a position 
 reference to an idea, and it is invalidated by any edit above it. That has cost us twice.
 
 **Churn on every spec edit.** Inserting a paragraph shifts every line number below it. Issue #846
-shifted 665 citations in a single edit. PR #1084 changed **4 spec files (+156/−19)** and then
-touched **~74 more files solely to re-point citations** — 19 code files at **+46/−46**, where every
-hunk was a line number moving and nothing else — and had to **redo the entire pass** when one
-sentence was corrected later in review. That is the friction the maintainer named when filing
-#1142: *"maybe we should rethink this entirely as it causes issues and a lot of changes each time."*
+shifted 665 citations in a single edit. PR #1084 corrected four spec files and then carried a
+dedicated commit for the consequences — `51cb3428`, *"re-point every spec citation the #814 spec
+edit shifted"* — **139 files, 241 insertions and 241 deletions**, every hunk a line number moving
+and nothing else; the pass then had to be **redone** when one sentence was corrected later in
+review. (Those figures are re-derivable from that commit. #1142 and #1085 quote a smaller slicing of
+the same pass; take the commit, not the prose.) That is the friction the maintainer named when
+filing #1142: *"maybe we should rethink this entirely as it causes issues and a lot of changes each
+time."*
 
 **The re-pointing pass is not a check.** Saga #811's review gate found **seven** citations that
 resolved cleanly and were wrong anyway. The seventh is the one that decides this record: a citation
 whose range was slid three lines down by a mechanical `+3` kept the gate green **while the claim
-beside it stayed wrong** — it said 13 `ol-style-*` codes; there are 14. The line numbers were
-re-derived; the sentence was not. A large mechanical pass is not merely tedious, it is the
-*mechanism* by which a stale claim acquires a fresh, green-looking pointer.
+beside it stayed wrong** — it said 13 `ol-style-*` codes; the registry it cited already held more,
+and has grown again since. The line numbers were re-derived; the sentence was not. A large
+mechanical pass is not merely tedious, it is the *mechanism* by which a stale claim acquires a
+fresh, green-looking pointer.
 
 Both forms already exist in this repository — the anchor form is simply the minority. The exact
 totals are deliberately not restated here: #1180 recorded thousands of line citations against a
@@ -52,7 +56,8 @@ already thinking about.
 1. **The anchor is the citation form.** It names the section the claim rests on, and survives the
    ordinary edit — text inserted, deleted or reflowed above and around it — that invalidates a line
    number. It does not survive renaming or removing that heading, nor a duplicate heading that
-   reassigns its slug; those are the breakages this form trades for, and they are loud.
+   reassigns its slug; those are the breakages this form trades for, and once #1181 lands they are
+   loud.
 2. **A line number is permitted only where line precision is genuinely required** — pinning one
    production, one table row, one sentence — **and then it carries the anchor too**, so the durable
    half survives the next spec edit and re-pointing the line never loses the reference. A bare line
@@ -69,11 +74,12 @@ already thinking about.
 4. **Migration is incremental — never a mass edit.** New citations use the anchor form; the gate
    accepts both; a file converts its own citations when it is opened for other work. A one-shot
    rewrite of the whole corpus is *precisely* the move that produced instance 7, and PR #1084 showed
-   what it costs when one sentence then changes. The remaining line-form count is what #1181 reports
-   and #1183 ratchets: it may fall, never rise.
+   what it costs when one sentence then changes. The remaining line-form count the gate already
+   prints — recounted by #1181 and ratcheted by #1183 — may fall, never rise.
 5. **The convention lives in the surfaces an agent reads**, not only in this record: `AGENTS.md`,
    the always-on team instructions, `.github/agent-policy.md`, and `shared/spec-fidelity`, which
-   owns the rule; the others link to it rather than restating it.
+   owns the rule and its limits; the others state it in a line or two and link there for the
+   mechanics.
 
 ### What the gate proves — and what it does not
 
@@ -123,8 +129,9 @@ commit that offence.
   slug collisions* (noisy). Renaming a section in `spec/` becomes a visible event with a bounded
   fix, where the gate names every citing site.
 - **The corpus stays mixed for a long time, on purpose.** Both forms are accepted; neither is a
-  defect. A green run does not mean the tree has converted, and the line-form count #1181 reports —
-  ratcheted by #1183 — is the honest measure of where the migration stands.
+  defect. A green run does not mean the tree has converted, and the line-form count the gate already
+  prints — recounted by #1181, ratcheted by #1183 — is the honest measure of where the migration
+  stands.
 - **Anchors are long, and a line wrap breaks one** — a citation split mid-anchor reads as a
   different, non-existent heading, as one site in the tree already did. Today that passes unseen;
   after #1181 it fails. Keep a citation on one line even where the line runs long; the rule sits

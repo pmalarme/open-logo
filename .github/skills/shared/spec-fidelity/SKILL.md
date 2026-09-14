@@ -43,7 +43,9 @@ matching it exactly and catching the common "classic Logo" mistakes.
 ## Citing the spec — by section anchor, not by line
 
 **Write `spec/<file>.md#a-heading`.** A heading does not move when text is inserted above it; a line
-number does, so every `spec/` edit used to drag a mechanical re-pointing pass behind it. The
+number does, so every `spec/` edit used to drag a mechanical re-pointing pass behind it. An anchor
+is not unbreakable — it breaks when its heading is renamed or removed, or when a duplicate heading
+reassigns its slug — but all three are rarer and more deliberate than inserting a paragraph. The
 decision, the measured churn and the rejected alternatives are in
 [ADR-0034](../../../../docs/adr/0034-cite-the-spec-by-section-anchor.md).
 
