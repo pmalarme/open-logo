@@ -60,9 +60,12 @@ already thinking about.
 
 1. **The anchor is the citation form.** It names the section the claim rests on, and survives the
    ordinary edit — text inserted, deleted or reflowed above and around it — that invalidates a line
-   number. It does not survive renaming or removing that heading, nor a duplicate heading that
-   reassigns its slug; those are the breakages this form trades for, and once #1181 lands they are
-   loud.
+   number. It does not survive renaming or removing that heading, nor a duplicate heading inserted
+   ahead of it, which takes the plain slug and pushes the cited section onto a suffixed one. Those
+   are the breakages this form trades for, and they differ in kind: once #1181 lands, a rename or a
+   removal is **loud**, because the cited slug stops existing — while the duplicate case stays
+   **silent**, since both slugs still resolve and only a reader can tell that the anchor now lands
+   on the wrong section. That residual belongs to the wrong-passage class below, undiminished.
 2. **A line number is permitted only where line precision is genuinely required** — pinning one
    production, one table row, one sentence — **and then it carries the anchor too**, so the durable
    half survives the next spec edit and re-pointing the line never loses the reference. A bare line
@@ -129,10 +132,12 @@ commit that offence.
   corpus converts; it does not vanish at once, and a line-precise citation still has to be
   re-pointed when the text above it moves. What goes away with each conversion is both the busywork
   and the defect source the busywork carries.
-- **Once #1181 lands, renaming a heading breaks citations loudly.** That cost is real and it is the
-  trade being made: it moves the breakage from *every* insertion (silent) to *renames, removals and
-  slug collisions* (noisy). Renaming a section in `spec/` becomes a visible event with a bounded
-  fix, where the gate names every citing site.
+- **Once #1181 lands, renaming or removing a heading breaks citations loudly.** That cost is real
+  and it is the trade being made: it moves the breakage from *every* insertion (silent) to *renames
+  and removals* (noisy, because the cited slug stops existing). Renaming a section in `spec/`
+  becomes a visible event with a bounded fix, where the gate names every citing site. A **duplicate
+  heading inserted ahead of a cited one** is the exception and stays silent — both slugs resolve, so
+  resolution cannot see it; it is the wrong-passage class, not a case this decision closes.
 - **The corpus stays mixed for a long time, on purpose.** Both forms are accepted; neither is a
   defect. A green run does not mean the tree has converted, and the line-form count the gate already
   prints — recounted by #1181, ratcheted by #1183 — is the honest measure of where the migration

@@ -240,8 +240,7 @@ checked but not run. See [ADR-0022](docs/adr/0022-documentation-example-gate.md)
 ungated prose surface: the **thousands of** `spec/` citations hand-written into comments,
 tests, fixture prose, and docs. They are what binds the implementation to the normative contract, and
 nothing checked a single one — so one `spec/` edit silently shifted 113 of them across 68 files
-(#846), and #885
-merged green carrying ten that pointed at the wrong lines.
+(#846), and #885 merged green carrying ten that pointed at the wrong lines.
 
 **Cite the spec by section anchor — `spec/<file>.md#a-heading` — not by line.** A heading does not
 move when text is inserted above it. Use a line number only where line precision is genuinely
