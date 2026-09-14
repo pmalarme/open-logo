@@ -20,6 +20,7 @@ import {
   mkdirSync,
   mkdtempSync,
   readFileSync,
+  readdirSync,
   rmSync,
   writeFileSync,
 } from "node:fs";
@@ -43,6 +44,7 @@ import {
   formatAnchor,
   formatCitation,
   headingSlug,
+  insideLinkDestination,
   isProseLine,
   lineLookup,
   listCitationFiles,
@@ -61,6 +63,7 @@ import {
   suggestException,
   suggestionDistance,
   toPosixPath,
+  unsupportedConstructs,
   validateExceptionEntry,
   walkFiles,
 } from "./spec-citations-gate.mjs";
@@ -491,12 +494,15 @@ test("a tree of correct citations passes, and the report states what it does not
   assert.match(summary, /names a heading that exists in the file it cites/);
   assert.doesNotMatch(summary, /passes unseen/);
   assert.doesNotMatch(summary, /not checked either/);
-  // Nor may it overclaim in the other direction: an anchor is more stable than a line number, not
-  // immune, because a colliding heading re-points a positional suffix.
+  // Nor may it overclaim in the other direction. Resolution proves a slug is CLAIMED, never that the
+  // section the citation meant still claims it, and the statement has to say so — otherwise the green
+  // signal certifies more than it checks, which is the failure this saga exists to reduce.
   assert.doesNotMatch(summary, /only the section anchor is durable/);
+  assert.match(summary, /proves only that SOME heading claims that\s+slug/);
+  assert.match(summary, /promotes a later one into\s+the slug it vacated/);
   assert.match(
     summary,
-    /two headings that slug alike\s+are reached positionally/,
+    /fails loudly only when the rename leaves its slug unclaimed/,
   );
 });
 
@@ -848,9 +854,16 @@ test("headingSlug slugs a heading's markdown SOURCE, and unwraps nothing", () =>
   // the opposite: a code span's rendered text is the literal `[text](target)`, so unwrapping made
   // this slug to `text` and **falsely pass**. Leaving it alone yields what GitHub yields.
   assert.equal(headingSlug("`[text](target)`"), "texttarget");
-  // A real link heading therefore diverges in the LOUD direction — the gate computes `texttarget`
-  // where GitHub computes `text`, so a correct anchor fails rather than a wrong one passing.
+  // A bare link heading is the mirror case: here the gate computes `texttarget` where GitHub
+  // computes `text`, so the anchor a reader would write fails — and the slug this reader invents
+  // would pass. Neither direction is left to luck; unsupportedConstructs refuses the document.
   assert.equal(headingSlug("[text](target)"), "texttarget");
+  assert.deepEqual(
+    unsupportedConstructs(["## [text](target)"]).map(
+      ({ construct }) => construct,
+    ),
+    ["markdown link in a heading"],
+  );
 });
 
 test("headingSlug keeps a unicode letter, and such a fragment is captured whole", () => {
@@ -1077,10 +1090,10 @@ test("a fragment truncated by a character no slug can hold is malformed, not a v
   // and PASSED, because the fragment class simply stopped at the `.`. Prose punctuation still has to
   // be tolerated, so the test is whether the token ENDS — punctuation then whitespace is prose,
   // punctuation then more text is a fragment this gate cannot resolve.
-  const malformedFor = (suffix) => {
+  const malformedFor = (suffix, prefix = "see ") => {
     const { anchors } = collectCitations(
       "a.md",
-      `see ${CONTRACT}/doc.md#real-heading${suffix} tail`,
+      `${prefix}${CONTRACT}/doc.md#real-heading${suffix} tail`,
       CONTRACT,
     );
     return anchors[0].malformed;
@@ -1091,6 +1104,154 @@ test("a fragment truncated by a character no slug can hold is malformed, not a v
   for (const suffix of ["", ": prose", ". Prose", "`)", " and", '"']) {
     assert.equal(malformedFor(suffix), false, `${suffix} must be accepted`);
   }
+  // #1180 converts thousands of line citations to anchors, and prose emphasises citations. A bolded
+  // anchor is correct writing and must not read as a defect.
+  for (const suffix of ["**", "*", "~~", "…", " — dash"]) {
+    assert.equal(malformedFor(suffix), false, `${suffix} must be accepted`);
+  }
+  // Inside a markdown destination the rules differ: the `)` closes the URL, so a `.` in front of it
+  // is part of the fragment, not a sentence full stop. The prose rule read it as prose and passed.
+  assert.equal(malformedFor(".", "[bad]("), true);
+  assert.equal(malformedFor("", "[good]("), false);
+  assert.equal(insideLinkDestination("[a](x/y.md#z)", 4), true);
+  assert.equal(insideLinkDestination("no link here", 4), false);
+  assert.equal(insideLinkDestination("[a](x) then y.md#z", 14), false);
+});
+
+test("the canary refuses a document whose markdown this reader cannot follow", () => {
+  // Documenting a known false pass is not the same as not having one. Each construct below lets the
+  // reader invent a slug GitHub never publishes, so an anchor naming the invented slug would pass
+  // here and 404 there. The gate declines to answer instead.
+  const constructs = (lines) =>
+    unsupportedConstructs(lines).map(({ construct }) => construct);
+  assert.deepEqual(constructs(["Title", "====="]), ["setext heading"]);
+  assert.deepEqual(constructs(["Title", "-----"]), ["setext heading"]);
+  assert.deepEqual(constructs(["<!-- hidden -->", "## Ghost"]), [
+    "raw-HTML block",
+  ]);
+  assert.deepEqual(constructs(["<div>"]), ["raw-HTML block"]);
+  assert.deepEqual(constructs(["## A &amp; B"]), ["HTML entity in a heading"]);
+  assert.deepEqual(constructs(["## A &#38; B"]), ["HTML entity in a heading"]);
+  assert.deepEqual(constructs(["## A <br> B"]), ["inline HTML in a heading"]);
+  assert.deepEqual(constructs(["## See [it][ref]"]), [
+    "markdown link in a heading",
+  ]);
+
+  // What must NOT fire, or the canary would refuse the corpus it is meant to protect.
+  assert.deepEqual(
+    constructs(["", "-----"]),
+    [],
+    "a thematic break is not setext",
+  );
+  assert.deepEqual(constructs(["- item", "-----"]), [], "nor a list underline");
+  assert.deepEqual(
+    constructs(["## Heading", "-----"]),
+    [],
+    "nor one under an ATX heading",
+  );
+  assert.deepEqual(
+    constructs(["| a | b |", "| --- | --- |"]),
+    [],
+    "nor a table rule",
+  );
+  assert.deepEqual(
+    constructs(["```logo", "<div>", "Title", "=====", "```"]),
+    [],
+    "and nothing inside a fence counts",
+  );
+  // Angle brackets and brackets inside a code span are literal text the slug rule already handles.
+  assert.deepEqual(constructs(["### `<place> = <value>`"]), []);
+  assert.deepEqual(constructs(["### `if … [else …]`"]), []);
+});
+
+test("the LIVE spec is clean for the canary, which is what licenses the slug rule", () => {
+  // The module note's "spec/ contains none today" is kept true by this, not by an assertion in a
+  // comment. If a spec edit ever introduces one, this fails here and the gate fails in CI.
+  const scan = (name, lines) =>
+    unsupportedConstructs(lines).map(
+      (found) => `${name}:${found.line} ${found.construct}`,
+    );
+  const offenders = [
+    ...readdirSync(SPEC_DIRECTORY)
+      .filter((file) => file.endsWith(".md"))
+      .flatMap((file) =>
+        scan(
+          file,
+          splitLines(readFileSync(join(SPEC_DIRECTORY, file), "utf8")),
+        ),
+      ),
+    // A canary for the canary. A detector that silently stopped reporting would make the corpus look
+    // clean and this assertion pass, so one document that MUST be reported is scanned alongside it.
+    ...scan("synthetic.md", ["<div>"]),
+  ];
+  assert.deepEqual(offenders, ["synthetic.md:1 raw-HTML block"]);
+});
+
+test("a duplicate slug is positional, so a citation can silently RETARGET — both directions", () => {
+  // The bound on what resolution proves: it proves some heading claims the slug, never that the
+  // section the citation meant still claims it. Both shapes stay green, which is exactly why the
+  // coverage statement has to say so.
+  const slugsOf = (lines) => documentHeadings(lines).map(({ slug }) => slug);
+  const headingAt = (lines, slug) =>
+    documentHeadings(lines).find((entry) => entry.slug === slug).line;
+
+  // DEMOTION — a colliding heading inserted AHEAD of the cited one takes the bare slug.
+  const before = ["## Alpha", "## Notes", "## Omega"];
+  const afterInsert = ["## Alpha", "## Notes", "## Notes", "## Omega"];
+  assert.equal(headingAt(before, "notes"), 2);
+  assert.equal(headingAt(afterInsert, "notes"), 2);
+  assert.equal(headingAt(afterInsert, "notes-1"), 3);
+
+  // PROMOTION — the one that will actually happen in spec/: an earlier duplicate is renamed, and the
+  // later one inherits the slug it vacated. `#notes` still resolves, to a different section.
+  const twoNotes = ["## Notes", "## Notes"];
+  assert.deepEqual(slugsOf(twoNotes), ["notes", "notes-1"]);
+  const renamedFirst = ["## Notes on scope", "## Notes"];
+  assert.deepEqual(slugsOf(renamedFirst), ["notes-on-scope", "notes"]);
+  assert.equal(
+    headingAt(twoNotes, "notes"),
+    1,
+    "#notes named the first section before the rename",
+  );
+  assert.equal(
+    headingAt(renamedFirst, "notes"),
+    2,
+    "and names the second one after it — silently, with the gate still green",
+  );
+
+  // And the gate really is green across that edit, which is the claim being bounded.
+  write(`${CONTRACT}/notes.md`, twoNotes.join("\n\ntext\n\n"));
+  write("cite.md", `See ${CONTRACT}/notes.md#notes.\n`);
+  assert.equal(runOverTemp().ok, true);
+  write(`${CONTRACT}/notes.md`, renamedFirst.join("\n\ntext\n\n"));
+  assert.equal(
+    runOverTemp().ok,
+    true,
+    "the citation now names a different section and the gate cannot tell",
+  );
+});
+
+test("an anchor into a document the reader cannot follow fails rather than being answered", () => {
+  write(
+    `${CONTRACT}/html.md`,
+    ["# Title", "", "<!-- hidden -->", "## Ghost", "", "text"].join("\n"),
+  );
+  write(
+    "cite.md",
+    `See ${CONTRACT}/html.md#ghost and ${CONTRACT}/html.md#title.\n`,
+  );
+  const result = runOverTemp();
+  assert.equal(result.ok, false);
+  const report = result.lines.join("\n");
+  assert.match(
+    report,
+    /uses a raw-HTML block, which this gate's heading reader cannot follow/,
+  );
+  // Once per document, not once per anchor: two anchors, one report.
+  assert.equal(
+    report.match(/this gate's heading reader cannot follow/g).length,
+    1,
+  );
 });
 
 test("formatAnchor renders the citable form back", () => {
@@ -1140,7 +1301,7 @@ test("collectCitations returns section anchors beside citations, from one pass",
       `2:${CONTRACT}/conformance.md#sprites`,
     ],
   );
-  // The line form is untouched: an anchored mention still yields exactly the citations it did.
+  // The line form is untouched: an explicit line mention still yields exactly the citations it did.
   assert.deepEqual(
     citations.map(
       (citation) => `${citation.file}:${citation.start}:${citation.form}`,
@@ -1452,7 +1613,7 @@ test("MUTATION: a real heading from the LIVE corpus resolves; one corrupted char
   //
   // **The baseline is NOT computed by the code under test.** Deriving the expected slug from
   // `documentHeadings()` and then checking it with a gate built on `documentHeadings()` makes both
-  // sides agree under any systematic slug error — the review that found this also found three such
+  // sides agree under any systematic slug error — the review that found this also found several such
   // errors, every one of which had survived a green suite. So the heading and its fragment are
   // written out as literals, hand-verified against GitHub's rule, and the heading's existence is
   // confirmed by a raw line scan: a differently-shaped instrument from the one under test. Renaming
