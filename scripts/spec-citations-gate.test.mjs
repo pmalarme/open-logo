@@ -44,7 +44,6 @@ import {
   flattenProseRun,
   formatAnchor,
   formatCitation,
-  renderedText,
   isProseLine,
   lineLookup,
   listCitationFiles,

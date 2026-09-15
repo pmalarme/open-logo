@@ -510,8 +510,11 @@ export function documentHeadings(lines) {
  * Walking the tree also means there is no HTML to strip, so the tag-stripping pattern this used to
  * need — defeated by a `>` inside an attribute value or a comment — is gone rather than hardened.
  * Raw inline HTML is a leaf token, and {@link headingHazards} refuses the document outright.
+ *
+ * Internal: it is exercised through {@link documentHeadings}, which is the only thing a slug may be
+ * computed from. Exporting it would invite a caller to slug a heading the hazard check never saw.
  */
-export function renderedText(tokens) {
+function renderedText(tokens) {
   let text = "";
   for (const token of tokens) {
     if (token.type === "codespan") {
