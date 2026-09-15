@@ -963,6 +963,44 @@ test("slugs are computed from RENDERED text, which is what a source-slugging rea
     ["titlemore"],
     "the backslash spelling of the same break",
   );
+
+  // An IMAGE carries its alt text in an attribute, so it reaches no anchor — the same reasoning as
+  // the hard break, and pinned against two real GitHub anchors. Descending into the alt tokens gave
+  // `mou-icon` and `headphones-logo-headphones`: anchors that resolve here and 404 on GitHub.
+  assert.deepEqual(
+    documentHeadings(["## ![Mou icon](x.gif)"]).map(({ slug }) => slug),
+    [""],
+    "an image-only heading publishes an EMPTY anchor",
+  );
+  assert.deepEqual(
+    documentHeadings(["## ![Headphones Logo](x.png) Headphones"]).map(
+      ({ slug }) => slug,
+    ),
+    ["-headphones"],
+    "and the space it leaves behind keeps its leading hyphen",
+  );
+  assert.deepEqual(
+    documentHeadings(["## [![alt](i.png)](t)"]).map(({ slug }) => slug),
+    [""],
+    "including an image nested in a link",
+  );
+
+  // The two numeric grammars are kept apart. Written as one `#[xX]?[0-9a-fA-F]+` the `x` is optional
+  // over a HEX digit class, so a malformed decimal was read as a number: `&#12A;` decoded as 12 and
+  // slugged `a--b` where GitHub publishes `a-12a-b`, and `&#AB;` reached fromCodePoint(NaN) and
+  // CRASHED the gate. Neither is a reference, so both are left exactly as GitHub leaves them.
+  assert.deepEqual(slugOf("A &#12A; B"), ["a-12a-b"], "a malformed decimal");
+  assert.deepEqual(
+    slugOf("A &#AB; B"),
+    ["a-ab-b"],
+    "and one that used to throw",
+  );
+  assert.deepEqual(
+    slugOf("A &#x1F; B"),
+    ["a--b"],
+    "a real hex form still decodes",
+  );
+  assert.deepEqual(slugOf("A &#65; B"), ["a-a-b"], "as does a real decimal");
 });
 
 test("block structure comes from the parser — every shape that defeated the flat reader", () => {
@@ -1240,6 +1278,10 @@ test("the canary is now three constructs, because the parser obsoleted the rest"
   assert.deepEqual(constructs(["### `<place> = <value>`"]), []);
   assert.deepEqual(constructs(["### `&copy;`"]), []);
   assert.deepEqual(constructs(["### `:+1:`"]), []);
+  // An IMAGE is skipped for the same reason renderedText skips it — its alt text reaches no anchor,
+  // so a shortcode there cannot refuse a document it does not affect.
+  assert.deepEqual(constructs(["## ![:+1:](x.png) Title"]), []);
+  assert.deepEqual(constructs(["## ![&copy;](x.png) Title"]), []);
 
   // TWO of the three key on SHAPE, not on a table of real entities or real emoji names, and that is
   // deliberate — telling them apart needs exactly the hand-maintained tables the parse was adopted

@@ -135,7 +135,11 @@ toward inventing a slug. That asymmetry is the whole safety argument.
   source and stripping tags. That distinction is load-bearing: the tree is the only place a
   *reference* link has been resolved against the document's link definitions, so `## [Text][ref]`
   publishes `#text` rather than the `#textref` a re-parse computes. It also removes the tag-stripping
-  pattern entirely rather than hardening it.
+  pattern entirely rather than hardening it. The rule the walk applies is GitHub's own: an anchor
+  comes from a heading's **text content**, so a token that contributes none — a hard break, raw HTML,
+  or an **image**, whose alt text is an attribute — contributes nothing to the slug. `## ![Mou
+  icon](x.gif)` publishes an *empty* anchor, and `## ![Logo](x.png) Headphones` publishes
+  `#-headphones`, keeping the hyphen the image's trailing space leaves behind.
 - `marked` follows GFM, not GitHub's rendering pipeline in full. Where the two can differ — the
   emoji shortcode, an entity the decoder does not handle, raw inline HTML — the gate **refuses rather
   than guesses**, so a divergence is loud. Two shapes are noted as *unverified* rather than claimed:

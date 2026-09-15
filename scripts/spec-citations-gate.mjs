@@ -520,9 +520,18 @@ export function renderedText(tokens) {
       text += token.text;
       continue;
     }
+    if (token.type === "image") {
+      // An `<img>` carries its alt text in an ATTRIBUTE, so it contributes nothing to the heading's
+      // text content and nothing to the anchor. GitHub publishes an EMPTY anchor for
+      // `## ![Mou icon](x.gif)`, and `#-headphones` for `## ![Headphones Logo](x.png) Headphones` —
+      // note the leading hyphen, from the space the image leaves behind. Descending into the alt
+      // tokens produced `mou-icon` and `headphones-logo-headphones`: anchors that resolve here and
+      // 404 on GitHub, which is the silent direction.
+      continue;
+    }
     if (Array.isArray(token.tokens)) {
-      // A link, image, emphasis or strikethrough renders as its own content. Descending is what
-      // makes a REFERENCE link work: the lexer resolved `[Text][ref]` against the document's link
+      // A link, emphasis or strikethrough renders as its own content. Descending is what makes a
+      // REFERENCE link work: the lexer resolved `[Text][ref]` against the document's link
       // definitions, so its child token is `Text`. Re-parsing the heading's raw source instead —
       // which this used to do — has no definitions in scope and yields `textref`, an anchor GitHub
       // never publishes.
@@ -558,6 +567,20 @@ const NAMED_ENTITIES = Object.freeze({
 });
 
 /**
+ * The two numeric-reference grammars, kept apart.
+ *
+ * Writing them as one `#[xX]?[0-9a-fA-F]+` makes the `x` optional over a hex digit class, so a
+ * malformed *decimal* reference carrying `A`-`F` is accepted as a number: `&#12A;` decoded as 12 and
+ * slugged `a--b` where GitHub renders it literally and publishes `a-12a-b`, and `&#AB;` reached
+ * `String.fromCodePoint(NaN)` and **crashed the gate**. They are built from one place because the
+ * grammar is used three times and drift between the copies is what makes that kind of hole reappear.
+ */
+const NUMERIC_REFERENCE = "#(?:[0-9]+|[xX][0-9a-fA-F]+)";
+
+/** A named entity reference, whatever it names. */
+const NAMED_REFERENCE = "[a-zA-Z][a-zA-Z0-9]*";
+
+/**
  * Decode the HTML entities a renderer emits, so the slug sees the character a reader sees.
  *
  * Numeric references follow CommonMark's replacement rule, which is what GitHub's renderer applies:
@@ -565,10 +588,13 @@ const NAMED_ENTITIES = Object.freeze({
  * is replaced by U+FFFD rather than left as written. Getting this wrong is silent, not loud —
  * `&#xD800;` slugged as a bare surrogate and `&#x110000;` as the literal text `x110000`, both of
  * them anchors GitHub does not publish, and neither was refused.
+ *
+ * Anything that is not one of the two grammars is left exactly as written, which is what GitHub does
+ * with it too.
  */
 export function decodeEntities(text) {
   return text.replace(
-    /&(#[xX]?[0-9a-fA-F]+|[a-zA-Z][a-zA-Z0-9]*);/g,
+    new RegExp(`&(${NUMERIC_REFERENCE}|${NAMED_REFERENCE});`, "g"),
     (whole, body) => {
       if (body[0] !== "#") {
         return NAMED_ENTITIES[body.toLowerCase()] ?? whole;
@@ -586,10 +612,15 @@ export function decodeEntities(text) {
 }
 
 /** The entities {@link decodeEntities} can resolve: what a renderer emits when escaping, plus numeric. */
-const DECODABLE_ENTITY = /^&(?:amp|lt|gt|quot|apos|nbsp|#[xX]?[0-9a-fA-F]+);$/;
+const DECODABLE_ENTITY = new RegExp(
+  `^&(?:amp|lt|gt|quot|apos|nbsp|${NUMERIC_REFERENCE});$`,
+);
 
 /** Any entity reference a heading's source may contain. */
-const ANY_ENTITY = /&(?:[a-zA-Z][a-zA-Z0-9]*|#[xX]?[0-9a-fA-F]+);/g;
+const ANY_ENTITY = new RegExp(
+  `&(?:${NAMED_REFERENCE}|${NUMERIC_REFERENCE});`,
+  "g",
+);
 
 /** A GFM emoji shortcode, which GitHub replaces with a character the slug rule then deletes. */
 const EMOJI_SHORTCODE = /:[a-z0-9+_-]+:/;
@@ -599,7 +630,9 @@ const EMOJI_SHORTCODE = /:[a-z0-9+_-]+:/;
  *
  * It walks the parser's own inline tree rather than the heading's raw source, which is what makes it
  * precise enough to be narrow: a `codespan` is literal text and is skipped entirely, so the live
- * `` ### `<place> = <value>` `` heading is not mistaken for inline HTML.
+ * `` ### `<place> = <value>` `` heading is not mistaken for inline HTML. An `image` is skipped for
+ * the same reason {@link renderedText} skips it — its alt text is an attribute and reaches no
+ * anchor — so a shortcode or entity appearing only there cannot refuse a document it does not affect.
  *
  * Three things survive the parse. All three are **conservative refusals**, and the distinction
  * matters: two of them are recognised by *shape*, so a heading whose `&notanentity;` or
@@ -625,7 +658,7 @@ function headingHazards(tokens) {
   const hazards = [];
   const walk = (inline) => {
     for (const token of inline) {
-      if (token.type === "codespan") {
+      if (token.type === "codespan" || token.type === "image") {
         continue;
       }
       if (token.type === "html") {
