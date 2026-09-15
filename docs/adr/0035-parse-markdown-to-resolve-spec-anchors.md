@@ -56,8 +56,9 @@ deliberately keeps the toolchain small.
 
 ### Why these two packages
 
-Measured with `npm view <pkg> dependencies`, against a workspace that installs **39** packages in
-total:
+Measured with `npm view <pkg> dependencies`, against a workspace that installed **39** packages in
+total _before_ this change — stated as the pre-change baseline on purpose, because this record ships
+*with* the change and a reader re-deriving it afterwards will correctly measure **41**:
 
 | package | direct dependencies |
 |---|---|
@@ -89,21 +90,26 @@ The hand-rolled slug rule; the character permit-lists over heading text and code
 code-span run pairer; the fence and container scanners; and the refusals for HTML blocks, setext
 rules, nested headings and container fences. **A dependency that only adds has not paid for itself.**
 
-One refusal class survives, because these are genuine divergences rather than approximations. A cited
+Three refusals survive, all of one class: GitHub can resolve something this reader does not. A cited
 document whose headings contain any of them is refused rather than answered:
 
 - a **GFM emoji shortcode**, which GitHub renders and `marked` does not implement;
-- a **named HTML entity beyond the escaping set** (`&copy;`, `&mdash;`, …). CommonMark resolves all
-  ~2,000 HTML5 entity references and GitHub slugs the resulting character; `marked.parseInline`
-  passes them through. The decoder here handles what a renderer *emits* when escaping — six names
-  plus the numeric forms — and deliberately does **not** grow a hand-maintained table of the rest,
-  because a partial hand-rolled table is precisely the defect this parse was adopted to end;
-- **raw inline HTML** in a heading, where recovering text from rendered HTML by pattern would break
-  on a `>` inside an attribute value or a comment.
+- an **entity reference the decoder does not handle** (`&copy;`, `&mdash;`, …). CommonMark resolves
+  all ~2,000 HTML5 entity references and GitHub slugs the resulting character; `marked` leaves them in
+  the token text. The decoder here handles what a renderer *emits* when escaping — six names plus the
+  numeric forms — and deliberately does **not** grow a hand-maintained table of the rest, because a
+  partial hand-rolled table is precisely the defect this parse was adopted to end;
+- **raw inline HTML** in a heading, a leaf token with no recoverable text.
 
 All three are detected by walking `marked`'s own **inline token tree** rather than the heading's raw
 source, which is what makes them narrow enough to be safe: a `codespan` is literal text and is
 skipped, so the live `` ### `<place> = <value>` `` heading is not mistaken for inline HTML.
+
+Two of the three are recognised by **shape**, and that is stated rather than glossed: a heading whose
+`&notarealentity;` or `:not_an_emoji:` GitHub would publish literally is refused as well. Telling the
+real ones apart needs exactly the hand-maintained tables this decision exists to avoid, so the gate
+errs toward **refusing loudly** — a refused document names the construct and the remedy — and never
+toward inventing a slug. That asymmetry is the whole safety argument.
 
 ## Consequences
 
@@ -121,20 +127,32 @@ skipped, so the live `` ### `<place> = <value>` `` heading is not mistaken for i
   [ADR-0034](0034-cite-the-spec-by-section-anchor.md).
 - Line-form citation handling is untouched; its counters are invariant across this change, which is
   the property #1183's ratchet baseline depends on.
-- Two new packages enter dependency review and CodeQL. Both declare zero direct dependencies, so the
-  transitive surface added is exactly two.
-- `marked` follows GFM, not GitHub's rendering pipeline in full, and this gate recovers a heading's
-  text from the parser's inline tokens rather than from rendered HTML. Where the two can differ — the
-  emoji shortcode, an entity outside the escaping set, raw inline HTML — the gate **refuses rather
+- Two new packages enter the dependency graph, and so Dependency Review and Dependabot. Both declare
+  zero direct dependencies, so the transitive surface added is exactly two. CodeQL analyses this
+  repository's own source — including the gate — and excludes `node_modules`, so it is the dependency
+  controls rather than code scanning that cover the packages themselves.
+- Rendered text is recovered from the **lexer's inline token tree**, not by re-parsing the heading's
+  source and stripping tags. That distinction is load-bearing: the tree is the only place a
+  *reference* link has been resolved against the document's link definitions, so `## [Text][ref]`
+  publishes `#text` rather than the `#textref` a re-parse computes. It also removes the tag-stripping
+  pattern entirely rather than hardening it.
+- `marked` follows GFM, not GitHub's rendering pipeline in full. Where the two can differ — the
+  emoji shortcode, an entity the decoder does not handle, raw inline HTML — the gate **refuses rather
   than guesses**, so a divergence is loud. Two shapes are noted as *unverified* rather than claimed:
   a GFM **footnote reference** in a heading (`## Note[^1]` reaches the same slug by a different
   route, and a non-numeric label might not), and **math** spans, whose effect on a heading's text
-  content could not be determined offline. Neither occurs in `spec/`.
+  content could not be determined offline. Neither occurs in `spec/` today, and issue #1193 tracks
+  measuring both against GitHub from a network-capable environment — this record cannot be corrected
+  in place once Accepted, so the verification lives in an issue.
 - The lockfile records both packages against `registry.npmjs.org` with `sha512` integrity. This is
   worth stating because it did not happen by default: an `npm install` run behind a mirroring proxy
   wrote the proxy's URLs and its legacy `sha1` metadata into the lockfile, which would have pointed a
-  public repository's CI at an unreachable internal feed and downgraded integrity. Reviewers caught
-  it; a follow-up will assert in CI that every `resolved` host is the public registry.
+  public repository's CI at an unreachable internal feed and downgraded integrity. Reviewers caught it
+  first, but CI was already the backstop for half of it:
+  `.github/scripts/validate-lockfile-registry.py` (issue #642, [ADR-0018](0018-packages-are-private-not-published.md))
+  has asserted the public-registry **host** rule since before this change, and a mutation probe
+  confirmed it rejects the proxy URL. It is blind to the **integrity algorithm**, which is the half
+  genuinely missing; issue #1192 tracks closing it.
 
 ## Alternatives considered
 

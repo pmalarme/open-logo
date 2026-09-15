@@ -59,20 +59,26 @@ decision, the measured churn and the rejected alternatives are in
 - **Quote the words you rely on** where it is natural — the anchor, then the fragment your claim
   rests on in quotation marks. Recommended, not required.
 - **Keep a citation on one line**, even if the line runs long. Anchors are long, and an anchor split
-  by a line wrap becomes a different, non-existent one — a site in this tree already reads as
-  `#collections-`. Today that passes unseen; after #1181 it fails.
+  by a line wrap becomes a different, non-existent one — the site in this tree that read as
+  `#collections-` was repaired by #1181, whose gate now **fails** on that shape rather than passing
+  it unseen.
 - **`#L30` / `#L28-L84` is not an anchor.** GitHub's line fragment is a line claim in anchor
   clothing: it names a position, not a section, and drifts exactly the way a line number does. Not
   the durable form.
 
-**What the gate proves.** Anchor resolution is slice #1181 and **does not exist yet**: today
-`npm run spec-citations` enumerates an anchor as a mention and never resolves it, so a renamed or
-misspelled heading passes unseen. When #1181 lands, the gate reads the headings of the file an
-anchor names and fails when none matches — proving **the heading exists and nothing more**. A
-resolving anchor does **not** mean the section supports the claim beside it, and a quote check
-proves the words are still present, not that they mean what your sentence says — the wrong-passage
-and misstating-prose modes survive an anchor exactly as they survived a line number. Read the
-coverage statement the gate prints; never read a green run as "every citation is right".
+**What the gate proves.** `npm run spec-citations` **resolves** anchors (#1181): it reads the
+headings of the file an anchor names — from a GFM parse, slugged the way GitHub slugs — and fails
+when none matches, naming the closest heading as a did-you-mean that is **reported and never acted
+on**. A near miss fails exactly like a wild one. What it proves is **the heading exists and nothing
+more**. A resolving anchor does **not** mean the section supports the claim beside it, and a quote
+check proves the words are still present, not that they mean what your sentence says — the
+wrong-passage and misstating-prose modes survive an anchor exactly as they survived a line number.
+Two further limits are worth knowing before you rely on one: duplicate headings are numbered
+positionally, so inserting, removing or renaming a colliding heading silently **retargets** a
+resolving anchor at a different section while the gate stays green; and a cited document whose
+headings use a construct the reader will not guess at — an emoji shortcode shape, an entity outside
+the escaping set, raw inline HTML — is **refused** rather than answered. Read the coverage statement
+the gate prints; never read a green run as "every citation is right".
 
 ## Procedure
 

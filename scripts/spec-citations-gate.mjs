@@ -128,11 +128,13 @@
  * parsing would have touched them.
  *
  * What the parse obsoleted is **deleted**, not kept in reserve: the hand-rolled slug rule, the
- * character permit-lists over headings and code-span contents, the fence and container scanners, and
- * the refusals for HTML blocks, setext rules, nested headings and container fences. A dependency that
- * only adds has not paid for itself. What survives in {@link unsupportedConstructs} is one genuine
- * divergence — a **GFM emoji shortcode**, a GitHub extension `marked` does not implement — and the
- * live-corpus test keeps `spec/`'s freedom from it measured rather than asserted.
+ * character permit-lists over headings and code-span contents, the fence and container scanners, the
+ * refusals for HTML blocks, setext rules, nested headings and container fences, and the tag-stripping
+ * pattern that a `>` inside an attribute value defeated. A dependency that only adds has not paid for
+ * itself. What survives in {@link unsupportedConstructs} is three **conservative refusals** — an
+ * entity reference this reader does not decode, raw inline HTML, and an emoji shortcode shape — and
+ * the live-corpus test keeps the cited documents' freedom from all three measured rather than
+ * asserted.
  *
  * A fragment of the form `#L30` or `#L28-L84` is GitHub's **line fragment**, not a heading: it names
  * lines, so it is resolved against the file's length by {@link resolveCitation} like any other line
@@ -363,16 +365,20 @@ export function isProseLine(path, line) {
  * The fragment is captured as group 5 — appended rather than inserted — so the line-spec groups keep
  * the numbers they had before issue #1181 and every existing reader of this pattern is unaffected.
  *
- * The fragment class matches what a slug can **contain** (letters, digits, `-`, `_`), not merely
- * ASCII, so a heading with an accented word cannot be truncated mid-slug into a confusing
- * "no heading slugs to `caf`". It is `*` rather than `+` on purpose: a `#` with nothing after it is
- * enumerated as an **empty** fragment and fails, instead of falling through as a plain file mention.
- * That shape is a real defect — an anchor hard-wrapped immediately after its `#` — and matching `+`
- * made the one live instance in this tree invisible to the very check meant to catch it.
+ * The fragment class matches what a slug can **contain** (letters, digits, combining marks, `-`,
+ * `_`), not merely ASCII, so a heading with an accented word cannot be truncated mid-slug into a
+ * confusing "no heading slugs to `caf`". Combining marks are in the class because `github-slugger`
+ * preserves them: a decomposed `## Café` publishes a slug whose final code point is U+0301, and
+ * without `\p{M}` the citation to it truncates to `cafe` and is reported malformed — a false failure
+ * manufactured by the tokenizer rather than found in the document. It is `*` rather than `+` on
+ * purpose: a `#` with nothing after it is enumerated as an **empty** fragment and fails, instead of
+ * falling through as a plain file mention. That shape is a real defect — an anchor hard-wrapped
+ * immediately after its `#` — and matching `+` made the one live instance in this tree invisible to
+ * the very check meant to catch it.
  */
 function mentionPattern(specDirectory) {
   return new RegExp(
-    `${specDirectory.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\/([A-Za-z0-9._-]+\\.md)(?::(\\d+)(?:-(\\d+))?((?:,\\d+(?:-\\d+)?)+)?)?(?:#([\\p{L}\\p{N}_-]*))?`,
+    `${specDirectory.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\/([A-Za-z0-9._-]+\\.md)(?::(\\d+)(?:-(\\d+))?((?:,\\d+(?:-\\d+)?)+)?)?(?:#([\\p{L}\\p{N}\\p{M}_-]*))?`,
     "gu",
   );
 }
@@ -398,11 +404,10 @@ function mentionPattern(specDirectory) {
  * space after `](`, then a balanced `(foo)` inside the destination); the asymmetric rule has no
  * destination to get wrong, which is why it replaced it.
  *
- * One stated limit, and it is the same character that forces the heading permit-list: `_` is a legal
- * slug character, so `_x.md#a-heading_` cannot be told from a fragment genuinely ending in `_`.
- * Underscore emphasis around a citation therefore fails — loudly, and this corpus emphasises with
- * `*`. The cited side has no such ambiguity any more: the parser resolves emphasis before the slug
- * is computed, so `## _Text_` correctly publishes `#text`.
+ * One stated limit: `_` is a legal slug character, so `_x.md#a-heading_` cannot be told from a
+ * fragment genuinely ending in `_`. Underscore emphasis around a citation therefore fails — loudly,
+ * and this corpus emphasises with `*`. The cited side has no such ambiguity any more: the parser
+ * resolves emphasis before the slug is computed, so `## _Text_` correctly publishes `#text`.
  */
 const FRAGMENT_BOUNDARY = /^(?:[\s`'"“”‘’)\]}>|]|$)|^[.,:;!?*~+=…—–]+(?:\s|$)/u;
 
@@ -469,7 +474,7 @@ export function documentHeadings(lines) {
   const walk = (tokens) => {
     for (const token of tokens) {
       if (token.type === "heading") {
-        const heading = renderedText(token.text);
+        const heading = renderedText(token.tokens);
         found.push({
           line: locate(token.raw),
           heading,
@@ -497,14 +502,49 @@ export function documentHeadings(lines) {
 /**
  * A heading's **rendered** text — what `github-slugger` expects, and what GitHub slugs.
  *
- * `marked.parseInline` resolves the inline grammar (links to their label, emphasis to its content, a
- * code span to its trimmed literal), tags are then dropped, and entities decoded. The order matters:
- * decoding before stripping would turn `&lt;br&gt;` into a tag and delete it.
+ * It walks the **lexer's own inline token tree**, not the heading's raw source. That distinction is
+ * load-bearing rather than stylistic: the tree is the only place a *reference* link has been resolved
+ * against the document's link definitions. Re-parsing `[Text][ref]` in isolation produces `textref`,
+ * an anchor GitHub never publishes, while its token carries the child text `Text`.
+ *
+ * Walking the tree also means there is no HTML to strip, so the tag-stripping pattern this used to
+ * need — defeated by a `>` inside an attribute value or a comment — is gone rather than hardened.
+ * Raw inline HTML is a leaf token, and {@link headingHazards} refuses the document outright.
  */
-export function renderedText(inline) {
-  return decodeEntities(
-    marked.parseInline(inline, { gfm: true }).replace(/<[^>]*>/g, ""),
-  );
+export function renderedText(tokens) {
+  let text = "";
+  for (const token of tokens) {
+    if (token.type === "codespan") {
+      // Already the trimmed literal: `` ` foo ` `` arrives as `foo`, and its contents are never
+      // inline markup, so nothing inside it is decoded or descended into.
+      text += token.text;
+      continue;
+    }
+    if (Array.isArray(token.tokens)) {
+      // A link, image, emphasis or strikethrough renders as its own content. Descending is what
+      // makes a REFERENCE link work: the lexer resolved `[Text][ref]` against the document's link
+      // definitions, so its child token is `Text`. Re-parsing the heading's raw source instead —
+      // which this used to do — has no definitions in scope and yields `textref`, an anchor GitHub
+      // never publishes.
+      text += renderedText(token.tokens);
+      continue;
+    }
+    if (token.type === "br" || token.type === "html") {
+      // Neither contributes text content. A `<br>` is reachable — a SETEXT heading spans lines, so
+      // `Title··\nmore\n=====` lexes as text/br/text — and GitHub slugs a heading's rendered text
+      // content, in which a `<br>` element contributes nothing: `titlemore`, not `title-more`.
+      // `github-slugger` agrees by a second route, deleting the newline of `"Title\nmore"` to reach
+      // the same slug; emitting a space was the only variant that disagreed with both. Raw HTML is
+      // likewise a leaf with no recoverable text, and its document is refused by
+      // {@link headingHazards} regardless, so its slug never resolves anything.
+      continue;
+    }
+    // Entities are decoded PER TOKEN rather than over the joined string, which is the more faithful
+    // order: `## A \&amp; B` lexes as an escape (`&`) followed by the text `amp; B`, so nothing
+    // re-decodes what the author escaped, and GitHub's literal `&amp;` is preserved.
+    text += decodeEntities(token.text);
+  }
+  return text;
 }
 
 /** The named entities markdown rendering can emit, plus numeric forms. */
@@ -517,7 +557,15 @@ const NAMED_ENTITIES = Object.freeze({
   nbsp: "\u00A0",
 });
 
-/** Decode the HTML entities a renderer emits, so the slug sees the character a reader sees. */
+/**
+ * Decode the HTML entities a renderer emits, so the slug sees the character a reader sees.
+ *
+ * Numeric references follow CommonMark's replacement rule, which is what GitHub's renderer applies:
+ * a null, a lone surrogate, or a value past the last code point has **no character to produce**, and
+ * is replaced by U+FFFD rather than left as written. Getting this wrong is silent, not loud —
+ * `&#xD800;` slugged as a bare surrogate and `&#x110000;` as the literal text `x110000`, both of
+ * them anchors GitHub does not publish, and neither was refused.
+ */
 export function decodeEntities(text) {
   return text.replace(
     /&(#[xX]?[0-9a-fA-F]+|[a-zA-Z][a-zA-Z0-9]*);/g,
@@ -530,9 +578,9 @@ export function decodeEntities(text) {
         hex ? body.slice(2) : body.slice(1),
         hex ? 16 : 10,
       );
-      // Past the last code point there is no character to produce, and `fromCodePoint` throws
-      // rather than returning one — so an out-of-range reference stays as written.
-      return code > 0x10ffff ? whole : String.fromCodePoint(code);
+      const unrepresentable =
+        code === 0 || code > 0x10ffff || (code >= 0xd800 && code <= 0xdfff);
+      return unrepresentable ? "\uFFFD" : String.fromCodePoint(code);
     },
   );
 }
@@ -553,22 +601,25 @@ const EMOJI_SHORTCODE = /:[a-z0-9+_-]+:/;
  * precise enough to be narrow: a `codespan` is literal text and is skipped entirely, so the live
  * `` ### `<place> = <value>` `` heading is not mistaken for inline HTML.
  *
- * Three things survive the parse, and all three are the same shape — GitHub resolves something this
- * reader does not:
+ * Three things survive the parse. All three are **conservative refusals**, and the distinction
+ * matters: two of them are recognised by *shape*, so a heading whose `&notanentity;` or
+ * `:not_an_emoji:` GitHub would publish literally is refused as well. That errs loudly — a refused
+ * document names the construct and the remedy — rather than inventing a slug, which is the only
+ * direction this gate is allowed to be wrong in. Telling the real ones apart would need exactly the
+ * hand-maintained tables the parse was adopted to end.
  *
- * - **A named entity beyond the escaping set.** CommonMark resolves every HTML5 entity reference and
- *   GitHub slugs the character; `marked.parseInline` passes them through, so `## A &copy; B` would
- *   slug `a-copy-b` here against GitHub's `a--b`. {@link decodeEntities} handles what a renderer
- *   *emits* when escaping — six names and the numeric forms — and deliberately does not grow a
- *   hand-maintained table of the other two thousand, because a partial hand-rolled table is the exact
- *   defect the parse was adopted to end.
- * - **Raw inline HTML.** Stripping tags with a pattern breaks on a `>` inside a comment or an
- *   attribute value, so `## A <!-- a > b --> C` diverges.
- * - **A GFM emoji shortcode**, which GitHub replaces with a character the slug rule then deletes and
- *   `marked` does not implement at all.
+ * - **An entity reference this reader does not decode.** CommonMark resolves every valid HTML5
+ *   entity and GitHub slugs the character; `marked` leaves them in the token text, so `## A &copy; B`
+ *   would slug `a-copy-b` here against GitHub's `a--b`. {@link decodeEntities} handles what a
+ *   renderer *emits* when escaping — six names and the numeric forms — and deliberately does not grow
+ *   a hand-maintained table of the other two thousand.
+ * - **Raw inline HTML.** It is a leaf token with no text to recover, and recovering it by pattern is
+ *   what broke on a `>` inside a comment or an attribute value.
+ * - **An emoji shortcode shape**, which GitHub replaces with a character the slug rule then deletes
+ *   and `marked` does not implement at all.
  *
  * All three are refused rather than guessed at, which keeps ADR-0035's claim true: where `marked` and
- * GitHub differ, the gate declines to answer. The cited corpus contains no instance of any of them.
+ * GitHub can differ, the gate declines to answer. The cited corpus contains no instance of any.
  */
 function headingHazards(tokens) {
   const hazards = [];
@@ -595,13 +646,15 @@ function headingHazards(tokens) {
       for (const entity of source.match(ANY_ENTITY) ?? []) {
         if (!DECODABLE_ENTITY.test(entity)) {
           hazards.push(
-            `the HTML entity ${entity} in a heading, which GitHub resolves and this reader does not`,
+            `the entity reference ${entity} in a heading, which this reader does not decode and ` +
+              "GitHub resolves whenever it names a valid HTML5 entity",
           );
         }
       }
       if (EMOJI_SHORTCODE.test(source)) {
         hazards.push(
-          "an emoji shortcode in a heading, which GitHub renders and this reader does not",
+          "an emoji shortcode shape in a heading, which this reader does not resolve and GitHub " +
+            "replaces whenever it names a known emoji",
         );
       }
     }
@@ -1728,10 +1781,12 @@ export function runSpecCitationsGate({
       "renamed heading therefore fails loudly only when the rename leaves its slug unclaimed. A " +
       "citation written without the spec-directory prefix is not seen at all. Headings come from a " +
       "GFM parse and slugs from github-slugger (ADR-0035), so block structure and rendered text are " +
-      "no longer approximated; where GitHub still resolves something this reader does not — a GFM " +
-      "emoji shortcode, an HTML entity outside the escaping set, or raw inline HTML in a heading — " +
-      "the cited document is refused rather than answered on a slug computed differently from " +
-      "GitHub's. Do not read a green run as 'every citation is right'.",
+      "no longer approximated; where GitHub can still resolve something this reader does not — an " +
+      "entity reference outside the escaping set, raw inline HTML, or an emoji shortcode shape — the " +
+      "cited document is refused rather than answered on a slug computed differently from GitHub's. " +
+      "Two of those three are recognised by shape, so a construct GitHub would publish literally is " +
+      "refused too: this gate errs toward refusing loudly, never toward inventing a slug. Do not read " +
+      "a green run as 'every citation is right'.",
   );
   if (counts.excused > 0) {
     lines.push(
