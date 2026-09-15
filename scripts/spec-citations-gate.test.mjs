@@ -517,9 +517,17 @@ test("a tree of correct citations passes, and the report states what it does not
   // the emoji shortcode was refused while the code also refused entities and raw inline HTML — a
   // coverage statement that under-reports what the gate declines to answer is exactly the kind of
   // unenforced assertion this gate exists to stop.
+  assert.match(summary, /a GFM\s+parse and slugs from github-slugger/);
   assert.match(
     summary,
-    /a GFM\s+emoji shortcode, an HTML entity outside the escaping set, or raw inline HTML in a heading/,
+    /an\s+entity reference outside the escaping set, raw inline HTML, or an emoji shortcode shape/,
+  );
+  // And it must not claim those refusals are exact. Two of the three key on SHAPE, so a heading
+  // GitHub would publish literally is refused as well — erring toward refusing loudly rather than
+  // inventing a slug. A statement that reads as "only genuine divergences are refused" overclaims.
+  assert.match(
+    summary,
+    /recognised by shape, so a construct GitHub would publish literally is\s+refused too/,
   );
 });
 
@@ -886,11 +894,74 @@ test("slugs are computed from RENDERED text, which is what a source-slugging rea
   assert.deepEqual(slugOf("Area in `m²`"), ["area-in-m"]);
   assert.deepEqual(slugOf("Half ½ done"), ["half--done"]);
 
-  assert.equal(renderedText("[Text](target)"), "Text");
-  assert.equal(renderedText("A &amp; B"), "A & B");
+  // Rendered text is checked through the public path, because that is the only place a REFERENCE
+  // link has been resolved against the document's link definitions.
+  const headingOf = (source) => documentHeadings(source.split("\n"))[0].heading;
+  assert.equal(headingOf("## [Text](target)"), "Text");
+  assert.equal(headingOf("## A &amp; B"), "A & B");
   assert.equal(
     decodeEntities("a &lt;b&gt; &#65; &#x42; &nope; &quot; &#99999999;"),
-    'a <b> A B &nope; " &#99999999;',
+    'a <b> A B &nope; " \uFFFD',
+  );
+
+  // A REFERENCE link resolves against the document's definitions. Re-parsing the heading's raw
+  // source in isolation produced `textref` — an anchor GitHub never publishes — because the
+  // definition was not in scope. All three reference forms are pinned.
+  assert.deepEqual(
+    documentHeadings(
+      ["## [Text][ref]", "", "[ref]: https://example.com"]
+        .join("\n")
+        .split("\n"),
+    ).map(({ slug }) => slug),
+    ["text"],
+    "full reference link",
+  );
+  assert.deepEqual(
+    documentHeadings(["## [Text][]", "", "[Text]: https://example.com"]).map(
+      ({ slug }) => slug,
+    ),
+    ["text"],
+    "collapsed reference link",
+  );
+  assert.deepEqual(
+    documentHeadings(["## [Text]", "", "[Text]: https://example.com"]).map(
+      ({ slug }) => slug,
+    ),
+    ["text"],
+    "shortcut reference link",
+  );
+
+  // A numeric reference with no character to produce is U+FFFD, which the slug rule then deletes —
+  // CommonMark's rule, and GitHub's. Left as written, `&#xD800;` slugged as a bare surrogate and
+  // `&#x110000;` as the literal `x110000`: two anchors GitHub does not publish, neither refused.
+  assert.deepEqual(slugOf("A &#xD800; B"), ["a--b"], "a lone surrogate");
+  assert.deepEqual(
+    slugOf("A &#x110000; B"),
+    ["a--b"],
+    "past the last code point",
+  );
+  assert.deepEqual(slugOf("A &#0; B"), ["a--b"], "a null");
+  assert.deepEqual(
+    slugOf("A &#x41; B"),
+    ["a-a-b"],
+    "a representable one still decodes",
+  );
+
+  // An escape is its own token, so decoding PER TOKEN cannot re-decode what the author escaped.
+  assert.equal(headingOf("## A \\&amp; B"), "A &amp; B");
+
+  // A SETEXT heading spans lines, so it can carry a HARD BREAK — the one shape that makes the `br`
+  // branch reachable. A `<br>` contributes no text content, so GitHub slugs `titlemore`; the
+  // slugger agrees by a second route, deleting the newline of "Title\nmore" to the same slug. A
+  // space would have produced `title-more`, agreeing with neither.
+  assert.deepEqual(
+    documentHeadings(["Title  ", "more", "====="]).map(({ slug }) => slug),
+    ["titlemore"],
+  );
+  assert.deepEqual(
+    documentHeadings(["Title\\", "more", "====="]).map(({ slug }) => slug),
+    ["titlemore"],
+    "the backslash spelling of the same break",
   );
 });
 
@@ -1096,6 +1167,28 @@ test("a fragment truncated by a character no slug can hold is malformed, not a v
   );
   // And an angle-bracket destination is valid markdown with a correct anchor: it must NOT fail.
   assert.equal(malformedIn(`[good](<${CONTRACT}/d.md#real-heading>)`), false);
+
+  // The class must hold everything a SLUG can hold, or it manufactures the very defect it exists to
+  // catch. github-slugger PRESERVES combining marks, so a decomposed heading publishes a slug whose
+  // final code point is U+0301 — and without `\p{M}` the citation to it truncated to `cafe` and was
+  // reported malformed: a false failure invented by the tokenizer, not found in the document.
+  const decomposed = "caf\u0065\u0301";
+  assert.deepEqual(
+    documentHeadings([`## Caf\u0065\u0301`]).map(({ slug }) => slug),
+    [decomposed],
+    "the slugger keeps the combining mark",
+  );
+  const { anchors } = collectCitations(
+    "a.md",
+    `see ${CONTRACT}/d.md#${decomposed} tail`,
+    CONTRACT,
+  );
+  assert.equal(
+    anchors[0].fragment,
+    decomposed,
+    "and the citation keeps it too",
+  );
+  assert.equal(anchors[0].malformed, false);
 });
 
 test("the canary is now three constructs, because the parser obsoleted the rest", () => {
@@ -1110,10 +1203,10 @@ test("the canary is now three constructs, because the parser obsoleted the rest"
   assert.match(constructs(["## Good :+1: work"])[0], /emoji shortcode/);
   assert.equal(constructs(["## Nice :smile: work"]).length, 1);
 
-  // 2. A named entity beyond the escaping set. CommonMark resolves ~2,000 of them and GitHub slugs
-  // the character; marked passes them through. The decoder handles what a renderer EMITS when
-  // escaping, and deliberately does not grow a hand-maintained table of the rest — a partial
-  // hand-rolled table is the defect the parse was adopted to end.
+  // 2. An entity reference the decoder does not handle. CommonMark resolves ~2,000 of them and
+  // GitHub slugs the character; marked leaves them in the token text. The decoder handles what a
+  // renderer EMITS when escaping, and deliberately does not grow a hand-maintained table of the
+  // rest — a partial hand-rolled table is the defect the parse was adopted to end.
   for (const entity of [
     "&copy;",
     "&mdash;",
@@ -1123,7 +1216,7 @@ test("the canary is now three constructs, because the parser obsoleted the rest"
   ]) {
     assert.match(
       constructs([`## A ${entity} B`])[0],
-      /the HTML entity/,
+      /the entity reference/,
       `${entity} must be refused`,
     );
   }
@@ -1142,12 +1235,27 @@ test("the canary is now three constructs, because the parser obsoleted the rest"
   // Two DIFFERENT entities remain two findings — dedupe must not collapse distinct causes.
   assert.equal(constructs(["## A &copy; B &mdash; C"]).length, 2);
 
-  // All three are found by walking marked's INLINE TOKEN TREE, not the raw source — which is what
-  // keeps them narrow enough to be safe. A code span is literal text and is skipped, so the live
-  // angle-bracket headings are not mistaken for HTML.
+  // A code span's contents are literal text and are skipped, so the live angle-bracket headings are
+  // not mistaken for HTML.
   assert.deepEqual(constructs(["### `<place> = <value>`"]), []);
   assert.deepEqual(constructs(["### `&copy;`"]), []);
   assert.deepEqual(constructs(["### `:+1:`"]), []);
+
+  // TWO of the three key on SHAPE, not on a table of real entities or real emoji names, and that is
+  // deliberate — telling them apart needs exactly the hand-maintained tables the parse was adopted
+  // to end. So a heading GitHub would publish LITERALLY is refused as well. This is the gate erring
+  // toward refusing loudly (the message names the construct and the remedy) rather than inventing a
+  // slug, and it is pinned so nobody later "fixes" it into a silent pass.
+  assert.match(
+    constructs(["## A &definitelynotarealentity; B"])[0],
+    /the entity reference/,
+    "a lookalike entity is refused too",
+  );
+  assert.match(
+    constructs(["## A :definitely_not_an_emoji_abcxyz: B"])[0],
+    /an emoji shortcode shape/,
+    "a lookalike shortcode is refused too",
+  );
 
   // Everything the old canary refused is now simply READ CORRECTLY, so refusing it would be a false
   // failure. These are the round 3-8 reproductions, inverted: they must all be accepted now.
@@ -1198,7 +1306,7 @@ test("the LIVE spec is clean for the canary, and the canary still reports when i
     ...scan("synthetic.md", ["## Good :+1: work"]),
   ];
   assert.deepEqual(offenders, [
-    "synthetic.md:1 an emoji shortcode in a heading, which GitHub renders and this reader does not",
+    "synthetic.md:1 an emoji shortcode shape in a heading, which this reader does not resolve and GitHub replaces whenever it names a known emoji",
   ]);
 });
 
@@ -1279,8 +1387,12 @@ test("an anchor into a document the canary refuses fails rather than being answe
   // unsupportedConstructs: a detector that reports a hazard the gate then answers anyway would be
   // the "automatic tolerance" #893's reviewers deleted.
   for (const [name, heading, pattern] of [
-    ["emoji", "## Good :+1: work", /an emoji shortcode in a heading/],
-    ["entity", "## Good &copy; work", /the HTML entity &copy; in a heading/],
+    ["emoji", "## Good :+1: work", /an emoji shortcode shape in a heading/],
+    [
+      "entity",
+      "## Good &copy; work",
+      /the entity reference &copy; in a heading/,
+    ],
     ["rawhtml", '## Good <img alt="a>b"> work', /raw inline HTML in a heading/],
   ]) {
     write(

@@ -160,7 +160,7 @@ the argument count differs from the default.
   are recognized by their leading keyword and take a bracketed body
   (`spec/grammar.md#collections-records-and-comprehensions`), not a lambda argument passed through
   parenthesized-call syntax — "OpenLogo v0.1 has no first-class functions and no `lambda`"
-  (`spec/data-structures.md:383`), so the parenthesized-call escape hatch this LDR describes is
+  (`spec/data-structures.md:423`), so the parenthesized-call escape hatch this LDR describes is
   never used to simulate higher-order functions.
 - **Future primitives and procedures must declare one default arity up front.** Any new callable
   added to `spec/commands.md` needs an explicit default-arity signature, and only variadic or
