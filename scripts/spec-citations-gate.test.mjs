@@ -513,6 +513,14 @@ test("a tree of correct citations passes, and the report states what it does not
     summary,
     /fails loudly only when the rename leaves its slug unclaimed/,
   );
+  // And it must name ALL THREE surviving refusals, not just the one. The statement used to say only
+  // the emoji shortcode was refused while the code also refused entities and raw inline HTML — a
+  // coverage statement that under-reports what the gate declines to answer is exactly the kind of
+  // unenforced assertion this gate exists to stop.
+  assert.match(
+    summary,
+    /a GFM\s+emoji shortcode, an HTML entity outside the escaping set, or raw inline HTML in a heading/,
+  );
 });
 
 test("an unresolvable citation fails, naming the citing site, and suggests a manifest entry", () => {
@@ -1090,18 +1098,56 @@ test("a fragment truncated by a character no slug can hold is malformed, not a v
   assert.equal(malformedIn(`[good](<${CONTRACT}/d.md#real-heading>)`), false);
 });
 
-test("the canary is now one construct, because the parser obsoleted the rest", () => {
+test("the canary is now three constructs, because the parser obsoleted the rest", () => {
   // It used to carry permit-lists over heading characters and code-span contents, plus refusals for
   // HTML blocks, setext rules, nested headings and container fences. All of that is DELETED — the
-  // parser handles it — and what survives is the one divergence `marked` genuinely does not cover:
-  // a GFM emoji shortcode, which GitHub renders to an image whose text content is empty.
+  // parser handles it. What survives is where marked and GitHub GENUINELY differ, or where
+  // recovering text from the parse would otherwise be hand-rolled again.
   const constructs = (lines) =>
     unsupportedConstructs(lines).map(({ construct }) => construct);
-  assert.equal(constructs(["## Good :+1: work"]).length, 1);
+
+  // 1. A GFM emoji shortcode: GitHub renders it, marked does not implement it.
   assert.match(constructs(["## Good :+1: work"])[0], /emoji shortcode/);
-  assert.equal(constructs(["## Bad :-1: work"]).length, 1);
   assert.equal(constructs(["## Nice :smile: work"]).length, 1);
-  assert.deepEqual(unsupportedConstructs(["## Good :+1: work"])[0].line, 1);
+
+  // 2. A named entity beyond the escaping set. CommonMark resolves ~2,000 of them and GitHub slugs
+  // the character; marked passes them through. The decoder handles what a renderer EMITS when
+  // escaping, and deliberately does not grow a hand-maintained table of the rest — a partial
+  // hand-rolled table is the defect the parse was adopted to end.
+  for (const entity of [
+    "&copy;",
+    "&mdash;",
+    "&hellip;",
+    "&times;",
+    "&frac12;",
+  ]) {
+    assert.match(
+      constructs([`## A ${entity} B`])[0],
+      /the HTML entity/,
+      `${entity} must be refused`,
+    );
+  }
+  // The ones the decoder genuinely handles are accepted, and slug correctly.
+  for (const entity of ["&amp;", "&lt;", "&gt;", "&quot;", "&#x26;", "&#65;"]) {
+    assert.deepEqual(constructs([`## A ${entity} B`]), [], entity);
+  }
+
+  // 3. Raw inline HTML, where recovering text by pattern breaks on a `>` inside an attribute or a
+  // comment — `## <img alt="a>b"> Title` slugged `b-title` here against GitHub's `-title`.
+  assert.match(constructs(['## A <img alt="a>b"> B'])[0], /raw inline HTML/);
+  assert.match(constructs(["## A <!-- a > b --> C"])[0], /raw inline HTML/);
+  assert.match(constructs(["## A <b>x</b> B"])[0], /raw inline HTML/);
+  // Deduplicated per heading: `<b>` and `</b>` are two tokens but one hazard of that kind.
+  assert.equal(constructs(["## A <b>x</b> B"]).length, 1);
+  // Two DIFFERENT entities remain two findings — dedupe must not collapse distinct causes.
+  assert.equal(constructs(["## A &copy; B &mdash; C"]).length, 2);
+
+  // All three are found by walking marked's INLINE TOKEN TREE, not the raw source — which is what
+  // keeps them narrow enough to be safe. A code span is literal text and is skipped, so the live
+  // angle-bracket headings are not mistaken for HTML.
+  assert.deepEqual(constructs(["### `<place> = <value>`"]), []);
+  assert.deepEqual(constructs(["### `&copy;`"]), []);
+  assert.deepEqual(constructs(["### `:+1:`"]), []);
 
   // Everything the old canary refused is now simply READ CORRECTLY, so refusing it would be a false
   // failure. These are the round 3-8 reproductions, inverted: they must all be accepted now.
@@ -1109,7 +1155,6 @@ test("the canary is now one construct, because the parser obsoleted the rest", (
     ["## [Text](target)"],
     ["## _Text_"],
     ["## A &#x26; B"],
-    ["## A <br> B"],
     ["## Area in `m²`"],
     ["## ` foo `"],
     ["Title", "====="],
@@ -1121,7 +1166,6 @@ test("the canary is now one construct, because the parser obsoleted the rest", (
     ["- ```markdown", "  # Inside", "  ```"],
     ["- item", "  ```logo", "  # comment", "", "# Real"],
     ["## Turtle & Rendering"],
-    ["### `<place> = <value>`"],
     ["## ``<b>``"],
     ["   \t- ## Notes"],
   ]) {
@@ -1134,7 +1178,7 @@ test("the canary is now one construct, because the parser obsoleted the rest", (
 });
 
 test("the LIVE spec is clean for the canary, and the canary still reports when it should", () => {
-  // Kept measured rather than asserted. If a spec edit ever introduces an emoji shortcode heading,
+  // Kept measured rather than asserted. If a spec edit ever introduces a heading the reader refuses,
   // this fails here and the gate fails in CI.
   const scan = (name, lines) =>
     unsupportedConstructs(lines).map(
@@ -1231,26 +1275,41 @@ test("a duplicate slug is positional, so a citation can silently RETARGET — bo
 });
 test("an anchor into a document the canary refuses fails rather than being answered", () => {
   // An HTML comment no longer refuses anything — the parser reads it correctly, so `#ghost` is a
-  // real heading now. The one surviving refusal is the emoji shortcode.
-  write(
-    `${CONTRACT}/emoji.md`,
-    ["# Title", "", "## Good :+1: work", "", "text"].join("\n"),
-  );
-  write(
-    "cite.md",
-    `See ${CONTRACT}/emoji.md#good-1-work and ${CONTRACT}/emoji.md#title.\n`,
-  );
-  const result = runOverTemp();
-  assert.equal(result.ok, false);
-  const report = result.lines.join("\n");
-  assert.match(report, /an emoji shortcode in a heading/);
-  // The remedies a maintainer can actually apply are named.
-  assert.match(
-    report,
-    /Remove the construct, or cite this document by line instead/,
-  );
-  // Once per document, not once per anchor: two anchors, one report.
-  assert.equal(report.match(/emoji shortcode in a heading/g).length, 1);
+  // real heading now. Three refusals survive, and each must refuse END TO END, not merely in
+  // unsupportedConstructs: a detector that reports a hazard the gate then answers anyway would be
+  // the "automatic tolerance" #893's reviewers deleted.
+  for (const [name, heading, pattern] of [
+    ["emoji", "## Good :+1: work", /an emoji shortcode in a heading/],
+    ["entity", "## Good &copy; work", /the HTML entity &copy; in a heading/],
+    ["rawhtml", '## Good <img alt="a>b"> work', /raw inline HTML in a heading/],
+  ]) {
+    write(
+      `${CONTRACT}/${name}.md`,
+      ["# Title", "", heading, "", "text"].join("\n"),
+    );
+    write(
+      "cite.md",
+      `See ${CONTRACT}/${name}.md#good-1-work and ${CONTRACT}/${name}.md#title.\n`,
+    );
+    const result = runOverTemp();
+    assert.equal(result.ok, false, name);
+    const report = result.lines.join("\n");
+    assert.match(report, pattern);
+    // The remedies a maintainer can actually apply are named.
+    assert.match(
+      report,
+      /Remove the construct, or cite this document by line instead/,
+    );
+    // Once per document, not once per anchor: two anchors, one report. Counted over the canary
+    // sentence rather than the bare construct, because the coverage statement names the refusals too
+    // — matching the construct alone would count the statement and pass for the wrong reason.
+    assert.equal(
+      report.match(/this document contains /g).length,
+      1,
+      `${name}: canary must report once per document`,
+    );
+    rmSync(join(TEMP_DIR, CONTRACT, `${name}.md`));
+  }
 });
 
 test("formatAnchor renders the citable form back", () => {

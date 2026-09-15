@@ -474,6 +474,7 @@ export function documentHeadings(lines) {
           line: locate(token.raw),
           heading,
           slug: slugger.slug(heading),
+          hazards: headingHazards(token.tokens),
         });
         continue;
       }
@@ -536,8 +537,80 @@ export function decodeEntities(text) {
   );
 }
 
+/** The entities {@link decodeEntities} can resolve: what a renderer emits when escaping, plus numeric. */
+const DECODABLE_ENTITY = /^&(?:amp|lt|gt|quot|apos|nbsp|#[xX]?[0-9a-fA-F]+);$/;
+
+/** Any entity reference a heading's source may contain. */
+const ANY_ENTITY = /&(?:[a-zA-Z][a-zA-Z0-9]*|#[xX]?[0-9a-fA-F]+);/g;
+
 /** A GFM emoji shortcode, which GitHub replaces with a character the slug rule then deletes. */
 const EMOJI_SHORTCODE = /:[a-z0-9+_-]+:/;
+
+/**
+ * The constructs in a heading's **inline** tokens that this reader cannot reproduce.
+ *
+ * It walks the parser's own inline tree rather than the heading's raw source, which is what makes it
+ * precise enough to be narrow: a `codespan` is literal text and is skipped entirely, so the live
+ * `` ### `<place> = <value>` `` heading is not mistaken for inline HTML.
+ *
+ * Three things survive the parse, and all three are the same shape — GitHub resolves something this
+ * reader does not:
+ *
+ * - **A named entity beyond the escaping set.** CommonMark resolves every HTML5 entity reference and
+ *   GitHub slugs the character; `marked.parseInline` passes them through, so `## A &copy; B` would
+ *   slug `a-copy-b` here against GitHub's `a--b`. {@link decodeEntities} handles what a renderer
+ *   *emits* when escaping — six names and the numeric forms — and deliberately does not grow a
+ *   hand-maintained table of the other two thousand, because a partial hand-rolled table is the exact
+ *   defect the parse was adopted to end.
+ * - **Raw inline HTML.** Stripping tags with a pattern breaks on a `>` inside a comment or an
+ *   attribute value, so `## A <!-- a > b --> C` diverges.
+ * - **A GFM emoji shortcode**, which GitHub replaces with a character the slug rule then deletes and
+ *   `marked` does not implement at all.
+ *
+ * All three are refused rather than guessed at, which keeps ADR-0035's claim true: where `marked` and
+ * GitHub differ, the gate declines to answer. The cited corpus contains no instance of any of them.
+ */
+function headingHazards(tokens) {
+  const hazards = [];
+  const walk = (inline) => {
+    for (const token of inline) {
+      if (token.type === "codespan") {
+        continue;
+      }
+      if (token.type === "html") {
+        hazards.push(
+          "raw inline HTML in a heading, whose text this reader cannot recover",
+        );
+        continue;
+      }
+      if (Array.isArray(token.tokens)) {
+        walk(token.tokens);
+        continue;
+      }
+      // Every inline token `marked` emits carries `raw` — measured across all 1,235 headings in the
+      // tracked corpus plus each hazard shape below. There is deliberately no fallback: if a future
+      // version emits one without it, this throws and the gate goes loud, rather than silently
+      // skipping the token and reporting a heading it never actually read.
+      const source = token.raw;
+      for (const entity of source.match(ANY_ENTITY) ?? []) {
+        if (!DECODABLE_ENTITY.test(entity)) {
+          hazards.push(
+            `the HTML entity ${entity} in a heading, which GitHub resolves and this reader does not`,
+          );
+        }
+      }
+      if (EMOJI_SHORTCODE.test(source)) {
+        hazards.push(
+          "an emoji shortcode in a heading, which GitHub renders and this reader does not",
+        );
+      }
+    }
+  };
+  walk(tokens);
+  // Deduplicated per heading: two raw-HTML tokens in one heading are one hazard of that kind, not
+  // two findings. Distinct strings survive, so `## A &copy; B &mdash; C` still names both entities.
+  return [...new Set(hazards)];
+}
 
 /**
  * The heading slug in `headings` closest to `fragment`, with its edit distance — for a did-you-mean.
@@ -597,21 +670,15 @@ export function suggestionDistance(fragment) {
  * **The parser obsoleted all of it**, and it is deleted rather than kept "just in case" — a
  * dependency that only adds has not paid for itself.
  *
- * One divergence genuinely survives, because it is a **GitHub extension `marked` does not
- * implement**: a GFM emoji shortcode. GitHub renders `## Good :+1: work` to an image whose text
- * content is empty, publishing `#good--work`; `marked` leaves the shortcode as literal text, so this
- * reader computes `#good-1-work`. That is the quiet direction — the invented slug resolves here and
- * 404s there — so a cited document containing one is refused rather than answered. `spec/` has none,
- * and the live-corpus test keeps that measured rather than asserted.
+ * What survives is {@link headingHazards}: the constructs where `marked` and GitHub genuinely differ
+ * rather than where this reader merely approximated. A cited document containing one is refused, so
+ * the gate declines to answer instead of inventing a slug. `spec/` has none, and the live-corpus
+ * test keeps that measured rather than asserted.
  */
 export function unsupportedConstructs(lines) {
-  return documentHeadings(lines)
-    .filter(({ heading }) => EMOJI_SHORTCODE.test(heading))
-    .map(({ line }) => ({
-      line,
-      construct:
-        "an emoji shortcode in a heading, which GitHub renders and this reader does not",
-    }));
+  return documentHeadings(lines).flatMap(({ line, hazards }) =>
+    hazards.map((construct) => ({ line, construct })),
+  );
 }
 /**
  * Resolve one section anchor against the headings of the document it names.
@@ -1427,7 +1494,8 @@ export function runSpecCitationsGate({
       fail(
         `${specDirectory}/${file}:${line}: this document contains ${construct} — so an anchor into ` +
           "it could name a heading GitHub never publishes, or miss one it does. Remove the construct, " +
-          "or cite this document by line instead",
+          "or cite this document by line instead. (The line here is located by scanning and may be " +
+          "approximate; the construct is what the parser found.)",
       );
     }
   };
@@ -1658,11 +1726,12 @@ export function runSpecCitationsGate({
       "demotes the original, and removing or renaming an earlier duplicate promotes a later one into " +
       "the slug it vacated; both retarget a citation silently and both leave this gate green. A " +
       "renamed heading therefore fails loudly only when the rename leaves its slug unclaimed. A " +
-      "citation written without the spec-directory prefix is not seen at all, and a cited document " +
-      "whose headings use a GFM emoji shortcode is refused rather than answered on a slug this reader " +
-      "computes differently from GitHub. Headings come from a GFM parse and slugs from github-slugger " +
-      "(ADR-0035), so block structure and rendered text are no longer approximated. Do not read a " +
-      "green run as 'every citation is right'.",
+      "citation written without the spec-directory prefix is not seen at all. Headings come from a " +
+      "GFM parse and slugs from github-slugger (ADR-0035), so block structure and rendered text are " +
+      "no longer approximated; where GitHub still resolves something this reader does not — a GFM " +
+      "emoji shortcode, an HTML entity outside the escaping set, or raw inline HTML in a heading — " +
+      "the cited document is refused rather than answered on a slug computed differently from " +
+      "GitHub's. Do not read a green run as 'every citation is right'.",
   );
   if (counts.excused > 0) {
     lines.push(
