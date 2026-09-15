@@ -6,7 +6,10 @@
 // `npm run examples` runs it, but that gate only asserts "parses and runs without raising", so the
 // example's own closing line — `# expected final state: a recursive green tree is drawn and the
 // turtle returns to the trunk base.` — was an unchecked claim. At the saga #819 merge-base
-// (`3bfd5f01`) the program ran clean and drew a *bent stick*, and every gate stayed green.
+// (`3bfd5f01`) the program ran clean and every gate stayed green while drawing something that was
+// not a tree. (The visual description — "a bent stick with two twigs" — is @orchestrator's, from
+// rendering both commits to PNG and looking at them on issue #1112; everything asserted and
+// tabulated in this file is from the event stream, which is what I measured myself.)
 //
 // WHAT IS AND IS NOT A DISCRIMINATOR (all of this was MEASURED, not inferred)
 // --------------------------------------------------------------------------
@@ -23,6 +26,7 @@
 //   diagnostics                         []                         []           <- IDENTICAL
 //   distinct `move` headings            {0,30,60,90,270,300,330}   {same}       <- IDENTICAL
 //   final position / heading            (0,-120) / 0               (0,-120) / 0 <- IDENTICAL
+//   vertex-degree histogram             9 of degree 1, 7 of deg. 3 {same}       <- IDENTICAL
 //   segment length histogram            15 lengths x 2 each        70x2 46.9x4 31.423x8 21.05341x16
 //   mirror-symmetric about x=0          false                      true
 //   bounding box x-range                [-2.174413, 71.716526]     [-71.716526, 71.716526]
@@ -34,22 +38,39 @@
 // of those would have passed on the bent stick. This file therefore discriminates on VALUES: the
 // exact segment endpoints, the length histogram, the mirror symmetry, and the bounding box.
 //
-// The length histogram is the most legible of these. A correct depth-4 binary tree draws each
-// branch outward and then retraces it, so it has exactly four lengths — 70 * 0.67^k for k in 0..3 —
-// at doubling counts 2, 4, 8, 16. The broken run drew 30 segments too, but as 15 *distinct* lengths
-// at 2 each (70 * 0.67^k for k in 0..14): every forward draw a different length, so no two sibling
-// branches ever shared a level — one un-branched, ever-shrinking chain.
+// The vertex-degree row is worth reading twice, because it is the one that defeats the obvious
+// "assert the shape of the tree" instinct: treating each drawing as a graph, BOTH have 16 vertices,
+// 15 undirected edges, 9 leaves and 7 three-way branch points. The broken run is therefore not an
+// un-branched chain — it branches in exactly the same places. What it gets wrong is METRIC, not
+// topological: it assigned all 15 branches distinct, monotonically shrinking lengths (70 * 0.67^k
+// for k in 0..14, each drawn out and back, hence 15 lengths at 2 each), so sibling branches no
+// longer shared a recursion level and the tree collapsed visually into a bent stick with two twigs.
+// A correct depth-4 binary tree instead has exactly four lengths — 70 * 0.67^k for k in 0..3 — at
+// doubling counts 2, 4, 8, 16. That histogram is the most legible discriminator here.
+//
+// WHAT THIS FILE DOES NOT PIN
+// ---------------------------
+// Stated so a green run is not over-read:
+//   * It pins the DRAWING, not the scoping rule that produced it. The saga #819 change was about
+//     per-invocation freshness of procedure-local bindings; this file would not notice a scoping
+//     change that left this program's geometry intact.
+//   * Geometrically inert turns are unasserted. Headings 120 and 240 are reached by `turn` events
+//     but by no `move` — they are the `left`/`right` pairs bracketing the depth-0 calls — so
+//     altering or dropping them changes no segment and this file stays green. The 61 `turn` events
+//     are deliberately not pinned: their heading set is identical at both commits above, so pinning
+//     them would add brittleness without adding discrimination.
 //
 // PROOF THAT THIS FILE CAN FAIL
 // -----------------------------
 // This exact file was copied into the `3bfd5f01` build and run there: **4 of its 7 tests failed**
 // (pinned endpoints, length histogram, mirror symmetry, bounding box). The 3 that passed are
 // precisely the 3 marked "claim coverage, not a discriminator" below — the clean-run guard, the
-// green/width-2 pen, and the return to the trunk base. Re-run that proof with:
+// green/width-2 pen, and the return to the trunk base. Re-run that proof with (PowerShell):
 //
-//   git clone --no-checkout <repo> "$TMP/ol-mergebase" && cd "$TMP/ol-mergebase"
-//   git checkout 3bfd5f01 && npm ci && npx tsc -b
-//   cp -r <repo>/tests/conformance/turtle-rendering/fractal-example tests/conformance/turtle-rendering/
+//   git clone --no-checkout <repo> "$env:TEMP\ol-mergebase"; cd "$env:TEMP\ol-mergebase"
+//   git checkout 3bfd5f01; npm ci; npx tsc -b
+//   Copy-Item -Recurse <repo>\tests\conformance\turtle-rendering\fractal-example `
+//     tests\conformance\turtle-rendering\
 //   node --test tests/conformance/turtle-rendering/fractal-example/fractal-geometry.test.mjs
 //
 // WHY A `.test.mjs` AND NOT AN `.expected.json` FIXTURE
@@ -84,7 +105,13 @@ function round(value) {
   return Number(value.toFixed(6)) + 0;
 }
 
-/** The two endpoints of a segment, order-independent, as a comparable string. */
+/**
+ * The two endpoints of a segment, order-independent, as a comparable string. The `.sort()` is the
+ * DEFAULT (string) comparator, not a numeric one: it is used only to put a segment's two endpoints
+ * into a deterministic, direction-independent order, and the identical ordering is applied to both
+ * sides of every comparison, so a lexicographic total order is exactly as good as a numeric one
+ * here. Do not "fix" it into a numeric sort expecting a different result.
+ */
 function canonicalSegment([fromX, fromY, toX, toY]) {
   return JSON.stringify(
     [
@@ -101,6 +128,26 @@ function mirrorSegment([fromX, fromY, toX, toY]) {
 
 function segmentLength([fromX, fromY, toX, toY]) {
   return round(Math.hypot(toX - fromX, toY - fromY));
+}
+
+/**
+ * The turtle's heading after the last event that reports one. Reading it off the last `move` alone
+ * would be correct here only by accident — the last `turn` (index 569) happens to precede the last
+ * `move` (index 571) — and would go on silently asserting a stale heading if a trailing turn were
+ * ever added. A `move` reports the heading it travelled along; a `turn` reports the heading it
+ * ended on, so scanning both and keeping the last is right regardless of their order.
+ */
+function finalHeading(events) {
+  let heading;
+  for (const event of events) {
+    if (event.kind === "move") {
+      heading = event.payload.heading;
+    }
+    if (event.kind === "turn") {
+      heading = event.payload.to;
+    }
+  }
+  return round(heading);
 }
 
 /** `[length, count]` pairs, longest branch first — the recursion-depth signature. */
@@ -176,8 +223,10 @@ test("12-fractal: every drawn segment matches its pinned endpoints", () => {
   assert.deepEqual(drawnSegments, EXPECTED_SEGMENTS);
 });
 
-test("12-fractal: branch lengths shrink and double in count over four levels — a tree, not a chain", () => {
-  // Measured at 3bfd5f01: 15 entries, every count 2. A depth-4 binary tree has exactly 4.
+test("12-fractal: sibling branches share one length at each of the four recursion levels", () => {
+  // The metric signature of a correct depth-4 binary tree: four lengths at doubling counts.
+  // Measured at 3bfd5f01: 15 entries, every count 2 — the same topology, but with every branch a
+  // different length, so no recursion level was ever shared by siblings.
   assert.deepEqual(lengthHistogram(drawnSegments), [
     [70, 2],
     [46.9, 4],
@@ -228,9 +277,10 @@ test("12-fractal: the turtle returns to the trunk base at its starting heading",
   // Pins the "returns to the trunk base" half of the example's `# expected final state` line.
   // Honest caveat: also already true at 3bfd5f01 — the bent stick retraced itself back to the base
   // as well — so this is claim coverage, not discrimination.
-  const final = moveEvents.at(-1).payload;
+  const finalPosition = moveEvents.at(-1).payload.to;
   assert.deepEqual(
-    [round(final.to[0]), round(final.to[1]), round(final.heading)],
-    [0, -120, 0],
+    [round(finalPosition[0]), round(finalPosition[1])],
+    [0, -120],
   );
+  assert.equal(finalHeading(run.events), 0);
 });
