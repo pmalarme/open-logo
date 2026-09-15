@@ -7,9 +7,10 @@
 // example's own closing line — `# expected final state: a recursive green tree is drawn and the
 // turtle returns to the trunk base.` — was an unchecked claim. At the saga #819 merge-base
 // (`3bfd5f01`) the program ran clean and every gate stayed green while drawing something that was
-// not a tree. (The visual description — "a bent stick with two twigs" — is @orchestrator's, from
-// rendering both commits to PNG and looking at them on issue #1112; everything asserted and
-// tabulated in this file is from the event stream, which is what I measured myself.)
+// not the recursive tree the example documents. (The visual description — "a bent stick with two
+// twigs" — is @orchestrator's, from rendering both commits to PNG and looking at them on issue
+// #1112; everything asserted and tabulated in this file is from the event stream, which is what I
+// measured myself.)
 //
 // WHAT IS AND IS NOT A DISCRIMINATOR (all of this was MEASURED, not inferred)
 // --------------------------------------------------------------------------
@@ -27,6 +28,7 @@
 //   distinct `move` headings            {0,30,60,90,270,300,330}   {same}       <- IDENTICAL
 //   final position / heading            (0,-120) / 0               (0,-120) / 0 <- IDENTICAL
 //   vertex-degree histogram             9 of degree 1, 7 of deg. 3 {same}       <- IDENTICAL
+//   retained scene after last `clear`   all 30 segments            all 30       <- IDENTICAL
 //   segment length histogram            15 lengths x 2 each        70x2 46.9x4 31.423x8 21.05341x16
 //   mirror-symmetric about x=0          false                      true
 //   bounding box x-range                [-2.174413, 71.716526]     [-71.716526, 71.716526]
@@ -39,12 +41,14 @@
 // exact segment endpoints, the length histogram, the mirror symmetry, and the bounding box.
 //
 // The vertex-degree row is worth reading twice, because it is the one that defeats the obvious
-// "assert the shape of the tree" instinct: treating each drawing as a graph, BOTH have 16 vertices,
-// 15 undirected edges, 9 leaves and 7 three-way branch points. The broken run is therefore not an
-// un-branched chain — it branches in exactly the same places. What it gets wrong is METRIC, not
-// topological: it assigned all 15 branches distinct, monotonically shrinking lengths (70 * 0.67^k
-// for k in 0..14, each drawn out and back, hence 15 lengths at 2 each), so sibling branches no
-// longer shared a recursion level and the tree collapsed visually into a bent stick with two twigs.
+// "assert the shape of the tree" instinct: treating each drawing as a graph, BOTH are trees in the
+// graph-theoretic sense, with 16 vertices, 15 undirected edges, 7 three-way branch points and 9
+// degree-1 vertices (8 crown tips plus the trunk base). The broken run is therefore not an
+// un-branched chain — its branch points sit at the same TOPOLOGICAL positions in the traversal,
+// though not at the same coordinates (22 of the 30 endpoint rows differ). What it gets wrong is
+// METRIC, not topological: it assigned all 15 branches distinct, monotonically shrinking lengths
+// (70 * 0.67^k for k in 0..14, each drawn out and back, hence 15 lengths at 2 each), so sibling
+// branches no longer shared a recursion level and the figure collapsed visually into a bent stick.
 // A correct depth-4 binary tree instead has exactly four lengths — 70 * 0.67^k for k in 0..3 — at
 // doubling counts 2, 4, 8, 16. That histogram is the most legible discriminator here.
 //
@@ -62,10 +66,18 @@
 //
 // PROOF THAT THIS FILE CAN FAIL
 // -----------------------------
-// This exact file was copied into the `3bfd5f01` build and run there: **4 of its 7 tests failed**
-// (pinned endpoints, length histogram, mirror symmetry, bounding box). The 3 that passed are
-// precisely the 3 marked "claim coverage, not a discriminator" below — the clean-run guard, the
-// green/width-2 pen, and the return to the trunk base. Re-run that proof with (PowerShell):
+// Two independent proofs, both re-run against the current version of this file:
+//
+//   * Merge-base differential. This exact file copied into the `3bfd5f01` build fails **4 of its 8
+//     tests** (pinned endpoints, length histogram, mirror symmetry, bounding box). The 4 that pass
+//     are the clean-run guard, the canvas-not-erased guard, the green/width-2 pen and the return to
+//     the trunk base — i.e. exactly the ones marked below as claim coverage rather than
+//     discrimination, plus the clear guard, which the merge-base does satisfy.
+//   * Erase probe. Appending `clean` to a scratch copy of the example fails **5 of 8**. Before the
+//     retained-scene slicing below existed, that same mutation passed every test in this file —
+//     the gap a non-author reviewer found and this version closes.
+//
+// Re-run the differential with (PowerShell):
 //
 //   git clone --no-checkout <repo> "$env:TEMP\ol-mergebase"; cd "$env:TEMP\ol-mergebase"
 //   git checkout 3bfd5f01; npm ci; npx tsc -b
@@ -161,9 +173,30 @@ function lengthHistogram(segments) {
 }
 
 const run = execute(readFileSync(EXAMPLE_PATH, "utf8"), DOCUMENT);
-const drawSegmentEvents = run.events.filter(
+
+/**
+ * The RETAINED scene — the events that survive the last `clear` — not every `draw-segment` ever
+ * emitted. Asserting the full history would let a trailing `clean`/`clear_screen` wipe the canvas
+ * while every historical draw event still sat in the stream, so the pin would go on describing a
+ * drawing the learner can no longer see. Measured against this program: as shipped there is
+ * exactly one `clear` (index 3, `{"mode":"clear_screen"}`) and it precedes the first `draw-segment`
+ * (index 20), so slicing changes nothing today — all 30 segments are retained at BOTH commits in
+ * the table above. Appending `clean` or `clear_screen` drops the retained count to 0, which is the
+ * regression this slicing now catches and the whole-history version did not.
+ */
+const retainedEvents = run.events.slice(
+  run.events.findLastIndex((event) => event.kind === "clear") + 1,
+);
+const drawSegmentEvents = retainedEvents.filter(
   (event) => event.kind === "draw-segment",
 );
+
+/**
+ * Position and heading are read from the WHOLE stream, not the retained slice, because a `clear`
+ * does not silently teleport the turtle: measured, `clear_screen`'s homing is itself emitted as
+ * ordinary `move` and `turn` events *before* the `clear` (appending one moves the last `move` to
+ * `[0,0]`), and `clean` does not move the turtle at all. So both seams already track clearing.
+ */
 const moveEvents = run.events.filter((event) => event.kind === "move");
 
 /** Every drawn segment as `[fromX, fromY, toX, toY]`, in emission order. */
@@ -214,6 +247,22 @@ const EXPECTED_SEGMENTS = [
 
 test("12-fractal: the example runs clean, so every geometry claim below is about a successful run", () => {
   assert.deepEqual(run.diagnostics, []);
+});
+
+test("12-fractal: nothing erases the canvas after the drawing starts", () => {
+  // Makes the retained-scene rule above legible and independently checkable: the example's single
+  // `clear_screen` must come BEFORE the first segment, so the pinned drawing is what a learner is
+  // left looking at. Without this, a trailing `clean` would blank the canvas while all 30
+  // historical draw-segment events remained in the stream.
+  const clearIndices = run.events.flatMap((event, index) =>
+    event.kind === "clear" ? [index] : [],
+  );
+  const firstSegmentIndex = run.events.findIndex(
+    (event) => event.kind === "draw-segment",
+  );
+  assert.deepEqual(clearIndices, [3]);
+  assert.equal(firstSegmentIndex, 20);
+  assert.equal(drawSegmentEvents.length, 30);
 });
 
 test("12-fractal: every drawn segment matches its pinned endpoints", () => {
