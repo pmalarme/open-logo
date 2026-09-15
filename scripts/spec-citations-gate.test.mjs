@@ -37,14 +37,14 @@ import {
   closestHeadingSlug,
   collectCitations,
   collectStatusClaims,
-  containerContent,
+  decodeEntities,
   documentHeadings,
   editDistance,
   expandCommaTail,
   flattenProseRun,
   formatAnchor,
   formatCitation,
-  headingSlug,
+  renderedText,
   isProseLine,
   lineLookup,
   listCitationFiles,
@@ -60,7 +60,6 @@ import {
   runSpecCitationsGate,
   siteFingerprint,
   splitLines,
-  stripCodeSpans,
   suggestException,
   suggestionDistance,
   toPosixPath,
@@ -496,8 +495,14 @@ test("a tree of correct citations passes, and the report states what it does not
   assert.doesNotMatch(summary, /passes unseen/);
   assert.doesNotMatch(summary, /not checked either/);
   // The canary's own limit is printed, not just commented: a green run must not read as a complete
-  // block-structure check when it is knowingly incomplete for nested documents.
-  assert.match(summary, /INCOMPLETE for nested block structure/);
+  // block-structure check when it is knowingly incomplete for nested documents. Since ADR-0035 the
+  // parser supplies block structure and rendered text, so the statement names what it now rests on
+  // rather than claiming an incompleteness that no longer exists.
+  assert.match(
+    summary,
+    /Headings come from a GFM parse and slugs from github-slugger/,
+  );
+  assert.doesNotMatch(summary, /INCOMPLETE for nested block structure/);
   // Nor may it overclaim in the other direction. Resolution proves a slug is CLAIMED, never that the
   // section the citation meant still claims it, and the statement has to say so — otherwise the green
   // signal certifies more than it checks, which is the failure this saga exists to reduce.
@@ -818,161 +823,132 @@ test("without a specRoot override the gate reads the real specification director
 
 // --- Section anchors (issue #1181) ---------------------------------------------------------------
 
-test("headingSlug lowercases, drops punctuation, and turns spaces into hyphens", () => {
-  assert.equal(
-    headingSlug("Profile and source contract"),
-    "profile-and-source-contract",
-  );
-  assert.equal(
-    headingSlug("  Lexical form and encoding  "),
-    "lexical-form-and-encoding",
-  );
-  assert.equal(
-    headingSlug("Keywords, primitives, and built-in names"),
+test("the hand-verified literals now cross-check TWO independent implementations", () => {
+  // These were verified by hand against github-slugger's published removal class during rounds 1-8,
+  // when the gate reimplemented the rule. The reimplementation is gone, so they are no longer a
+  // restatement of our own logic — they are agreement between what this gate computes and what
+  // GitHub's own slugger does. A disagreement here is a finding, not a test to adjust.
+  const slugOf = (heading) =>
+    documentHeadings([`## ${heading}`]).map(({ slug }) => slug);
+  assert.deepEqual(slugOf("`set_xy`"), ["set_xy"], "`_` survives");
+  assert.deepEqual(slugOf("`clear_screen`"), ["clear_screen"]);
+  assert.deepEqual(slugOf("Names use `snake_case`"), ["names-use-snake_case"]);
+  // Runs of hyphens are never collapsed: `&` is deleted and the spaces on either side each become
+  // one. Both live conformance headings.
+  assert.deepEqual(slugOf("Turtle & Rendering"), ["turtle--rendering"]);
+  assert.deepEqual(slugOf("Interaction & Events"), ["interaction--events"]);
+  assert.deepEqual(slugOf("Tutor (AI)"), ["tutor-ai"]);
+  assert.deepEqual(slugOf("Keywords, primitives, and built-in names"), [
     "keywords-primitives-and-built-in-names",
-  );
-  assert.equal(headingSlug("Tutor (AI)"), "tutor-ai");
-  assert.equal(headingSlug("`<place> = <value>`"), "place--value");
-  assert.equal(headingSlug("`is_a?`"), "is_a");
-});
-
-test("headingSlug KEEPS an underscore — `set_xy` is reachable at #set_xy, not #set-xy", () => {
-  // A live-corpus heading. `_` is one of the two characters GitHub's rule keeps and a reader would
-  // expect it to normalise away; anyone "tidying" this into a hyphen breaks every anchor naming an
-  // underscored command, of which the commands document has many.
-  assert.equal(headingSlug("`set_xy`"), "set_xy");
-  assert.equal(headingSlug("`clear_screen`"), "clear_screen");
-  assert.equal(headingSlug("Names use `snake_case`"), "names-use-snake_case");
-});
-
-test("headingSlug NEVER collapses a run of hyphens — `Turtle & Rendering` is #turtle--rendering", () => {
-  // Two live-corpus headings, both from the conformance document, and both with a DOUBLE hyphen: the
-  // `&` is deleted and the spaces on either side of it each become a hyphen. Collapsing the run — the
-  // obvious "clean-up" — silently breaks every anchor in this tree that names these two sections.
-  assert.equal(headingSlug("Turtle & Rendering"), "turtle--rendering");
-  assert.equal(headingSlug("Interaction & Events"), "interaction--events");
-});
-
-test("headingSlug slugs a heading's markdown SOURCE, and unwraps nothing", () => {
-  // Unwrapping `[text](target)` looks like fidelity to GitHub's "slug the rendered text" rule and is
-  // the opposite: a code span's rendered text is the literal `[text](target)`, so unwrapping made
-  // this slug to `text` and **falsely pass**. Leaving it alone yields what GitHub yields.
-  assert.equal(headingSlug("`[text](target)`"), "texttarget");
-  // A bare link heading is the mirror case: here the gate computes `texttarget` where GitHub
-  // computes `text`, so the anchor a reader would write fails — and the slug this reader invents
-  // would pass. Neither direction is left to luck; unsupportedConstructs refuses the document.
-  assert.equal(headingSlug("[text](target)"), "texttarget");
-  assert.deepEqual(
-    unsupportedConstructs(["## [text](target)"]).map(
-      ({ construct }) => construct,
-    ),
-    [
-      'a heading character this reader cannot prove it slugs the way GitHub does ("[")',
-    ],
-  );
-});
-
-test("headingSlug keeps a unicode letter, and such a fragment is captured whole", () => {
-  // The slug rule preserves \p{L}, so the fragment class must too: an ASCII-only class truncated
-  // `#café-mode` to `caf` and reported "no heading slugs to caf", sending the author after the
-  // wrong problem. It failed closed, but it failed confusingly.
-  assert.equal(headingSlug("Café mode"), "café-mode");
-  const { anchors } = collectCitations(
-    "a.md",
-    `see ${CONTRACT}/doc.md#café-mode here`,
-    CONTRACT,
-  );
-  assert.deepEqual(
-    anchors.map((anchor) => anchor.fragment),
-    ["café-mode"],
-  );
-});
-
-test("documentHeadings ignores a `#` line inside a fenced block", () => {
-  // Load-bearing, not tidiness: this corpus writes OpenLogo comments inside fences, so `# primary
-  // line comment` in the grammar document would otherwise be offered as a heading — and an anchor
-  // naming it would resolve HERE while failing on GitHub, which is a false pass.
-  const headings = documentHeadings([
-    "# Grammar",
-    "",
-    "```logo",
-    "# primary line comment",
-    "```",
-    "",
-    "~~~text",
-    "## not a heading either",
-    "~~~",
-    "## Real heading",
   ]);
+  assert.deepEqual(slugOf("`<place> = <value>`"), ["place--value"]);
+  assert.deepEqual(slugOf("`is_a?`"), ["is_a"]);
+  // A code span containing link syntax is literal text, so it slugs as written — the case that
+  // proved unwrapping links was itself a defect.
+  assert.deepEqual(slugOf("`[text](target)`"), ["texttarget"]);
+  // A trailing deleted character leaves a trailing hyphen, because the trim happens BEFORE the
+  // deletion. Both implementations agree; only an early prose sketch of the rule did not.
+  assert.deepEqual(slugOf("`if … [else …]`"), ["if--else-"]);
+  assert.deepEqual(slugOf("`set … to`"), ["set--to"]);
+});
+
+test("slugs are computed from RENDERED text, which is what a source-slugging reader got wrong", () => {
+  // Every one of these was a quiet false pass while the gate slugged markdown source: the reader
+  // invented a fragment GitHub does not publish, so citing the invented one resolved here and 404'd
+  // there. No amount of block parsing would have touched them — this is the inline half.
+  const slugOf = (heading) =>
+    documentHeadings([`## ${heading}`]).map(({ slug }) => slug);
   assert.deepEqual(
-    headings.map(({ slug }) => slug),
-    ["grammar", "real-heading"],
+    slugOf("[Text](target)"),
+    ["text"],
+    "a link slugs its LABEL",
+  );
+  assert.deepEqual(slugOf("See [a [b]](target)"), ["see-a-b"]);
+  assert.deepEqual(
+    slugOf("_Text_"),
+    ["text"],
+    "emphasis is resolved, not kept",
+  );
+  assert.deepEqual(slugOf("__Bold__"), ["bold"]);
+  assert.deepEqual(slugOf("A &amp; B"), ["a--b"], "entities are decoded");
+  assert.deepEqual(slugOf("A &#x26; B"), ["a--b"], "including the hex form");
+  assert.deepEqual(slugOf("A <br> B"), ["a--b"], "inline HTML is dropped");
+  assert.deepEqual(slugOf("` foo `"), ["foo"], "a code span is TRIMMED");
+  assert.deepEqual(slugOf("Area in m²"), ["area-in-m"]);
+  assert.deepEqual(slugOf("Area in `m²`"), ["area-in-m"]);
+  assert.deepEqual(slugOf("Half ½ done"), ["half--done"]);
+
+  assert.equal(renderedText("[Text](target)"), "Text");
+  assert.equal(renderedText("A &amp; B"), "A & B");
+  assert.equal(
+    decodeEntities("a &lt;b&gt; &#65; &#x42; &nope; &quot; &#99999999;"),
+    'a <b> A B &nope; " &#99999999;',
   );
 });
 
-test("documentHeadings closes a fence only on its own delimiter, long enough, with nothing after", () => {
-  const headings = documentHeadings([
-    "```ebnf",
-    "~~~",
-    "``` still inside, because this one carries an info string",
-    "## hidden",
-    "```",
-    "## visible",
-  ]);
+test("block structure comes from the parser — every shape that defeated the flat reader", () => {
+  const slugs = (lines) => documentHeadings(lines).map(({ slug }) => slug);
+  // A `#` inside a fence is an OpenLogo comment, not a heading; the grammar document relies on this.
+  assert.deepEqual(slugs(["```logo", "# primary line comment", "```"]), []);
+  // A closing fence must be at least as long as its opener.
+  assert.deepEqual(slugs(["````text", "```", "## Ghost", "````"]), []);
+  // A container marker INSIDE a fence is code, not a closer.
+  assert.deepEqual(slugs(["```logo", "- ```", "# Ghost", "```"]), []);
+  assert.deepEqual(slugs(["```markdown", "> ```", "## Ghost", "```"]), []);
+  // Setext headings are published, and were invisible to the flat reader.
+  assert.deepEqual(slugs(["Title", "====="]), ["title"]);
+  // An HTML block hides nothing here, because the parser knows where it ends.
+  assert.deepEqual(slugs(["<!-- x -->", "## Ghost"]), ["ghost"]);
+  // GitHub publishes headings nested in containers; the flat reader could not see them.
+  assert.deepEqual(slugs(["> ## Notes"]), ["notes"]);
+  assert.deepEqual(slugs(["- ## Notes"]), ["notes"]);
+  assert.deepEqual(slugs(["> 1. # Nested"]), ["nested"]);
+  // THE ESCALATION CASE. A fence opened on a list-item continuation line is scoped to the item, so
+  // it closes when the item ends and `# Real` IS a heading. Reasoning line-by-line got this wrong in
+  // both directions across three rounds, and the execution-model document uses exactly this shape.
   assert.deepEqual(
-    headings.map(({ slug }) => slug),
-    ["visible"],
-  );
-});
-
-test("a fence closer SHORTER than its opener does not close it — CommonMark, and a false-pass path", () => {
-  // A three-backtick line inside a four-backtick block is content. Treating it as the close exposes
-  // every `#` line below as a heading GitHub will not anchor, which is the one outcome a gate must
-  // never produce. Latent in `spec/` today; a correctness bug regardless.
-  assert.deepEqual(
-    documentHeadings(["````text", "```", "## Ghost", "````", "## Real"]).map(
-      ({ slug }) => slug,
-    ),
+    slugs(["- item", "  ```logo", "  # comment", "", "# Real"]),
     ["real"],
   );
-  // A backtick opener may not carry a backtick in its info string, so this is not a fence at all.
+  // And the compound form, where the next top-level fence was mistaken for the first one's closer.
   assert.deepEqual(
-    documentHeadings(["```a`b", "## Visible", "```"]).map(({ slug }) => slug),
-    ["visible"],
-  );
-  // The same info string is legal on a tilde fence, which therefore does open one.
-  assert.deepEqual(
-    documentHeadings(["~~~a`b", "## Hidden", "~~~", "## Shown"]).map(
-      ({ slug }) => slug,
-    ),
-    ["shown"],
+    slugs([
+      "- item",
+      "  ```md",
+      "  # code",
+      "# Real",
+      "```",
+      "## Ghost",
+      "```",
+    ]),
+    ["real"],
   );
 });
 
-test("a duplicate slug probes upward for a free one, never reusing a taken suffix", () => {
-  assert.deepEqual(
-    documentHeadings(["## Notes", "### Notes", "## notes!", "## Other"]).map(
-      ({ slug }) => slug,
-    ),
-    ["notes", "notes-1", "notes-2", "other"],
-  );
-  // The case a naive occurrence count gets wrong: it hands `foo-1` to two different sections, so one
-  // anchor silently resolves to the wrong one. GitHub probes until the slug is free; so do we.
-  assert.deepEqual(
-    documentHeadings(["## Foo-1", "## Foo", "## Foo"]).map(({ slug }) => slug),
-    ["foo-1", "foo", "foo-2"],
-  );
-  assert.deepEqual(
-    documentHeadings(["## Foo", "## Foo-1", "## Foo"]).map(({ slug }) => slug),
-    ["foo", "foo-1", "foo-2"],
-  );
+test("duplicate slugs are numbered positionally, by github-slugger's own occupancy tracking", () => {
+  const slugs = (lines) => documentHeadings(lines).map(({ slug }) => slug);
+  assert.deepEqual(slugs(["## Notes", "", "## Notes", "", "## Notes"]), [
+    "notes",
+    "notes-1",
+    "notes-2",
+  ]);
+  // The case a naive occurrence count gets wrong: it hands `foo-1` to two different sections.
+  assert.deepEqual(slugs(["## Foo-1", "", "## Foo", "", "## Foo"]), [
+    "foo-1",
+    "foo",
+    "foo-2",
+  ]);
+  assert.deepEqual(slugs(["## Foo", "", "## Foo-1", "", "## Foo"]), [
+    "foo",
+    "foo-1",
+    "foo-2",
+  ]);
 });
 
 test("the duplicate-slug rule is exercised by the LIVE spec, not only by fixtures", () => {
   // The commands document's operator headings are punctuation only, so they all slug to the empty
   // string and are reachable at positional suffixes alone. This is why the module note says the
-  // anchor form cannot express a stable citation for that block — and it is a live example, so the
-  // duplicate rule is not fixture-only speculation.
+  // anchor form cannot express a stable citation for that block.
   //
   // The document is named through SPEC_DIRECTORY rather than written out, for the reason this
   // file's header gives: a literal mention here is a real one, and it would switch on bare-reference
@@ -991,26 +967,6 @@ test("the duplicate-slug rule is exercised by the LIVE spec, not only by fixture
     "positional suffixes must run consecutively from -1",
   );
 });
-
-test("documentHeadings follows CommonMark on what is a heading at all", () => {
-  const headings = documentHeadings([
-    "   ### Three spaces is still a heading",
-    "    #### Four spaces is an indented code block",
-    "#NoSpaceAfterHash",
-    "####### Seven hashes is not a heading",
-    "## Closing sequence ##",
-    "## Carriage return survives a CRLF checkout\r",
-  ]);
-  assert.deepEqual(
-    headings.map(({ slug }) => slug),
-    [
-      "three-spaces-is-still-a-heading",
-      "closing-sequence",
-      "carriage-return-survives-a-crlf-checkout",
-    ],
-  );
-});
-
 test("editDistance and closestHeadingSlug find the nearest heading, or none at all", () => {
   assert.equal(editDistance("", "abc"), 3);
   assert.equal(editDistance("abc", ""), 3);
@@ -1134,239 +1090,52 @@ test("a fragment truncated by a character no slug can hold is malformed, not a v
   assert.equal(malformedIn(`[good](<${CONTRACT}/d.md#real-heading>)`), false);
 });
 
-test("the canary refuses a document whose markdown this reader cannot follow", () => {
-  // A PERMIT-LIST, not an enumeration. Earlier enumerating attempts were each defeated by constructs
-  // they did not list — `</div>`, `<![CDATA[`, `<?xml`, `&#x26;`, an inline comment, a nested-label
-  // link, `_` emphasis — and every miss was a false pass. All of those are pinned here.
+test("the canary is now one construct, because the parser obsoleted the rest", () => {
+  // It used to carry permit-lists over heading characters and code-span contents, plus refusals for
+  // HTML blocks, setext rules, nested headings and container fences. All of that is DELETED — the
+  // parser handles it — and what survives is the one divergence `marked` genuinely does not cover:
+  // a GFM emoji shortcode, which GitHub renders to an image whose text content is empty.
   const constructs = (lines) =>
     unsupportedConstructs(lines).map(({ construct }) => construct);
-  const refuses = (label, lines) =>
-    assert.ok(constructs(lines).length > 0, `must refuse: ${label}`);
+  assert.equal(constructs(["## Good :+1: work"]).length, 1);
+  assert.match(constructs(["## Good :+1: work"])[0], /emoji shortcode/);
+  assert.equal(constructs(["## Bad :-1: work"]).length, 1);
+  assert.equal(constructs(["## Nice :smile: work"]).length, 1);
+  assert.deepEqual(unsupportedConstructs(["## Good :+1: work"])[0].line, 1);
 
-  refuses("comment block", ["<!-- hidden -->", "## Ghost"]);
-  refuses("open tag block", ["<div>", "## Ghost"]);
-  refuses("CLOSING tag block", ["</div>", "## Ghost"]);
-  refuses("CDATA block", ["<![CDATA[", "## Ghost", "]]>"]);
-  refuses("processing instruction", ["<?xml version='1'?>", "## Ghost"]);
-  refuses("declaration", ["<!DOCTYPE html>", "## Ghost"]);
-  refuses("setext under a paragraph", ["Title", "====="]);
-  refuses("setext under emphasis", ["*Notes*", "---"]);
-  refuses("setext under -not-a-list", ["-not-a-list", "---"]);
-  refuses("setext under |not-a-table", ["|not-a-table", "---"]);
-  refuses("heading in a blockquote", ["> ## Notes"]);
-  refuses("heading in a list item", ["- ## Notes"]);
-  refuses("named entity", ["## A &amp; B"]);
-  refuses("decimal entity", ["## A &#38; B"]);
-  refuses("HEX entity", ["## A &#x26; B"]);
-  refuses("emoji shortcode", ["## :smile: Hello"]);
-  refuses("inline tag", ["## A <br> B"]);
-  refuses("inline comment", ["## A <!-- hidden --> B"]);
-  refuses("plain link", ["## [Text](target)"]);
-  refuses("reference link", ["## See [it][ref]"]);
-  refuses("NESTED-label link", ["## See [a [b]](target)"]);
-  // `_` emphasis is the construct that proved a blacklist could not be trusted: it renders as
-  // emphasis (GitHub publishes `#text`) but survives the slug rule, which keeps `_` so that
-  // `set_xy` is right. The rule that makes the corpus correct is the rule that makes this wrong.
-  refuses("_emphasis_ in a heading", ["## _Text_"]);
-  refuses("__strong__ in a heading", ["## __Bold__"]);
-  refuses("mid-heading emphasis", ["## A _B_ C"]);
-  // The permit-list must not be built from the slug rule's own classes, or it can never refuse a
-  // character that rule keeps. `²` is category No: `\p{N}` kept it, github-slugger deletes it, so
-  // `#area-in-m²` passed here and 404'd there.
-  refuses("a superscript, which \\p{N} would have kept", ["## Area in m²"]);
-  refuses("a fraction", ["## Half ½ done"]);
-  refuses("a non-ASCII letter, refused rather than assumed", ["## Café mode"]);
-  // A code span is the one construct treated as literal, so the one way it is NOT literal matters:
-  // CommonMark trims a space from each end, and this reader would slug the padding.
-  refuses("a padded code span", ["## ` foo `"]);
-  refuses("a padded double-backtick span", ["## `` foo ``"]);
-  // CommonMark's "all spaces" is literally spaces, so space-tab-space IS trimmed. `trim()` treated
-  // the tab as whitespace and called it all-spaces, letting `#--` pass where GitHub publishes ``.
-  refuses("a span padded around a tab", ["## ` \t `"]);
-  // Checking only OUTSIDE code spans left the permit-list's own motivating character one backtick
-  // away — and spec/ headings are predominantly code spans, so that was the dominant shape.
-  refuses("a superscript inside a code span", ["## Area in `m²`"]);
-  refuses("a fraction inside a code span", ["## Half `½` done"]);
-  // GitHub's two commonest shortcodes start with `+`/`-`, which the first pattern could not match.
-  refuses("the :+1: shortcode", ["## Good :+1: work"]);
-  refuses("the :-1: shortcode", ["## Bad :-1: work"]);
-  // A mismatched backtick run is NOT a code span, so the link it surrounds must still be seen.
-  refuses("a link hidden behind a mismatched run", ["## `[Text](target)``"]);
-  // Astral characters make `match.index` (UTF-16) disagree with a code-point array, which left a
-  // stray backtick behind and refused a valid heading. The refusal here is for `𐐀` itself.
-  refuses("an astral letter before a code span", ["## \u{10400} `<b>`"]);
-  // Containers nest arbitrarily; encoding one marker in one position missed all of these.
-  refuses("blockquoted setext `---`", ["> Title", "> ---"]);
-  refuses("blockquoted setext `===`", ["> Title", "> ==="]);
-  refuses("blockquoted HTML block", ["> <div>"]);
-  refuses("ordered list inside a quote", ["> 1. # Nested"]);
-  refuses("ordered list inside a list", ["- 1. # Nested"]);
-  refuses("a deeply indented nested heading", ["- outer", "    - ## Notes"]);
-
-  // What must NOT fire, or the canary would refuse the corpus it exists to protect.
-  const allows = (label, lines) =>
-    assert.deepEqual(constructs(lines), [], `must allow: ${label}`);
-  allows("a thematic break after a blank line", ["para", "", "---"]);
-  allows("a table separator row", ["| a | b |", "| --- | --- |"]);
-  allows("a bare ampersand", ["## Turtle & Rendering"]);
-  allows("angle brackets in a code span", ["### `<place> = <value>`"]);
-  allows("brackets in a code span", ["### `if … [else …]`"]);
-  // Backtick RUNS, not just single backticks: ``<b>`` is code, and refusing it would block valid
-  // markdown over a construct the reader handles correctly.
-  allows("a double-backtick code span", ["## ``<b>``"]);
-  allows("a single run containing a double", ["## `a``b`"]);
-  allows("a double run containing a single", ["## ``a`b``"]);
-  allows("an underscore inside a code span", ["## `set_xy`"]);
-  allows("an underscore inside a span, mid-heading", [
-    "## Names use `snake_case`",
-  ]);
-  allows("parentheses", ["### Tutor (AI)"]);
-  allows("commas", ["## Keywords, primitives, and built-in names"]);
-  allows("an em dash", ["## Level 1 — movement and drawing"]);
-  allows("a colon that is not a shortcode", ["## Note: something"]);
-  allows("an apostrophe", ["## What's next"]);
-  allows("slashes", ["## Run/Stop/Reset"]);
-  allows("anything inside a fence", [
-    "```logo",
-    "<div>",
-    "Title",
-    "===",
-    "> ## Quoted",
-    "```",
-  ]);
-  // An unpadded span, and one padded on a single side, are both left alone: CommonMark trims only
-  // when BOTH ends carry a space, so those two slug exactly as written.
-  allows("an unpadded code span", ["## `foo`"]);
-  allows("a code span padded on one side only", ["## ` foo`"]);
-  allows("a span whose content is only spaces", ["## `  `"]);
-  allows("an ellipsis inside a code span", ["### `set … to`"]);
-  allows("prose between two code spans", [
-    "## Shape-spec lists for `area` and `perimeter`",
-  ]);
-  // Unmatched runs are left intact so the heading rule still sees what they surround.
-  assert.equal(stripCodeSpans("a ``<b>`` c"), "a         c");
-  assert.equal(stripCodeSpans("a ` b"), "a ` b");
-  assert.equal(containerContent("plain"), null);
-  assert.equal(containerContent("> 1. # X"), "# X");
-});
-
-test("the reader and the canary share ONE fence scanner, which owns the container decision", () => {
-  // Two earlier shapes of this bug: each function kept its own fence copy and they drifted, then
-  // both pre-stripped containers and a `- ``` ` INSIDE a top-level fence was read as a closer,
-  // publishing a heading from the code below it. The scanner now takes the raw line and decides for
-  // itself, because whether a container marker is syntax or code depends on the fence state.
-  const agree = (label, lines, slugs) => {
-    assert.deepEqual(
-      documentHeadings(lines).map(({ slug }) => slug),
-      slugs,
-      `reader: ${label}`,
-    );
-    assert.deepEqual(unsupportedConstructs(lines), [], `canary: ${label}`);
-  };
-  agree("a top-level fence", ["```logo", "# c", "```", "# Real"], ["real"]);
-  // Inside a fence a container marker is CODE. Stripping it made these lines close the block, and
-  // the gate then published a heading GitHub renders as code.
-  agree(
-    "a list marker inside a top-level fence",
-    ["```logo", "- ```", "# Ghost", "```"],
-    [],
-  );
-  agree(
-    "a blockquote marker inside a top-level fence",
-    ["```markdown", "> ```", "## Ghost", "```"],
-    [],
-  );
-
-  // A fence OPENED in a container is refused outright: CommonMark closes it when the container does,
-  // both readers here track one flat fence state, and neither can follow that. Refusing is the loud
-  // direction and `spec/` has none, so it costs nothing today.
-  const refusedFence = (label, lines) =>
-    assert.ok(
-      unsupportedConstructs(lines).some(({ construct }) =>
-        construct.includes("fenced block opened inside"),
-      ),
-      `must refuse: ${label}`,
-    );
-  refusedFence("a fence in a list item", [
-    "- ```markdown",
-    "  # Inside",
-    "  ```",
-  ]);
-  refusedFence("a fence in an ordered list item", [
-    "1. ```md",
-    "   # Inside",
-    "   ```",
-  ]);
-  refusedFence("a fence in a blockquote", [
-    "> ```js",
-    "# Real Heading",
-    "> ```",
-  ]);
-  refusedFence("an unclosed fence in a list item", [
-    "- ```logo",
-    "  # comment",
-    "",
-    "# Real",
-  ]);
-
-  // The refusal is INCOMPLETE and the gate says so out loud. It fires only when a container marker
-  // sits on the fence line; the commoner spelling puts the fence on a list-item CONTINUATION line,
-  // carrying indentation alone, and the execution-model document uses exactly that. Which lines a
-  // fence covers is inherited block state, not a property of the line, so no further pattern closes
-  // this — issue #1190's CommonMark parse is what does. This asserts the KNOWN state, so that when
-  // #1190 lands and the behaviour changes, this test fails and forces the claim to be re-stated.
-  //
-  // (The document is named without its directory prefix on purpose: a literal one here is a real
-  // citation, and it would switch on bare-reference attribution for every `:N` in a comment below.)
-  assert.deepEqual(
-    unsupportedConstructs(["- item", "  ```logo", "  # comment", "", "# Real"]),
-    [],
-    "a continuation-line fence is NOT refused today — known, stated, tracked by #1190",
-  );
-});
-
-test("four-space OR TAB indentation is not stripped into a container, and not read as a fence", () => {
-  // `    > ``` ` is an indented code block on GitHub. Stripping the container through that indent
-  // turned it into a fence opener that swallowed the real heading below it — so containerContent
-  // bounds the FIRST marker to three spaces, and a heading reachable only through deeper indentation
-  // is refused rather than guessed at.
-  const lines = ["    > ```", "## [Text](target)"];
-  assert.deepEqual(
-    documentHeadings(lines).map(({ slug }) => slug),
-    ["texttarget"],
-    "the heading is not hidden behind a phantom fence",
-  );
-  assert.ok(unsupportedConstructs(lines).length > 0, "and it is refused");
-  assert.equal(containerContent("    - ## Notes"), null);
-  assert.equal(containerContent("   - ## Notes"), "## Notes");
-  // A TAB-indented container falls between the three-space bound and a spaces-only refusal, and
-  // nothing else in CI would catch it: `.prettierignore` excludes `spec/`, `docs/`, `.github/` and
-  // `*.md`, so markdown is outside `format:check` entirely. CommonMark advances a tab to the next
-  // four-column stop, so the rule must reason in COLUMNS: ` \t-` puts the marker where `    -` does.
-  for (const indent of [
-    "\t",
-    "    ",
-    " \t",
-    "  \t",
-    "   \t",
-    "\t\t",
-    "     ",
+  // Everything the old canary refused is now simply READ CORRECTLY, so refusing it would be a false
+  // failure. These are the round 3-8 reproductions, inverted: they must all be accepted now.
+  for (const lines of [
+    ["## [Text](target)"],
+    ["## _Text_"],
+    ["## A &#x26; B"],
+    ["## A <br> B"],
+    ["## Area in `m²`"],
+    ["## ` foo `"],
+    ["Title", "====="],
+    ["</div>", "## Ghost"],
+    ["<![CDATA[", "## Ghost", "]]>"],
+    ["> ## Notes"],
+    ["- ## Notes"],
+    ["> 1. # Nested"],
+    ["- ```markdown", "  # Inside", "  ```"],
+    ["- item", "  ```logo", "  # comment", "", "# Real"],
+    ["## Turtle & Rendering"],
+    ["### `<place> = <value>`"],
+    ["## ``<b>``"],
+    ["   \t- ## Notes"],
   ]) {
-    assert.ok(
-      unsupportedConstructs(["- outer", `${indent}- ## Notes`]).length > 0,
-      `a nested heading indented ${JSON.stringify(indent)} must be refused`,
+    assert.deepEqual(
+      constructs(lines),
+      [],
+      `must no longer be refused: ${JSON.stringify(lines)}`,
     );
   }
-  assert.ok(
-    unsupportedConstructs(["> outer", "\t> ## Notes"]).length > 0,
-    "and the blockquote form of it too",
-  );
-  // Three spaces is still column 3, so it takes the container path rather than this refusal.
-  assert.equal(containerContent("   - ## Notes"), "## Notes");
 });
-test("the LIVE spec is clean for the canary, which is what licenses the slug rule", () => {
-  // The module note's "spec/ contains none today" is kept true by this, not by an assertion in a
-  // comment. If a spec edit ever introduces one, this fails here and the gate fails in CI.
+
+test("the LIVE spec is clean for the canary, and the canary still reports when it should", () => {
+  // Kept measured rather than asserted. If a spec edit ever introduces an emoji shortcode heading,
+  // this fails here and the gate fails in CI.
   const scan = (name, lines) =>
     unsupportedConstructs(lines).map(
       (found) => `${name}:${found.line} ${found.construct}`,
@@ -1380,83 +1149,108 @@ test("the LIVE spec is clean for the canary, which is what licenses the slug rul
           splitLines(readFileSync(join(SPEC_DIRECTORY, file), "utf8")),
         ),
       ),
-    // A canary for the canary. A detector that silently stopped reporting would make the corpus look
+    // A canary for the canary: a detector that silently stopped reporting would make the corpus look
     // clean and this assertion pass, so one document that MUST be reported is scanned alongside it.
-    ...scan("synthetic.md", ["<div>"]),
+    ...scan("synthetic.md", ["## Good :+1: work"]),
   ];
   assert.deepEqual(offenders, [
-    "synthetic.md:1 a line starting with `<`, which may open a raw-HTML block",
+    "synthetic.md:1 an emoji shortcode in a heading, which GitHub renders and this reader does not",
   ]);
 });
 
+test("the LIVE execution-model document parses, which is what the parser had to buy", () => {
+  // The acceptance test for the whole decision. Its fenced blocks sit on list-item continuation
+  // lines — the shape that defeated the flat reader in both directions — and roughly forty live
+  // anchors point into it. The document is named through SPEC_DIRECTORY so this comment carries no
+  // real citation.
+  const headings = documentHeadings(
+    splitLines(
+      readFileSync(join(SPEC_DIRECTORY, "execution-model.md"), "utf8"),
+    ),
+  );
+  const slugs = new Set(headings.map(({ slug }) => slug));
+  for (const anchor of [
+    "execution-safety",
+    "trace-and-event-registry",
+    "assignable-places-and-mutation",
+    "turtle-and-canvas-state",
+    "tutor-output-educational-profile",
+    "equality-and-ordering",
+  ]) {
+    assert.ok(slugs.has(anchor), `#${anchor} must resolve`);
+  }
+  // No phantom heading from inside those fenced blocks.
+  assert.ok(
+    !headings.some(({ heading }) => heading.startsWith("define ")),
+    "no heading may come from inside a fenced code sample",
+  );
+});
+
 test("a duplicate slug is positional, so a citation can silently RETARGET — both directions", () => {
-  // The bound on what resolution proves: it proves some heading claims the slug, never that the
-  // section the citation meant still claims it. Both shapes stay green, which is exactly why the
-  // coverage statement has to say so.
+  // The bound relayed from #1182: resolution proves some heading claims the slug, never that the
+  // section the citation meant still claims it. This is inherent to SLUGS, not to any reader, so
+  // replacing the hand-rolled reader with a parser did not touch it — which is why these assertions
+  // read exactly as they did before ADR-0035.
   const slugsOf = (lines) => documentHeadings(lines).map(({ slug }) => slug);
-  const headingAt = (lines, slug) =>
-    documentHeadings(lines).find((entry) => entry.slug === slug).line;
+  const headingFor = (lines, slug) =>
+    documentHeadings(lines).findIndex((entry) => entry.slug === slug);
 
   // DEMOTION — a colliding heading inserted AHEAD of the cited one takes the bare slug.
-  const before = ["## Alpha", "## Notes", "## Omega"];
-  const afterInsert = ["## Alpha", "## Notes", "## Notes", "## Omega"];
-  assert.equal(headingAt(before, "notes"), 2);
-  assert.equal(headingAt(afterInsert, "notes"), 2);
-  assert.equal(headingAt(afterInsert, "notes-1"), 3);
+  assert.equal(headingFor(["## Alpha", "", "## Notes"], "notes"), 1);
+  const afterInsert = ["## Alpha", "", "## Notes", "", "## Notes"];
+  assert.equal(headingFor(afterInsert, "notes"), 1);
+  assert.equal(headingFor(afterInsert, "notes-1"), 2);
 
   // PROMOTION — the one that will actually happen in spec/: an earlier duplicate is renamed, and the
   // later one inherits the slug it vacated. `#notes` still resolves, to a different section.
-  const twoNotes = ["## Notes", "## Notes"];
+  const twoNotes = ["## Notes", "", "## Notes"];
   assert.deepEqual(slugsOf(twoNotes), ["notes", "notes-1"]);
-  const renamedFirst = ["## Notes on scope", "## Notes"];
+  const renamedFirst = ["## Notes on scope", "", "## Notes"];
   assert.deepEqual(slugsOf(renamedFirst), ["notes-on-scope", "notes"]);
   assert.equal(
-    headingAt(twoNotes, "notes"),
-    1,
-    "#notes named the first section before the rename",
+    headingFor(twoNotes, "notes"),
+    0,
+    "#notes named the FIRST section",
   );
   assert.equal(
-    headingAt(renamedFirst, "notes"),
-    2,
-    "and names the second one after it — silently, with the gate still green",
+    headingFor(renamedFirst, "notes"),
+    1,
+    "and names the SECOND after the rename — silently, gate still green",
   );
 
   // And the gate really is green across that edit, which is the claim being bounded.
-  write(`${CONTRACT}/notes.md`, twoNotes.join("\n\ntext\n\n"));
+  write(`${CONTRACT}/notes.md`, twoNotes.join("\n"));
   write("cite.md", `See ${CONTRACT}/notes.md#notes.\n`);
   assert.equal(runOverTemp().ok, true);
-  write(`${CONTRACT}/notes.md`, renamedFirst.join("\n\ntext\n\n"));
+  write(`${CONTRACT}/notes.md`, renamedFirst.join("\n"));
   assert.equal(
     runOverTemp().ok,
     true,
     "the citation now names a different section and the gate cannot tell",
   );
 });
-
-test("an anchor into a document the reader cannot follow fails rather than being answered", () => {
+test("an anchor into a document the canary refuses fails rather than being answered", () => {
+  // An HTML comment no longer refuses anything — the parser reads it correctly, so `#ghost` is a
+  // real heading now. The one surviving refusal is the emoji shortcode.
   write(
-    `${CONTRACT}/html.md`,
-    ["# Title", "", "<!-- hidden -->", "## Ghost", "", "text"].join("\n"),
+    `${CONTRACT}/emoji.md`,
+    ["# Title", "", "## Good :+1: work", "", "text"].join("\n"),
   );
   write(
     "cite.md",
-    `See ${CONTRACT}/html.md#ghost and ${CONTRACT}/html.md#title.\n`,
+    `See ${CONTRACT}/emoji.md#good-1-work and ${CONTRACT}/emoji.md#title.\n`,
   );
   const result = runOverTemp();
   assert.equal(result.ok, false);
   const report = result.lines.join("\n");
-  assert.match(report, /which this gate's heading reader cannot follow/);
-  assert.match(report, /may open a raw-HTML block/);
-  // The remedies a maintainer can actually apply today are named, not only the tracking issue.
+  assert.match(report, /an emoji shortcode in a heading/);
+  // The remedies a maintainer can actually apply are named.
   assert.match(
     report,
     /Remove the construct, or cite this document by line instead/,
   );
   // Once per document, not once per anchor: two anchors, one report.
-  assert.equal(
-    report.match(/this gate's heading reader cannot follow/g).length,
-    1,
-  );
+  assert.equal(report.match(/emoji shortcode in a heading/g).length, 1);
 });
 
 test("formatAnchor renders the citable form back", () => {

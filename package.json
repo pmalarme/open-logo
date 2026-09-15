@@ -35,6 +35,8 @@
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.3",
+    "github-slugger": "^2.0.0",
+    "marked": "^18.0.12",
     "prettier": "^3.4.2",
     "typescript": "^7.0.2"
   }

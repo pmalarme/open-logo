@@ -95,8 +95,8 @@
  * tolerance #893's reviewers deleted.
  *
  * **Preferred is not invariant, and the difference matters.** Resolving an anchor proves that *some*
- * heading claims that slug — never that the section the citation meant still claims it. Step 4 below
- * numbers duplicates **positionally**, which gives that gap two shapes, both silent and both green:
+ * heading claims that slug — never that the section the citation meant still claims it. Duplicates
+ * are numbered **positionally**, which gives that gap two shapes, both silent and both green:
  *
  * - **Demotion.** A new heading with the same text inserted *ahead* of the cited one takes the bare
  *   slug, pushing the original to `-1`.
@@ -105,57 +105,34 @@
  *
  * So a rename fails **loudly** only when it leaves the slug unclaimed; when something else claims it,
  * the citation quietly points somewhere new. This is the anchor form's version of the wrong-passage
- * class, not an escape from it. `spec/commands.md` is where the positional numbering is live rather
- * than theoretical: its operator headings are punctuation only, so they collide on the empty slug and
- * are reached positionally — the first of them slugs to the empty string, which is not a citable
- * fragment at all. For that block the anchor form cannot express a stable citation.
+ * class, not an escape from it — and it is **inherent to slugs, not to any reader**, so replacing the
+ * reader with a parser did not touch it. `spec/commands.md` is where the positional numbering is live
+ * rather than theoretical: its operator headings are punctuation only, so they collide on the empty
+ * slug and are reached positionally — the first of them slugs to the empty string, which is not a
+ * citable fragment at all. For that block the anchor form cannot express a stable citation.
  *
- * **The slug rule is a choice, not an obvious fact, so it is stated here and pinned by tests.** It
- * reimplements GitHub's (`github-slugger`), which is what actually resolves these fragments when a
- * reader clicks one:
+ * **Headings come from a real GFM parse, and the slug from `github-slugger`** ({@link
+ * documentHeadings}, ADR-0035). The gate previously reimplemented both, and nine review rounds
+ * established that it could not: a line-by-line reader was defeated in turn by HTML blocks, `_`
+ * emphasis, `²`, code-span contents, container markers inside fences, and finally by a fence opened
+ * on a list-item continuation line — the shape `spec/execution-model.md` actually uses. Every fix was
+ * correct and every one left another door open, because the missing information was **structural**:
+ * which lines a fenced block covers is inherited block state, not a property of the line.
  *
- * 1. Lowercase, then trim.
- * 2. Delete every character that is not a letter, a digit, a space, `-`, or `_`. **`_` survives**, so
- *    `` `set_xy` `` slugs to `set_xy`; `&` does not, so `Turtle & Rendering` slugs to
- *    `turtle--rendering` — **runs of hyphens are never collapsed**.
- * 3. Replace each space with `-`.
- * 4. Within one document, a slug already taken is suffixed — and the suffix **probes upward until it
- *    finds one nothing has claimed**, rather than trusting an occurrence count. The difference is
- *    observable: for headings `Foo`, `Foo-1`, `Foo`, counting alone hands `foo-1` to two sections, so
- *    one anchor silently resolves to the wrong one.
+ * The parse buys two things, and one without the other would not have been worth a dependency.
+ * **Block structure** — fences inside containers, HTML blocks, indented code, setext headings, and
+ * headings nested in blockquotes and list items, which GitHub publishes. And **rendered text** —
+ * `github-slugger` expects what a reader *sees*, so `## [Text](target)` publishes `#text` rather than
+ * `#texttarget`, `## A &amp; B` publishes `#a--b`, and `` ## ` foo ` `` publishes `#foo` because a
+ * code span is trimmed. Slugging the markdown *source* gets all three wrong, and no amount of block
+ * parsing would have touched them.
  *
- * Headings are read with {@link documentHeadings}, which is **fence-aware**: `spec/` holds lines that
- * begin with `#` inside fenced blocks — OpenLogo comments such as `# primary line comment` in
- * `spec/grammar.md` — and counting those as headings would make anchors resolve that GitHub cannot.
- *
- * **Where this reader is not a markdown renderer, and what stops that mattering.** The slug rule
- * works on a heading's markdown **source**. That equals its rendered text for the constructs this
- * corpus uses — code spans, emphasis, `&`, parentheses, `<` and `>` inside code — but not for a
- * markdown **link**, an HTML **entity**, or inline **HTML**; an **HTML block** can hide an ATX line
- * GitHub never makes a heading; a **setext** heading is not collected at all; and a heading nested in
- * a blockquote or list item is published by GitHub and invisible here.
- *
- * Each cuts both ways, and only one direction is dangerous. The anchor a reader would actually
- * write — GitHub's — **fails** here, which is loud and safe. But the slug this reader *invents* is
- * citable too, and citing it **passes here and 404s there**. That quiet direction is the one a gate
- * must never have, and stating a known false pass is not the same as not having one.
- *
- * So {@link unsupportedConstructs} refuses to answer: a cited document containing any such construct
- * fails outright, naming it and its line, rather than being resolved against a slug this reader is
- * not entitled to compute. **It is a permit-list, not an enumeration** — earlier enumerating attempts
- * were each defeated by constructs they did not list, most tellingly `_` emphasis, which slips
- * through *because* the slug rule keeps `_` so that `` `set_xy` `` is right. A heading may therefore
- * contain only characters proven to survive rendering unchanged; everything else is refused.
- *
- * **One part of the canary is knowingly incomplete, and it is the block structure.** A fenced block
- * whose scope ends with its container is refused only when a container marker sits on the fence
- * line; the commoner spelling — a list-item *continuation* line carrying indentation alone — is
- * invisible to it, and `spec/execution-model.md` uses exactly that at lines 104 and 117. That is not
- * a gap a further pattern closes: which lines a fence covers is inherited block state, not a property
- * of the line, and eight rounds of review established that a line-by-line reader cannot decide it.
- * Issue #1190 carries the CommonMark parse that replaces this reader; until it lands, treat heading
- * extraction as sound for flat documents and unproven for nested ones. Anchors are still checked, and
- * the live corpus is verified clean — but do not read this canary as complete, because it is not.
+ * What the parse obsoleted is **deleted**, not kept in reserve: the hand-rolled slug rule, the
+ * character permit-lists over headings and code-span contents, the fence and container scanners, and
+ * the refusals for HTML blocks, setext rules, nested headings and container fences. A dependency that
+ * only adds has not paid for itself. What survives in {@link unsupportedConstructs} is one genuine
+ * divergence — a **GFM emoji shortcode**, a GitHub extension `marked` does not implement — and the
+ * live-corpus test keeps `spec/`'s freedom from it measured rather than asserted.
  *
  * A fragment of the form `#L30` or `#L28-L84` is GitHub's **line fragment**, not a heading: it names
  * lines, so it is resolved against the file's length by {@link resolveCitation} like any other line
@@ -185,6 +162,8 @@ import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join, sep } from "node:path";
+import GithubSlugger from "github-slugger";
+import { marked } from "marked";
 
 /** Directory holding the normative specification, relative to the repository root. */
 export const SPEC_DIRECTORY = "spec";
@@ -384,8 +363,8 @@ export function isProseLine(path, line) {
  * The fragment is captured as group 5 — appended rather than inserted — so the line-spec groups keep
  * the numbers they had before issue #1181 and every existing reader of this pattern is unaffected.
  *
- * The fragment class matches what {@link headingSlug} can **produce** (letters, digits, `-`, `_`),
- * not merely ASCII, so a heading with an accented word cannot be truncated mid-slug into a confusing
+ * The fragment class matches what a slug can **contain** (letters, digits, `-`, `_`), not merely
+ * ASCII, so a heading with an accented word cannot be truncated mid-slug into a confusing
  * "no heading slugs to `caf`". It is `*` rather than `+` on purpose: a `#` with nothing after it is
  * enumerated as an **empty** fragment and fails, instead of falling through as a plain file mention.
  * That shape is a real defect — an anchor hard-wrapped immediately after its `#` — and matching `+`
@@ -422,110 +401,143 @@ function mentionPattern(specDirectory) {
  * One stated limit, and it is the same character that forces the heading permit-list: `_` is a legal
  * slug character, so `_x.md#a-heading_` cannot be told from a fragment genuinely ending in `_`.
  * Underscore emphasis around a citation therefore fails — loudly, and this corpus emphasises with
- * `*`. See {@link HEADING_PERMITTED} for the same ambiguity on the cited side, where it is a false
- * *pass* rather than a false failure and is refused outright.
+ * `*`. The cited side has no such ambiguity any more: the parser resolves emphasis before the slug
+ * is computed, so `## _Text_` correctly publishes `#text`.
  */
 const FRAGMENT_BOUNDARY = /^(?:[\s`'"“”‘’)\]}>|]|$)|^[.,:;!?*~+=…—–]+(?:\s|$)/u;
 
 /**
  * GitHub's **line fragment** (`#L30`, `#L28-L84`), which names lines rather than a heading.
  *
- * A heading slug is lowercased ({@link headingSlug} step 1), so it can never begin with an uppercase
+ * A heading slug is lowercased by `github-slugger`, so it can never begin with an uppercase
  * `L` followed by digits. That is what lets the two fragment forms be told apart structurally instead
  * of guessed at, and it is why this pattern is anchored and case-sensitive.
  */
 const LINE_FRAGMENT = /^L(\d+)(?:-L(\d+))?$/;
 
 /**
- * The fragment one markdown heading is reachable at, by GitHub's slug rule — reimplemented here, and
- * spelled out step by step in the module note because it is a *choice* rather than an obvious fact.
+ * Every heading a markdown document publishes, in order, with the fragment each is reachable at.
  *
- * It operates on the heading's **source** text. `github-slugger` expects *rendered* text and is not
- * a markdown parser, and neither is this: every inline construct in this corpus — code spans,
- * emphasis, `&`, parentheses, `<` and `>` inside code — is punctuation that step 2 deletes, so the
- * two agree. A heading built from a construct whose rendered text differs from its source — a
- * markdown **link**, an HTML **entity**, inline **HTML** — diverges, and deliberately nothing is
- * unwrapped to paper over that. Unwrapping `[text](target)` was itself a false pass: it made
- * `` `[text](target)` `` — a code span whose rendered text is the whole literal, so GitHub slugs it
- * `texttarget` — come out as `text`. Without the unwrapping that code span is **right**, while a bare
- * `[text](target)` heading comes out `texttarget` where GitHub gives `text`. Neither direction is
- * left to luck: {@link unsupportedConstructs} fails the gate on any document whose headings use one
- * of those constructs, so the slug is never computed for a heading this function cannot read.
+ * **This is a real GFM parse, and that is the whole point.** Nine review rounds established that a
+ * line-by-line reader cannot decide which lines a heading occupies: which lines a fenced block covers
+ * is inherited block state, not a property of the line, and the hand-rolled version was defeated in
+ * turn by HTML blocks, `_` emphasis, `²`, code-span contents, container markers inside fences, and
+ * finally by a fence opened on a list-item continuation line — the shape `spec/` actually uses. Each
+ * fix was correct and each left another door open, because the missing information was structural.
+ * `marked` supplies the block structure; `github-slugger` is what GitHub's anchors are built from.
  *
- * Duplicate suffixing is **not** applied here: it is a property of a heading's position in a
- * document, not of its text, so {@link documentHeadings} owns it.
+ * Two things had to come from the parser, and a parse that bought only one would not have been worth
+ * the dependency:
+ *
+ * 1. **Block structure** — fences (including inside containers), HTML blocks, indented code, setext
+ *    headings, and headings nested in blockquotes and list items, which GitHub publishes and a flat
+ *    reader cannot see.
+ * 2. **Rendered text** — `github-slugger` expects a heading's *rendered* text, not its markdown
+ *    source. `## [Text](target)` publishes `#text`, not `#texttarget`; `## A &amp; B` publishes
+ *    `#a--b`; `` ## ` foo ` `` publishes `#foo`, because a code span is trimmed. Slugging the source
+ *    gets all three wrong, and no amount of block parsing would have touched them.
+ *
+ * Duplicate suffixing comes from `github-slugger`'s own occupancy tracking, one instance per
+ * document — which is how GitHub numbers them, and why the retargeting bound in the module note
+ * survives this change unaltered: a promoted or demoted duplicate still silently moves a resolving
+ * anchor to a different section.
+ *
+ * `line` is best-effort: the parser reports structure, not offsets, so each heading is located by
+ * scanning forward for the line its source came from, tolerating container prefixes. It is used for
+ * reporting only — resolution keys on `slug` alone.
  */
-export function headingSlug(heading) {
-  return heading
-    .toLowerCase()
-    .trim()
-    .replace(/[^\p{L}\p{N} _-]/gu, "")
-    .replace(/ /g, "-");
+export function documentHeadings(lines) {
+  const slugger = new GithubSlugger();
+  const found = [];
+  let cursor = 0;
+  const locate = (raw) => {
+    const needle = raw.split("\n")[0].trim();
+    // `findIndex` returns -1 when the source line cannot be recovered, and `Math.max` folds that
+    // into "wherever we had got to" without a branch — the reader must never fail over a line
+    // number, which is reporting detail; resolution keys on `slug` alone.
+    const at = lines.findIndex(
+      (line, index) =>
+        index >= cursor &&
+        line
+          .replace(/\r$/, "")
+          .replace(/^[ \t]*(?:>[ \t]?|[-*+][ \t]+|\d+[.)][ \t]+)*/, "")
+          .trim() === needle,
+    );
+    cursor = Math.max(at + 1, cursor + 1);
+    return cursor;
+  };
+  const walk = (tokens) => {
+    for (const token of tokens) {
+      if (token.type === "heading") {
+        const heading = renderedText(token.text);
+        found.push({
+          line: locate(token.raw),
+          heading,
+          slug: slugger.slug(heading),
+        });
+        continue;
+      }
+      // Blockquotes and list items publish the headings inside them, so the walk descends. Fenced
+      // and indented code, and HTML blocks, are leaf tokens with no `tokens` to descend into, which
+      // is exactly why their contents can no longer be mistaken for headings.
+      if (token.type === "list") {
+        walk(token.items);
+        continue;
+      }
+      if (token.type === "blockquote" || token.type === "list_item") {
+        walk(token.tokens);
+      }
+    }
+  };
+  walk(marked.lexer(lines.join("\n"), { gfm: true }));
+  return found;
 }
 
 /**
- * Every ATX heading in a markdown document, in order, with the fragment each is reachable at.
+ * A heading's **rendered** text — what `github-slugger` expects, and what GitHub slugs.
  *
- * **Fenced blocks are skipped**, which is load-bearing rather than tidy: this corpus writes OpenLogo
- * comments inside fences, so `# primary line comment` would otherwise be offered as a heading and an
- * anchor naming it would resolve here while failing on GitHub — a false pass, the one outcome a gate
- * must never produce. Closing a fence follows CommonMark on **both** axes: the same delimiter
- * character, and **at least as many of them** as the opener, with nothing but whitespace after. The
- * length half matters — a three-backtick line inside a four-backtick block is content, and treating
- * it as the close exposes every `#` line below it as a heading. A backtick opener whose info string
- * contains a backtick is not a fence at all.
- *
- * Indentation follows CommonMark: four spaces makes an indented code block, so both the fence and the
- * heading patterns admit at most three.
- *
- * Two limits, both currently without an instance in `spec/` and both stated in the module note: a
- * **setext** heading (underlined with `===`/`---`) is not collected, and an ATX-looking line inside a
- * **raw-HTML block** is. The first fails loudly; the second is the false-pass direction, which is why
- * it is written down rather than left to be discovered.
- *
- * @returns `[{ line, heading, slug }]`, `slug` carrying the `-1`/`-2` duplicate suffix where one is
- *   needed.
+ * `marked.parseInline` resolves the inline grammar (links to their label, emphasis to its content, a
+ * code span to its trimmed literal), tags are then dropped, and entities decoded. The order matters:
+ * decoding before stripping would turn `&lt;br&gt;` into a tag and delete it.
  */
-export function documentHeadings(lines) {
-  const headings = [];
-  // `github-slugger` probes upward from the count until it finds a slug nothing has taken, rather
-  // than trusting the count alone. The difference is observable: for headings `Foo`, `Foo-1`, `Foo`
-  // a count-only rule hands `foo-1` to two different sections, so one anchor silently resolves to
-  // the wrong one. `taken` is therefore consulted as well as incremented.
-  const occurrences = new Map();
-  const taken = new Set();
-  let fence = null;
-  for (const [index, raw] of lines.entries()) {
-    const line = raw.replace(/\r$/, "");
-    // Fence state is tracked by the shared scanner, which takes the RAW line and decides for itself
-    // whether a container marker is syntax or code. Headings are still matched on the raw line, so
-    // one nested in a container stays uncollected — the canary refuses those documents outright.
-    const transition = advanceFence(fence, line);
-    if (transition !== null) {
-      fence = transition.fence;
-      continue;
-    }
-    if (fence !== null) {
-      continue;
-    }
-    const heading = /^ {0,3}#{1,6}[ \t]+(.*)$/.exec(line);
-    if (heading === null) {
-      continue;
-    }
-    const text = heading[1].replace(/[ \t]+#+[ \t]*$/, "").trim();
-    const base = headingSlug(text);
-    let count = occurrences.get(base) ?? 0;
-    let slug = base;
-    while (taken.has(slug)) {
-      count += 1;
-      slug = `${base}-${count}`;
-    }
-    occurrences.set(base, count);
-    taken.add(slug);
-    headings.push({ line: index + 1, heading: text, slug });
-  }
-  return headings;
+export function renderedText(inline) {
+  return decodeEntities(
+    marked.parseInline(inline, { gfm: true }).replace(/<[^>]*>/g, ""),
+  );
 }
+
+/** The named entities markdown rendering can emit, plus numeric forms. */
+const NAMED_ENTITIES = Object.freeze({
+  amp: "&",
+  lt: "<",
+  gt: ">",
+  quot: '"',
+  apos: "'",
+  nbsp: "\u00A0",
+});
+
+/** Decode the HTML entities a renderer emits, so the slug sees the character a reader sees. */
+export function decodeEntities(text) {
+  return text.replace(
+    /&(#[xX]?[0-9a-fA-F]+|[a-zA-Z][a-zA-Z0-9]*);/g,
+    (whole, body) => {
+      if (body[0] !== "#") {
+        return NAMED_ENTITIES[body.toLowerCase()] ?? whole;
+      }
+      const hex = body[1] === "x" || body[1] === "X";
+      const code = Number.parseInt(
+        hex ? body.slice(2) : body.slice(1),
+        hex ? 16 : 10,
+      );
+      // Past the last code point there is no character to produce, and `fromCodePoint` throws
+      // rather than returning one — so an out-of-range reference stays as written.
+      return code > 0x10ffff ? whole : String.fromCodePoint(code);
+    },
+  );
+}
+
+/** A GFM emoji shortcode, which GitHub replaces with a character the slug rule then deletes. */
+const EMOJI_SHORTCODE = /:[a-z0-9+_-]+:/;
 
 /**
  * The heading slug in `headings` closest to `fragment`, with its edit distance — for a did-you-mean.
@@ -578,344 +590,29 @@ export function suggestionDistance(fragment) {
 }
 
 /**
- * The inline code spans in one line, paired the way CommonMark does: a span is delimited by two runs
- * of **exactly equal length**, and an unmatched run is literal text.
+ * Markdown in a document that this reader still cannot reproduce — what remains of the **canary**.
  *
- * A regex cannot express that. `/(`+)[\s\S]*?\1/` lets a two-backtick run close a one-backtick
- * opener, so `` ## `[Text](target)`` `` — which CommonMark reads as literal backticks around a real
- * link — came out stripped, hiding the `[` from {@link unsupportedConstructs} and restoring exactly
- * the quiet false pass the canary exists to prevent.
+ * It used to carry the whole weight of the gate's honesty: permit-lists over heading characters and
+ * code-span contents, refusals for HTML blocks, setext rules, nested headings and container fences.
+ * **The parser obsoleted all of it**, and it is deleted rather than kept "just in case" — a
+ * dependency that only adds has not paid for itself.
  *
- * Offsets are UTF-16, matching `match.index`, because indexing a code-point array instead drifts by
- * one element for every astral character earlier in the line.
- */
-function codeSpans(text) {
-  const runs = [...text.matchAll(/`+/g)];
-  const spans = [];
-  let open = 0;
-  while (open < runs.length) {
-    let close = open + 1;
-    while (
-      close < runs.length &&
-      runs[close][0].length !== runs[open][0].length
-    ) {
-      close += 1;
-    }
-    if (close >= runs.length) {
-      open += 1;
-      continue;
-    }
-    spans.push({
-      start: runs[open].index,
-      end: runs[close].index + runs[close][0].length,
-      content: text.slice(
-        runs[open].index + runs[open][0].length,
-        runs[close].index,
-      ),
-    });
-    open = close + 1;
-  }
-  return spans;
-}
-
-/**
- * Blank out every inline code span, leaving an **unmatched** run in place so the heading rule still
- * sees what it surrounds.
- */
-export function stripCodeSpans(text) {
-  const units = text.split("");
-  for (const span of codeSpans(text)) {
-    for (let at = span.start; at < span.end; at += 1) {
-      units[at] = " ";
-    }
-  }
-  return units.join("");
-}
-
-/**
- * Whether any code span in `text` is one CommonMark **normalizes**: content with a space at both
- * ends, and something other than spaces between them, loses one space from each end.
- *
- * A code span is otherwise the one construct this reader may treat as literal, which is what makes
- * this exception worth naming: `` ## ` foo ` `` renders as `<code>foo</code>`, so GitHub publishes
- * `#foo` while slugging the source yields `#-foo-`. That is the same source-versus-rendered
- * divergence as a link or an entity, hiding inside the construct the canary trusts — and
- * {@link stripCodeSpans} would make it invisible — so it is refused explicitly.
- *
- * It is computed from the paired spans rather than by a pattern over the whole line. A pattern
- * cannot tell a padded span from the ordinary prose *between* two spans: `` `area` and `perimeter` ``
- * reads as a backtick, a space, `and`, a space and a backtick, and two live `spec/` headings were
- * refused that way.
- */
-function hasPaddedCodeSpan(text) {
-  return codeSpans(text).some(
-    ({ content }) =>
-      content.startsWith(" ") && content.endsWith(" ") && !/^ +$/.test(content),
-  );
-}
-
-/**
- * The characters a heading may contain outside a code span.
- *
- * **This is the permit-list, and the whole point is that it is closed.** Blacklisting the constructs
- * that render differently from their source loses one construct at a time — `_` emphasis was the
- * fourth to get through, after links, entities and inline HTML, and it gets through precisely
- * *because* {@link headingSlug} keeps `_` so that `` `set_xy` `` slugs correctly.
- *
- * **It is deliberately ASCII, and that is a correction rather than a simplification.** An earlier
- * version permitted `\p{L}\p{N}` — the very classes {@link headingSlug} keeps — so it validated the
- * slug rule against itself and could never refuse a character that rule preserved. `²` is category
- * `No`, so `\p{N}` kept it while `github-slugger` deletes it: `## Area in m²` slugs to `area-in-m²`
- * here and `area-in-m` there, so `#area-in-m²` passes here and 404s on GitHub. A verifier built from
- * the subject's own classes is a second opinion in name only, so this list is written independently
- * and admits only what is *proven*: ASCII letters and digits, space and tab, and punctuation checked
- * one by one against the real slugger class. Non-ASCII letters are refused — loudly — rather than
- * assumed, because that class is generated against an older Unicode than the `\p{L}` Node applies.
- *
- * `*` and `~` are permitted because rendering **and** the slug rule both delete them, so they cannot
- * disagree. `&` and `:` are permitted for `Turtle & Rendering` and ordinary prose, and policed
- * separately as an entity and an emoji shortcode. Everything absent — `_`, `[`, `]`, `<`, `>`, `|`,
- * `\`, `{`, `}`, a stray backtick, `²`, `×`, an emoji — is refused **outside a code span**; inside
- * one, {@link CODE_SPAN_PERMITTED} applies instead, because there the content is literal. Measured
- * across every `spec/` heading both lists cost the corpus nothing. Some refusals are harmless —
- * `## Time 10:30:00` trips the shortcode rule though both readers slug it identically — though that
- * same rule catches `:+1:`, which is *not* harmless — and that is the deliberate price of lists the
- * next construct cannot defeat.
- */
-const HEADING_PERMITTED = /[A-Za-z0-9 \t\-,.;:!?'"()/+=%@$#*~^&—–…]/;
-
-/**
- * The characters a **code span's content** may contain.
- *
- * A span's content is literal, so the markdown ambiguities that force `_`, `[` and `<` out of
- * {@link HEADING_PERMITTED} do not apply — `` `set_xy` `` must keep working. What *does* still apply
- * is the character-class difference between {@link headingSlug} and `github-slugger`, and checking
- * only outside spans left it wide open: `` ## Area in `m²` `` slugged to `area-in-m²` here and
- * `area-in-m` there, so `#area-in-m²` passed and 404'd — the same `²` the permit-list was written to
- * catch, one backtick away. `spec/` headings are *predominantly* code spans, so that exemption
- * covered the dominant shape.
- *
- * Every **ASCII** character agrees inside a span: both sides keep letters, digits, `-`, `_` and
- * space, and both delete all other ASCII punctuation. So this admits ASCII plus the three non-ASCII
- * punctuation marks checked against the real slugger class — which is what keeps the live
- * `` `set … to` ``-shaped headings in `spec/commands.md` green.
- */
-const CODE_SPAN_PERMITTED = /[\x20-\x7E\t—–…]/;
-
-/** A complete HTML entity, which renders as one character this reader would spell out. */
-const HTML_ENTITY = /&(?:[A-Za-z][A-Za-z0-9]*|#[0-9]+|#[xX][0-9A-Fa-f]+);/;
-
-/** A GFM emoji shortcode, which GitHub replaces with a character the slug rule then deletes. */
-const EMOJI_SHORTCODE = /:[a-z0-9+_-]+:/;
-
-/**
- * Strip every leading blockquote and list-item marker, returning the content inside them, or `null`
- * when the line opens no container.
- *
- * Containers nest arbitrarily — `> 1. # Nested` and `- 1. # Nested` are both an `<h1>` on GitHub —
- * so this loops rather than encoding one marker in one position, which is how a pattern that handled
- * `> ## X` and `- ## X` still missed both of those, and a blockquoted setext rule as well.
- */
-export function containerContent(line) {
-  let rest = line;
-  let stripped = false;
-  for (;;) {
-    // The FIRST marker may be indented at most three spaces. Four is an indented code block, and
-    // stripping through it let `    > ``` ` — code, on GitHub — be read as a fence opener, which then
-    // swallowed a real heading below it.
-    const marker = (
-      stripped
-        ? /^[ \t]*(?:>|[-*+][ \t]+|\d+[.)][ \t]+)/
-        : /^ {0,3}(?:>|[-*+][ \t]+|\d+[.)][ \t]+)/
-    ).exec(rest);
-    if (marker === null) {
-      break;
-    }
-    rest = rest.slice(marker[0].length);
-    stripped = true;
-  }
-  return stripped ? rest : null;
-}
-
-/**
- * Advance fenced-block state across one **raw** line, or `null` when the line is not a fence
- * delimiter at all.
- *
- * **One scanner, two callers, and the container decision lives here.** {@link documentHeadings} and
- * {@link unsupportedConstructs} both need this, and when each kept its own copy they drifted the
- * moment one was fixed. Letting the callers pre-strip containers was the same mistake one level up:
- * whether a container marker is syntax or code depends on the fence state, which only this function
- * knows, so it takes the raw line and decides.
- *
- * The rule is that **inside a fence, content is literal**. `> ``` ` on a line of a top-level fenced
- * block is code, not a closer; stripping the `>` first turned it into one and published a heading
- * from the code below it. Outside a fence, a container's own opener is found by stripping the
- * container — and such a fence is reported by the canary, because neither reader can follow where a
- * container-scoped block ends.
- *
- * That this is the third rule to be extracted here — after the mention pattern's group numbering and
- * code-span pairing — is the reason for the standing rule in the module note: **any rule both readers
- * consult belongs in a single function.**
- */
-function advanceFence(fence, line) {
-  const inside = containerContent(line);
-  const content = fence === null ? (inside ?? line) : line;
-  const delimiter = /^ {0,3}(`{3,}|~{3,})(.*)$/.exec(content);
-  if (delimiter === null) {
-    return null;
-  }
-  const marker = delimiter[1][0];
-  if (fence === null) {
-    // A backtick opener may not carry a backtick in its info string; a tilde opener may.
-    const opens = marker === "~" || !delimiter[2].includes("`");
-    return {
-      fence: opens ? { marker, length: delimiter[1].length } : null,
-      openedInContainer: opens && inside !== null,
-    };
-  }
-  const closes =
-    marker === fence.marker &&
-    delimiter[1].length >= fence.length &&
-    delimiter[2].trim() === "";
-  return { fence: closes ? null : fence, openedInContainer: false };
-}
-
-/**
- * Markdown in a document that this reader cannot prove it reproduces — the **canary**.
- *
- * It is what lets the gate claim an anchor proves a heading exists. The slug rule works on a
- * heading's markdown source; that equals its rendered text for the constructs this corpus uses, but
- * a markdown **link**, an HTML **entity** and inline **HTML** render differently, an HTML **block**
- * can hide an ATX line GitHub never publishes, a **setext** heading is not collected at all, and a
- * heading nested in a blockquote or list item is published by GitHub and invisible here. Each is a
- * **quiet** divergence: the reader invents a slug GitHub does not publish, and an anchor naming the
- * invented slug **passes here and 404s there**.
- *
- * **It is a permit-list, and that is the whole design.** Earlier attempts enumerated the
- * *unsupported* constructs, and reviewers defeated each of them — `</div>` and `<![CDATA[` and
- * `<?xml` open HTML blocks that `<!--`-and-`<letter` never matched; `&#x26;` is an entity that
- * `&#\d+;` never matched; `## See [a [b]](target)` is a link whose label the link pattern never
- * matched; `_` emphasis carries no flagged character at all. Enumerating an open-ended grammar loses
- * by one construct at a time, and each miss is a false pass. So this asks the opposite question —
- * *is every part of this document drawn from the small subset I can prove I slug identically?* — and
- * refuses everything else. Over-refusing is loud and costs a spec edit; under-refusing is silent and
- * costs a wrong citation.
- *
- * The cost is real and worth stating: until issue #1190 replaces this reader with a CommonMark parse,
- * `spec/` cannot adopt a `<details>` block, a linked or emphasised heading, a setext heading, or a
- * fenced block inside a list item without turning the gate red. `spec/**` is CODEOWNERS-gated and the
- * failure message names the alternatives, so that trade is deliberate rather than an accident.
+ * One divergence genuinely survives, because it is a **GitHub extension `marked` does not
+ * implement**: a GFM emoji shortcode. GitHub renders `## Good :+1: work` to an image whose text
+ * content is empty, publishing `#good--work`; `marked` leaves the shortcode as literal text, so this
+ * reader computes `#good-1-work`. That is the quiet direction — the invented slug resolves here and
+ * 404s there — so a cited document containing one is refused rather than answered. `spec/` has none,
+ * and the live-corpus test keeps that measured rather than asserted.
  */
 export function unsupportedConstructs(lines) {
-  const found = [];
-  let fence = null;
-  let previousWasBlank = true;
-  for (const [index, raw] of lines.entries()) {
-    const line = raw.replace(/\r$/, "");
-    const inside = containerContent(line);
-    const content = inside ?? line;
-    const transition = advanceFence(fence, line);
-    if (transition !== null) {
-      // Neither reader can follow where a container-scoped fenced block ends: CommonMark closes it
-      // when the container does, and both readers here track one flat fence state. So the document
-      // is refused rather than answered.
-      //
-      // **This refusal is INCOMPLETE, and knowing why is more useful than the rule itself.** It
-      // fires only when a container marker sits on the fence line. The commoner spelling puts the
-      // fence on a list-item *continuation* line, carrying indentation alone — and `spec/` uses
-      // exactly that, at `execution-model.md` lines 104 and 117, where this says nothing. Re-keying
-      // it on real container context would refuse that document and every anchor into it, which is
-      // not available while saga #1180 forbids the mass citation edit that would be needed to go
-      // green. Issue #1190 carries the CommonMark parse that closes the class properly; until it
-      // lands, a fence whose scope ends with its container can still hide a heading GitHub
-      // publishes, or expose one it does not.
-      if (transition.openedInContainer) {
-        found.push({
-          line: index + 1,
-          construct: "a fenced block opened inside a blockquote or list item",
-        });
-      }
-      fence = transition.fence;
-      previousWasBlank = false;
-      continue;
-    }
-    if (fence !== null) {
-      previousWasBlank = false;
-      continue;
-    }
-    const report = (construct) => found.push({ line: index + 1, construct });
-
-    // Any line opening with `<` — a tag, a closing tag, a comment, a declaration, a processing
-    // instruction, CDATA, even an autolink. Deciding which of those starts an HTML block is the
-    // enumeration this design refuses to attempt. There is no inline-context exemption, so a
-    // paragraph *beginning* with a bare `<place>` is refused where `` `<place>` `` is not.
-    if (/^ {0,3}</.test(content)) {
-      report("a line starting with `<`, which may open a raw-HTML block");
-    }
-    // A `===`/`---` rule is a setext heading unless a blank line makes it a thematic break. Anything
-    // else — after a paragraph, a list item, a table row, an indented code block — is refused rather
-    // than classified, because classifying it is the same open-ended parse.
-    if (/^ {0,3}(?:=+|-+)[ \t]*$/.test(content) && !previousWasBlank) {
-      report("a `=`/`-` rule that may be a setext heading");
-    }
-    const heading = /^ {0,3}#{1,6}[ \t]+(.*)$/.exec(content);
-    // GitHub publishes a heading nested in a blockquote or list item; this reader cannot see it, so
-    // every later duplicate suffix in the document shifts.
-    if (heading !== null && inside !== null) {
-      report("a heading nested in a blockquote or list item");
-    }
-    // The same thing where `containerContent` deliberately stops: an indent of four columns — four
-    // spaces, or a tab, or 1–3 spaces then a tab, since CommonMark advances a tab to the next
-    // four-column stop — is either an indented code block or a nested list and this reader cannot
-    // tell which, so a heading reachable through it is refused rather than guessed at. Reasoning in
-    // characters where CommonMark reasons in columns left 25 of the 62 leading-whitespace strings up
-    // to length five unrefused. The tab half matters because markdown is outside `format:check`
-    // entirely (`.prettierignore` excludes `spec/`, `docs/`, `.github/` and `*.md`), so nothing else
-    // in CI would ever normalise it away.
-    if (/^(?: {4,}| {0,3}\t)[ \t>*+\-\d.)]*#{1,6}[ \t]/.test(line)) {
-      report("an indented line that may be a heading inside a nested list");
-    }
-    if (heading !== null && inside === null) {
-      // A padded code span is checked on the RAW heading, before stripping makes it invisible.
-      if (hasPaddedCodeSpan(heading[1])) {
-        report(
-          "a code span CommonMark trims, which this reader slugs with the padding still on",
-        );
-      }
-      // A span's content is literal, so it gets the in-span list; everything else gets the
-      // markdown-aware one. Checking only outside spans left `` `m²` `` — the very character the
-      // permit-list exists for — passing, and `spec/` headings are mostly code spans.
-      const offendingInSpan = codeSpans(heading[1])
-        .flatMap(({ content: span }) => [...span])
-        .find((character) => !CODE_SPAN_PERMITTED.test(character));
-      if (offendingInSpan !== undefined) {
-        report(
-          "a code-span character this reader cannot prove it slugs the way GitHub does " +
-            `(${JSON.stringify(offendingInSpan)})`,
-        );
-      }
-      const bare = stripCodeSpans(heading[1]);
-      const offender = [...bare].find(
-        (character) => !HEADING_PERMITTED.test(character),
-      );
-      if (offender !== undefined) {
-        report(
-          "a heading character this reader cannot prove it slugs the way GitHub does " +
-            `(${JSON.stringify(offender)})`,
-        );
-      }
-      if (HTML_ENTITY.test(bare)) {
-        report("an HTML entity in a heading");
-      }
-      if (EMOJI_SHORTCODE.test(bare)) {
-        report("an emoji shortcode in a heading");
-      }
-    }
-    previousWasBlank = content.trim() === "";
-  }
-  return found;
+  return documentHeadings(lines)
+    .filter(({ heading }) => EMOJI_SHORTCODE.test(heading))
+    .map(({ line }) => ({
+      line,
+      construct:
+        "an emoji shortcode in a heading, which GitHub renders and this reader does not",
+    }));
 }
-
 /**
  * Resolve one section anchor against the headings of the document it names.
  *
@@ -1728,10 +1425,9 @@ export function runSpecCitationsGate({
     }
     for (const { line, construct } of unsupportedConstructs(specLines)) {
       fail(
-        `${specDirectory}/${file}:${line}: this document contains ${construct}, which this gate's heading ` +
-          "reader cannot follow — so an anchor into it could name a heading GitHub never publishes, or " +
-          "miss one it does. Remove the construct, or cite this document by line instead; issue #1190 " +
-          "tracks replacing the reader with a CommonMark parse",
+        `${specDirectory}/${file}:${line}: this document contains ${construct} — so an anchor into ` +
+          "it could name a heading GitHub never publishes, or miss one it does. Remove the construct, " +
+          "or cite this document by line instead",
       );
     }
   };
@@ -1963,10 +1659,10 @@ export function runSpecCitationsGate({
       "the slug it vacated; both retarget a citation silently and both leave this gate green. A " +
       "renamed heading therefore fails loudly only when the rename leaves its slug unclaimed. A " +
       "citation written without the spec-directory prefix is not seen at all, and a cited document " +
-      "using markdown this reader cannot follow fails rather than being answered on a slug it is not " +
-      "entitled to compute — though that last check is INCOMPLETE for nested block structure, where a " +
-      "fenced block whose scope ends with its container can still hide a heading GitHub publishes or " +
-      "expose one it does not (issue #1190). Do not read a green run as 'every citation is right'.",
+      "whose headings use a GFM emoji shortcode is refused rather than answered on a slug this reader " +
+      "computes differently from GitHub. Headings come from a GFM parse and slugs from github-slugger " +
+      "(ADR-0035), so block structure and rendered text are no longer approximated. Do not read a " +
+      "green run as 'every citation is right'.",
   );
   if (counts.excused > 0) {
     lines.push(
