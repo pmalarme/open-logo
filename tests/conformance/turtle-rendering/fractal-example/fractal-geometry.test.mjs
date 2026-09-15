@@ -63,6 +63,10 @@
 //     altering or dropping them changes no segment and this file stays green. The 61 `turn` events
 //     are deliberately not pinned: their heading set is identical at both commits above, so pinning
 //     them would add brittleness without adding discrimination.
+//   * Mirror symmetry is VACUOUSLY true on an empty drawing (`[] === []`). Measured on the erase
+//     probe below: with the canvas cleared, that one test still passes while the endpoint pin, the
+//     histogram, the bounding box, the pen and the clear guard all fail. So it is not load-bearing
+//     today — but do not weaken the clear guard and then trust mirror symmetry on its own.
 //
 // PROOF THAT THIS FILE CAN FAIL
 // -----------------------------
@@ -250,18 +254,19 @@ test("12-fractal: the example runs clean, so every geometry claim below is about
 });
 
 test("12-fractal: nothing erases the canvas after the drawing starts", () => {
-  // Makes the retained-scene rule above legible and independently checkable: the example's single
-  // `clear_screen` must come BEFORE the first segment, so the pinned drawing is what a learner is
-  // left looking at. Without this, a trailing `clean` would blank the canvas while all 30
-  // historical draw-segment events remained in the stream.
-  const clearIndices = run.events.flatMap((event, index) =>
-    event.kind === "clear" ? [index] : [],
-  );
-  const firstSegmentIndex = run.events.findIndex(
-    (event) => event.kind === "draw-segment",
-  );
-  assert.deepEqual(clearIndices, [3]);
-  assert.equal(firstSegmentIndex, 20);
+  // Makes the retained-scene rule above legible and independently checkable. Deliberately asserts
+  // the PROPERTY, not stream positions: an earlier version pinned the clear at index 3 and the
+  // first segment at index 20, which two non-author reviewers independently flagged as brittle in
+  // the wrong direction. Issue #858 ("Does `clear_screen`'s homing move emit a `draw-segment` when
+  // the pen is down?") is open, and if it is ruled to emit one, a segment appears before the clear
+  // and every absolute index here shifts while every pinned coordinate stays correct — the
+  // retained-scene slicing above already discards a segment drawn before the clear. Both
+  // assertions below survive that ruling and still fail on a trailing `clean` or `clear_screen`,
+  // which makes the count 2 and the retained total 0.
+  const clearCount = run.events.filter(
+    (event) => event.kind === "clear",
+  ).length;
+  assert.equal(clearCount, 1);
   assert.equal(drawSegmentEvents.length, 30);
 });
 
