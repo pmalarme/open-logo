@@ -9,9 +9,12 @@
  * seven "optional modifiers **such as** …", so the vocabulary is open rather than exact; see
  * {@link OL_TOKEN_MODIFIERS} for why the eighth is there. Owned by `@language-designer`; consumed
  * by the studio editor/LSP successor (`packages/studio`) and any external editor integration.
- * **Nothing in this repository renders `global` yet** — `packages/studio` maps token *class* to CSS
- * and drops every other field, exactly as it already drops `role` — so the modifier is a contract
- * for a consumer, not a visible change; issue #1106 is the studio slice that renders it.
+ * **`packages/studio` renders it** — issue #1106 landed in this saga and maps the modifier to an
+ * `ol-mod-*` CSS class plus a plain-language description surfaced as the mark's `title`
+ * (`highlighter.ts`'s `OL_HIGHLIGHT_MODIFIER_CSS_CLASS` and `OL_GLOBAL_VARIABLE_DESCRIPTION`). That
+ * mapping is deliberately partial, and an unmapped modifier is still simply dropped while the token
+ * keeps its own `ol-tok-*` class, so this stays a contract a consumer may ignore rather than a
+ * field every consumer must paint.
  *
  * Modifier derivation, by class:
  *  - `procedure-name` / `type-name` / `field-name` — {@link highlight} already resolves each of
