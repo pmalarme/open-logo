@@ -359,26 +359,39 @@ export function isProseLine(path, line) {
 }
 
 /**
+ * One character a heading slug may contain — exported so a test can sweep it against the slugger.
+ *
+ * `-` is last so it is a literal rather than a range. `\p{Pc}` already contains `_`.
+ */
+export const SLUG_CHARACTER = "[\\p{L}\\p{N}\\p{M}\\p{Pc}\\p{So}-]";
+
+/**
  * Build the regex matching `<specDirectory>/<file>.md` with an optional line spec and an optional
  * `#fragment`.
  *
  * The fragment is captured as group 5 — appended rather than inserted — so the line-spec groups keep
  * the numbers they had before issue #1181 and every existing reader of this pattern is unaffected.
  *
- * The fragment class matches what a slug can **contain** (letters, digits, combining marks, `-`,
- * `_`), not merely ASCII, so a heading with an accented word cannot be truncated mid-slug into a
- * confusing "no heading slugs to `caf`". Combining marks are in the class because `github-slugger`
- * preserves them: a decomposed `## Café` publishes a slug whose final code point is U+0301, and
- * without `\p{M}` the citation to it truncates to `cafe` and is reported malformed — a false failure
- * manufactured by the tokenizer rather than found in the document. It is `*` rather than `+` on
- * purpose: a `#` with nothing after it is enumerated as an **empty** fragment and fails, instead of
- * falling through as a plain file mention. That shape is a real defect — an anchor hard-wrapped
- * immediately after its `#` — and matching `+` made the one live instance in this tree invisible to
- * the very check meant to catch it.
+ * The fragment class matches what a slug can **contain**, and that set is not obvious: besides letters,
+ * digits and `-`, `github-slugger` preserves **combining marks** (`\p{M}`), **connector punctuation**
+ * (`\p{Pc}`, which is where `_` itself lives) and **other symbols** (`\p{So}` — circled letters,
+ * emoji). Leaving any of them out does not merely narrow the gate, it **manufactures failures**: a
+ * decomposed `## Café` publishes a slug ending in U+0301, and GitHub really does publish anchors
+ * containing U+203F, so the citation to one truncated mid-slug and was reported malformed — a defect
+ * invented by the tokenizer rather than found in the document. The class is an exhaustively verified
+ * **superset**: a test sweeps every Unicode code point through the shipped slugger and asserts that
+ * none it preserves falls outside, which is an oracle the library owns rather than a rule restated
+ * here. Being a superset is safe because resolution compares the whole fragment against a real slug,
+ * so a symbol the slugger would have dropped simply fails to match — loudly, as everything here does.
+ *
+ * It is `*` rather than `+` on purpose: a `#` with nothing after it is enumerated as an **empty**
+ * fragment and fails, instead of falling through as a plain file mention. That shape is a real defect
+ * — an anchor hard-wrapped immediately after its `#` — and matching `+` made the one live instance in
+ * this tree invisible to the very check meant to catch it.
  */
 function mentionPattern(specDirectory) {
   return new RegExp(
-    `${specDirectory.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\/([A-Za-z0-9._-]+\\.md)(?::(\\d+)(?:-(\\d+))?((?:,\\d+(?:-\\d+)?)+)?)?(?:#([\\p{L}\\p{N}\\p{M}_-]*))?`,
+    `${specDirectory.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\/([A-Za-z0-9._-]+\\.md)(?::(\\d+)(?:-(\\d+))?((?:,\\d+(?:-\\d+)?)+)?)?(?:#(${SLUG_CHARACTER}*))?`,
     "gu",
   );
 }
