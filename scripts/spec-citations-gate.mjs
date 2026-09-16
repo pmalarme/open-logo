@@ -638,8 +638,10 @@ const NAMED_REFERENCE = "[a-zA-Z][a-zA-Z0-9]*";
  * `&#xD800;` slugged as a bare surrogate and `&#x110000;` as the literal text `x110000`, both of
  * them anchors GitHub does not publish, and neither was refused.
  *
- * Anything that is not one of the two grammars is left exactly as written, which is what GitHub does
- * with it too.
+ * Anything that is not one of the two grammars is left exactly as written. GitHub agrees for most of
+ * it, but **not for {@link DISPUTED_REFERENCE}** — the digit lengths it decodes and CommonMark does
+ * not. Those never reach a slug that could be trusted: {@link headingHazards} refuses the document
+ * first, which is the only reason this function may leave them alone without being wrong.
  */
 export function decodeEntities(text) {
   return text.replace(
@@ -671,7 +673,7 @@ const ANY_ENTITY = new RegExp(
   "g",
 );
 
-/** A GFM emoji shortcode, which GitHub replaces with a character the slug rule then deletes. */
+/** A GFM emoji shortcode **shape**, which GitHub replaces whenever it names a known emoji. */
 const EMOJI_SHORTCODE = /:[a-z0-9+_-]+:/;
 
 /**
@@ -698,7 +700,7 @@ const EMOJI_SHORTCODE = /:[a-z0-9+_-]+:/;
  * - **Raw inline HTML.** It is a leaf token with no text to recover, and recovering it by pattern is
  *   what broke on a `>` inside a comment or an attribute value.
  * - **An emoji shortcode shape**, which GitHub replaces with a character the slug rule then deletes
- *   and `marked` does not implement at all.
+ *   whenever it names a known emoji, and which `marked` does not implement at all.
  * - **A numeric reference of disputed length** — see {@link DISPUTED_REFERENCE}. CommonMark and both
  *   reference implementations say 8 decimal or 7-8 hexadecimal digits is not a reference; GitHub's
  *   own renderer decodes it. Refusing is the only answer that is not one oracle's guess.

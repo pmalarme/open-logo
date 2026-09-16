@@ -93,7 +93,8 @@ rules, nested headings and container fences. **A dependency that only adds has n
 Four refusals survive, all of one class: GitHub can resolve something this reader does not. A cited
 document whose headings contain any of them is refused rather than answered:
 
-- a **GFM emoji shortcode**, which GitHub renders and `marked` does not implement;
+- a **GFM emoji shortcode shape**, which GitHub renders whenever it names a known emoji and `marked`
+  does not implement at all;
 - an **entity reference the decoder does not handle** (`&copy;`, `&mdash;`, …). CommonMark resolves
   all ~2,000 HTML5 entity references and GitHub slugs the resulting character; `marked` leaves them in
   the token text. The decoder here handles what a renderer *emits* when escaping — six names plus the

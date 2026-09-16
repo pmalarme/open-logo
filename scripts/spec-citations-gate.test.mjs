@@ -514,7 +514,7 @@ test("a tree of correct citations passes, and the report states what it does not
     summary,
     /fails loudly only when the rename leaves its slug unclaimed/,
   );
-  // And it must name ALL THREE surviving refusals, not just the one. The statement used to say only
+  // And it must name ALL FOUR surviving refusals, not just the one. The statement used to say only
   // the emoji shortcode was refused while the code also refused entities and raw inline HTML — a
   // coverage statement that under-reports what the gate declines to answer is exactly the kind of
   // unenforced assertion this gate exists to stop.
