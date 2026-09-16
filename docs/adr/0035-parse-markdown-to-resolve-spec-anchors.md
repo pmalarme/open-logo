@@ -90,7 +90,7 @@ The hand-rolled slug rule; the character permit-lists over heading text and code
 code-span run pairer; the fence and container scanners; and the refusals for HTML blocks, setext
 rules, nested headings and container fences. **A dependency that only adds has not paid for itself.**
 
-Three refusals survive, all of one class: GitHub can resolve something this reader does not. A cited
+Four refusals survive, all of one class: GitHub can resolve something this reader does not. A cited
 document whose headings contain any of them is refused rather than answered:
 
 - a **GFM emoji shortcode**, which GitHub renders and `marked` does not implement;
@@ -99,13 +99,19 @@ document whose headings contain any of them is refused rather than answered:
   the token text. The decoder here handles what a renderer *emits* when escaping — six names plus the
   numeric forms — and deliberately does **not** grow a hand-maintained table of the rest, because a
   partial hand-rolled table is precisely the defect this parse was adopted to end;
-- **raw inline HTML** in a heading, a leaf token with no recoverable text.
+- **raw inline HTML** in a heading, a leaf token with no recoverable text;
+- a **numeric character reference of disputed length**. CommonMark 0.31.2 admits 1-7 decimal or 1-6
+  hexadecimal digits, and both reference implementations agree — `marked` escapes a longer run and the
+  `commonmark` package leaves it literal. Probing GitHub's own Markdown API, however, decodes
+  `&#00000065;` and `&#x00000041;` to `A`. GitHub's renderer publishes the anchor this gate exists to
+  predict, so on 8 decimal digits and on 7-8 hexadecimal digits the oracles disagree and no slug this
+  reader computed would be right under both. Issue #1193 tracks measuring the real bound.
 
-All three are detected by walking `marked`'s own **inline token tree** rather than the heading's raw
+All four are detected by walking `marked`'s own **inline token tree** rather than the heading's raw
 source, which is what makes them narrow enough to be safe: a `codespan` is literal text and is
 skipped, so the live `` ### `<place> = <value>` `` heading is not mistaken for inline HTML.
 
-Two of the three are recognised by **shape**, and that is stated rather than glossed: a heading whose
+Two of the four are recognised by **shape**, and that is stated rather than glossed: a heading whose
 `&notarealentity;` or `:not_an_emoji:` GitHub would publish literally is refused as well. Telling the
 real ones apart needs exactly the hand-maintained tables this decision exists to avoid, so the gate
 errs toward **refusing loudly** — a refused document names the construct and the remedy — and never

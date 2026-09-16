@@ -77,7 +77,8 @@ Two further limits are worth knowing before you rely on one: duplicate headings 
 positionally, so inserting, removing or renaming a colliding heading silently **retargets** a
 resolving anchor at a different section while the gate stays green; and a cited document whose
 headings use a construct the reader will not guess at — an emoji shortcode shape, an entity outside
-the escaping set, raw inline HTML — is **refused** rather than answered. Read the coverage statement
+the escaping set, raw inline HTML, a numeric reference whose digit count CommonMark and GitHub's
+renderer disagree about — is **refused** rather than answered. Read the coverage statement
 the gate prints; never read a green run as "every citation is right".
 
 ## Procedure

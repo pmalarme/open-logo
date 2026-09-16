@@ -521,9 +521,9 @@ test("a tree of correct citations passes, and the report states what it does not
   assert.match(summary, /a GFM\s+parse and slugs from github-slugger/);
   assert.match(
     summary,
-    /an\s+entity reference outside the escaping set, raw inline HTML, or an emoji shortcode shape/,
+    /an\s+entity reference outside the escaping set, raw inline HTML, an emoji shortcode shape, or a\s+numeric reference whose digit count CommonMark and GitHub's renderer disagree about/,
   );
-  // And it must not claim those refusals are exact. Two of the three key on SHAPE, so a heading
+  // And it must not claim those refusals are exact. Two of the four key on SHAPE, so a heading
   // GitHub would publish literally is refused as well — erring toward refusing loudly rather than
   // inventing a slug. A statement that reads as "only genuine divergences are refused" overclaims.
   assert.match(
@@ -1350,7 +1350,7 @@ test("SLUG_CHARACTER holds every character the SHIPPED slugger preserves", () =>
   }
 });
 
-test("the canary is now three constructs, because the parser obsoleted the rest", () => {
+test("the canary is now four constructs, because the parser obsoleted the rest", () => {
   // It used to carry permit-lists over heading characters and code-span contents, plus refusals for
   // HTML blocks, setext rules, nested headings and container fences. All of that is DELETED — the
   // parser handles it. What survives is where marked and GitHub GENUINELY differ, or where
@@ -1419,6 +1419,32 @@ test("the canary is now three constructs, because the parser obsoleted the rest"
     /an emoji shortcode shape/,
     "a lookalike shortcode is refused too",
   );
+
+  // 4. A numeric reference of DISPUTED length. CommonMark and both reference implementations say 8
+  // decimal or 7-8 hex digits is not a reference; GitHub's own Markdown API decodes it. The gate has
+  // no right to a slug its oracles disagree on, so it declines rather than picking a side.
+  for (const disputed of [
+    "&#00000065;",
+    "&#99999999;",
+    "&#x0000041;",
+    "&#x00000041;",
+  ]) {
+    assert.match(
+      constructs([`## A ${disputed} B`])[0],
+      /digit count CommonMark and GitHub's renderer disagree about/,
+      `${disputed} must be refused`,
+    );
+  }
+  // Undisputed on both sides of the span: inside it decodes, past it every oracle says literal.
+  for (const settled of [
+    "&#0000065;",
+    "&#x000041;",
+    "&#1114112;",
+    "&#000000065;",
+    "&#x000000041;",
+  ]) {
+    assert.deepEqual(constructs([`## A ${settled} B`]), [], settled);
+  }
 
   // Everything the old canary refused is now simply READ CORRECTLY, so refusing it would be a false
   // failure. These are the round 3-8 reproductions, inverted: they must all be accepted now.

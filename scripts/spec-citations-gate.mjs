@@ -131,10 +131,10 @@
  * character permit-lists over headings and code-span contents, the fence and container scanners, the
  * refusals for HTML blocks, setext rules, nested headings and container fences, and the tag-stripping
  * pattern that a `>` inside an attribute value defeated. A dependency that only adds has not paid for
- * itself. What survives in {@link unsupportedConstructs} is three **conservative refusals** — an
- * entity reference this reader does not decode, raw inline HTML, and an emoji shortcode shape — and
- * the live-corpus test keeps the cited documents' freedom from all three measured rather than
- * asserted.
+ * itself. What survives in {@link unsupportedConstructs} is four **conservative refusals** — an
+ * entity reference this reader does not decode, raw inline HTML, an emoji shortcode shape, and a
+ * numeric reference whose digit count CommonMark and GitHub's renderer disagree about — and the
+ * live-corpus test keeps the cited documents' freedom from all four measured rather than asserted.
  *
  * A fragment of the form `#L30` or `#L28-L84` is GitHub's **line fragment**, not a heading: it names
  * lines, so it is resolved against the file's length by {@link resolveCitation} like any other line
@@ -607,6 +607,23 @@ const NAMED_ENTITIES = Object.freeze({
  */
 const NUMERIC_REFERENCE = "#(?:[0-9]{1,7}|[xX][0-9a-fA-F]{1,6})";
 
+/**
+ * Numeric references whose length falls where this reader's oracles **disagree**, so it refuses.
+ *
+ * CommonMark 0.31.2 states 1-7 decimal or 1-6 hexadecimal digits, and both reference implementations
+ * agree: `marked` escapes a longer run, and the `commonmark` package leaves it literal. But probing
+ * GitHub's own Markdown API renders `&#00000065;` (8 decimal) and `&#x00000041;` (8 hex) as `A`,
+ * decoding runs the spec says are not references at all. GitHub's renderer is what publishes the
+ * anchor this gate has to predict, so the two answers differ on exactly two spans: **8 decimal
+ * digits**, and **7 or 8 hexadecimal digits**. Nine or more is literal under every oracle.
+ *
+ * A gate cannot be right about a slug its oracles disagree on, so it declines to answer, exactly as
+ * it does for the other three divergences. That keeps the alternative — silently publishing one
+ * oracle's slug and 404ing under the other — off the table. No heading in the corpus contains one,
+ * and issue #1193 tracks measuring the real bound against GitHub from a network-capable environment.
+ */
+const DISPUTED_REFERENCE = /&#(?:[0-9]{8}|[xX][0-9a-fA-F]{7,8});/;
+
 /** A named entity reference, whatever it names. */
 const NAMED_REFERENCE = "[a-zA-Z][a-zA-Z0-9]*";
 
@@ -680,8 +697,11 @@ const EMOJI_SHORTCODE = /:[a-z0-9+_-]+:/;
  *   what broke on a `>` inside a comment or an attribute value.
  * - **An emoji shortcode shape**, which GitHub replaces with a character the slug rule then deletes
  *   and `marked` does not implement at all.
+ * - **A numeric reference of disputed length** — see {@link DISPUTED_REFERENCE}. CommonMark and both
+ *   reference implementations say 8 decimal or 7-8 hexadecimal digits is not a reference; GitHub's
+ *   own renderer decodes it. Refusing is the only answer that is not one oracle's guess.
  *
- * All three are refused rather than guessed at, which keeps ADR-0035's claim true: where `marked` and
+ * All four are refused rather than guessed at, which keeps ADR-0035's claim true: where `marked` and
  * GitHub can differ, the gate declines to answer. The cited corpus contains no instance of any.
  */
 function headingHazards(tokens) {
@@ -718,6 +738,12 @@ function headingHazards(tokens) {
         hazards.push(
           "an emoji shortcode shape in a heading, which this reader does not resolve and GitHub " +
             "replaces whenever it names a known emoji",
+        );
+      }
+      if (DISPUTED_REFERENCE.test(source)) {
+        hazards.push(
+          "a numeric character reference in a heading whose digit count CommonMark and GitHub's " +
+            "renderer disagree about, so no slug this reader computes would be right under both",
         );
       }
     }
@@ -1845,9 +1871,10 @@ export function runSpecCitationsGate({
       "citation written without the spec-directory prefix is not seen at all. Headings come from a " +
       "GFM parse and slugs from github-slugger (ADR-0035), so block structure and rendered text are " +
       "no longer approximated; where GitHub can still resolve something this reader does not — an " +
-      "entity reference outside the escaping set, raw inline HTML, or an emoji shortcode shape — the " +
+      "entity reference outside the escaping set, raw inline HTML, an emoji shortcode shape, or a " +
+      "numeric reference whose digit count CommonMark and GitHub's renderer disagree about — the " +
       "cited document is refused rather than answered on a slug computed differently from GitHub's. " +
-      "Two of those three are recognised by shape, so a construct GitHub would publish literally is " +
+      "Two of those four are recognised by shape, so a construct GitHub would publish literally is " +
       "refused too: this gate errs toward refusing loudly, never toward inventing a slug. Do not read " +
       "a green run as 'every citation is right'.",
   );
