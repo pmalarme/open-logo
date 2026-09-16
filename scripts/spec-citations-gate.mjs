@@ -699,8 +699,8 @@ const EMOJI_SHORTCODE = /:[a-z0-9+_-]+:/;
  *   a hand-maintained table of the other two thousand.
  * - **Raw inline HTML.** It is a leaf token with no text to recover, and recovering it by pattern is
  *   what broke on a `>` inside a comment or an attribute value.
- * - **An emoji shortcode shape**, which GitHub replaces with a character the slug rule then deletes
- *   whenever it names a known emoji, and which `marked` does not implement at all.
+ * - **An emoji shortcode shape**, which GitHub replaces whenever it names a known emoji and which
+ *   `marked` does not implement at all.
  * - **A numeric reference of disputed length** — see {@link DISPUTED_REFERENCE}. CommonMark and both
  *   reference implementations say 8 decimal or 7-8 hexadecimal digits is not a reference; GitHub's
  *   own renderer decodes it. Refusing is the only answer that is not one oracle's guess.
