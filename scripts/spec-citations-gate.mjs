@@ -381,8 +381,14 @@ export const SLUG_CHARACTER = "[\\p{L}\\p{N}\\p{M}\\p{Pc}\\p{So}-]";
  * invented by the tokenizer rather than found in the document. The class is an exhaustively verified
  * **superset**: a test sweeps every Unicode code point through the shipped slugger and asserts that
  * none it preserves falls outside, which is an oracle the library owns rather than a rule restated
- * here. Being a superset is safe because resolution compares the whole fragment against a real slug,
- * so a symbol the slugger would have dropped simply fails to match — loudly, as everything here does.
+ * here. Being a superset is safe in the direction that matters: resolution compares the whole fragment
+ * against a real slug, so a symbol the slugger would have dropped simply fails to match — loudly, as
+ * everything here does. It is not free, though, and the cost is worth naming: a `\p{So}` character
+ * **abutting** a citation in prose is absorbed into the fragment rather than terminating it, so
+ * `…#a-heading© 2026` yields `a-heading©` and fails. That is a manufactured failure of the same kind,
+ * arriving from the opposite side — accepted deliberately, because it is loud, no instance exists in
+ * the corpus, and every ordinary delimiter (whitespace, `.` `,` `;` `:` `)` `]` `"` `'` `|` `—` `…`
+ * `/` `%`) is outside the class and still ends a fragment.
  *
  * It is `*` rather than `+` on purpose: a `#` with nothing after it is enumerated as an **empty**
  * fragment and fails, instead of falling through as a plain file mention. That shape is a real defect
@@ -583,15 +589,23 @@ const NAMED_ENTITIES = Object.freeze({
 });
 
 /**
- * The two numeric-reference grammars, kept apart.
+ * The two numeric-reference grammars, kept apart and **bounded**.
  *
  * Writing them as one `#[xX]?[0-9a-fA-F]+` makes the `x` optional over a hex digit class, so a
  * malformed *decimal* reference carrying `A`-`F` is accepted as a number: `&#12A;` decoded as 12 and
  * slugged `a--b` where GitHub renders it literally and publishes `a-12a-b`, and `&#AB;` reached
- * `String.fromCodePoint(NaN)` and **crashed the gate**. They are built from one place because the
- * grammar is used three times and drift between the copies is what makes that kind of hole reappear.
+ * `String.fromCodePoint(NaN)` and **crashed the gate**.
+ *
+ * Length is part of the grammar too, and leaving it unbounded was the same defect one step further
+ * out: CommonMark admits **1-7 decimal digits** or **1-6 hexadecimal digits**, so
+ * `&#0000000000000065;` is not a reference at all. Decoding it to `A` published `a-a-b` where GitHub
+ * publishes `a-0000000000000065-b`. Both bounds are the renderer's, not a guess.
+ *
+ * They are built from one place because the grammar is used three times and drift between the copies
+ * is what makes that kind of hole reappear. This is a **source string**, not a shared `RegExp`, so no
+ * call site can inherit another's `lastIndex`.
  */
-const NUMERIC_REFERENCE = "#(?:[0-9]+|[xX][0-9a-fA-F]+)";
+const NUMERIC_REFERENCE = "#(?:[0-9]{1,7}|[xX][0-9a-fA-F]{1,6})";
 
 /** A named entity reference, whatever it names. */
 const NAMED_REFERENCE = "[a-zA-Z][a-zA-Z0-9]*";

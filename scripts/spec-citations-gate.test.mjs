@@ -901,8 +901,10 @@ test("slugs are computed from RENDERED text, which is what a source-slugging rea
   assert.equal(headingOf("## [Text](target)"), "Text");
   assert.equal(headingOf("## A &amp; B"), "A & B");
   assert.equal(
-    decodeEntities("a &lt;b&gt; &#65; &#x42; &nope; &quot; &#99999999;"),
-    'a <b> A B &nope; " \uFFFD',
+    decodeEntities(
+      "a &lt;b&gt; &#65; &#x42; &nope; &quot; &#1114112; &#99999999;",
+    ),
+    'a <b> A B &nope; " \uFFFD &#99999999;',
   );
 
   // A REFERENCE link resolves against the document's definitions. Re-parsing the heading's raw
@@ -1002,6 +1004,36 @@ test("slugs are computed from RENDERED text, which is what a source-slugging rea
     "a real hex form still decodes",
   );
   assert.deepEqual(slugOf("A &#65; B"), ["a-a-b"], "as does a real decimal");
+
+  // LENGTH is part of the grammar too, and leaving it unbounded was the same defect one step out.
+  // CommonMark admits 1-7 decimal digits or 1-6 hex digits, so an overlong run is not a reference:
+  // decoding `&#0000000000000065;` to `A` published `a-a-b` where GitHub publishes the literal.
+  assert.deepEqual(
+    slugOf("A &#0000065; B"),
+    ["a-a-b"],
+    "seven decimal digits is a reference",
+  );
+  assert.deepEqual(slugOf("A &#00000065; B"), ["a-00000065-b"], "eight is not");
+  assert.deepEqual(
+    slugOf("A &#x000041; B"),
+    ["a-a-b"],
+    "six hex digits is a reference",
+  );
+  assert.deepEqual(slugOf("A &#x0000041; B"), ["a-x0000041-b"], "seven is not");
+  assert.deepEqual(
+    slugOf("A &#0000000000000065; B"),
+    ["a-0000000000000065-b"],
+    "and the reviewer's reproduction",
+  );
+
+  // The boundary shapes that are not references at all. None of them may throw.
+  assert.deepEqual(slugOf("A &#; B"), ["a--b"]);
+  assert.deepEqual(slugOf("A &#x; B"), ["a-x-b"]);
+  assert.deepEqual(
+    slugOf("A &#1114112; B"),
+    ["a--b"],
+    "in the grammar, past the last code point",
+  );
 });
 
 test("block structure comes from the parser — every shape that defeated the flat reader", () => {
@@ -1236,6 +1268,11 @@ test("SLUG_CHARACTER holds every character the SHIPPED slugger preserves", () =>
   // symbols — and both times it MANUFACTURED a failure: GitHub publishes real anchors containing
   // U+203F, and the citation to one truncated mid-slug and was reported malformed. So this sweeps
   // every Unicode code point through `slug()` itself and asserts nothing it preserves falls outside.
+  //
+  // "Preserves" here means SURVIVES, not round-trips: a character the slugger keeps but case-folds
+  // counts, because its output still has to be citable. Under the narrower exact-round-trip reading
+  // the old class missed 113 characters rather than 139; the 26 circled capitals U+24B6-U+24CF are
+  // the difference. The class must cover both readings, so the looser one is the one swept.
   const preservedOutside = (admissible, last = 0x10ffff) => {
     const missed = [];
     for (let codePoint = 0; codePoint <= last; codePoint++) {
@@ -1292,7 +1329,8 @@ test("SLUG_CHARACTER holds every character the SHIPPED slugger preserves", () =>
     );
   }
 
-  // The two classes the hand-written version missed, end to end.
+  // The two classes the hand-written version missed, end to end. `Ⓐ` also proves the case-folding
+  // reading matters: the slugger emits `ⓐ`, so the citable character is not the authored one.
   for (const [heading, fragment] of [
     ["## \u203F", "\u203F"],
     ["## \u24B6", "\u24D0"],
