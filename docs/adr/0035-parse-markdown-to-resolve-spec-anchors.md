@@ -102,10 +102,13 @@ document whose headings contain any of them is refused rather than answered:
 - **raw inline HTML** in a heading, a leaf token with no recoverable text;
 - a **numeric character reference of disputed length**. CommonMark 0.31.2 admits 1-7 decimal or 1-6
   hexadecimal digits, and both reference implementations agree — `marked` escapes a longer run and the
-  `commonmark` package leaves it literal. Probing GitHub's own Markdown API, however, decodes
-  `&#00000065;` and `&#x00000041;` to `A`. GitHub's renderer publishes the anchor this gate exists to
-  predict, so on 8 decimal digits and on 7-8 hexadecimal digits the oracles disagree and no slug this
-  reader computed would be right under both. Issue #1193 tracks measuring the real bound.
+  `commonmark` package leaves it literal. GitHub's own Markdown API, measured independently by two
+  reviewers on 2026-09-16, decodes up to **8** digits in *both* forms and renders 9 or more literally.
+  GitHub's renderer publishes the anchor this gate exists to predict, so on 8 decimal digits and on
+  7-8 hexadecimal digits the oracles disagree and no slug this reader computed would be right under
+  both. The date matters because that is a live service, not a specification: a future reader who
+  re-probes and measures something else is seeing drift, not an error here. Issue #1193 tracks
+  establishing the bound from cmark-gfm's own digit cap rather than from probing.
 
 All four are detected by walking `marked`'s own **inline token tree** rather than the heading's raw
 source, which is what makes them narrow enough to be safe: a `codespan` is literal text and is
@@ -147,8 +150,9 @@ toward inventing a slug. That asymmetry is the whole safety argument.
   icon](x.gif)` publishes an *empty* anchor, and `## ![Logo](x.png) Headphones` publishes
   `#-headphones`, keeping the hyphen the image's trailing space leaves behind.
 - `marked` follows GFM, not GitHub's rendering pipeline in full. Where the two can differ — the
-  emoji shortcode, an entity the decoder does not handle, raw inline HTML — the gate **refuses rather
-  than guesses**, so a divergence is loud. Two shapes are noted as *unverified* rather than claimed:
+  emoji shortcode, an entity the decoder does not handle, raw inline HTML, a numeric reference of
+  disputed length — the gate **refuses rather than guesses**, so a divergence is loud. Two shapes are
+  noted as *unverified* rather than claimed:
   a GFM **footnote reference** in a heading (`## Note[^1]` reaches the same slug by a different
   route, and a non-numeric label might not), and **math** spans, whose effect on a heading's text
   content could not be determined offline. Neither occurs in `spec/` today, and issue #1193 tracks

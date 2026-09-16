@@ -599,7 +599,8 @@ const NAMED_ENTITIES = Object.freeze({
  * Length is part of the grammar too, and leaving it unbounded was the same defect one step further
  * out: CommonMark admits **1-7 decimal digits** or **1-6 hexadecimal digits**, so
  * `&#0000000000000065;` is not a reference at all. Decoding it to `A` published `a-a-b` where GitHub
- * publishes `a-0000000000000065-b`. Both bounds are the renderer's, not a guess.
+ * publishes `a-0000000000000065-b`. That bound is CommonMark's, and both reference implementations
+ * follow it — but **GitHub's renderer does not**, which is what {@link DISPUTED_REFERENCE} exists for.
  *
  * They are built from one place because the grammar is used three times and drift between the copies
  * is what makes that kind of hole reappear. This is a **source string**, not a shared `RegExp`, so no
@@ -611,16 +612,17 @@ const NUMERIC_REFERENCE = "#(?:[0-9]{1,7}|[xX][0-9a-fA-F]{1,6})";
  * Numeric references whose length falls where this reader's oracles **disagree**, so it refuses.
  *
  * CommonMark 0.31.2 states 1-7 decimal or 1-6 hexadecimal digits, and both reference implementations
- * agree: `marked` escapes a longer run, and the `commonmark` package leaves it literal. But probing
- * GitHub's own Markdown API renders `&#00000065;` (8 decimal) and `&#x00000041;` (8 hex) as `A`,
- * decoding runs the spec says are not references at all. GitHub's renderer is what publishes the
+ * agree: `marked` escapes a longer run, and the `commonmark` package leaves it literal. But GitHub's
+ * own Markdown API — measured independently by two reviewers on 2026-09-16 — decodes up to **8**
+ * digits in *both* forms, rendering 9 or more literally. GitHub's renderer is what publishes the
  * anchor this gate has to predict, so the two answers differ on exactly two spans: **8 decimal
  * digits**, and **7 or 8 hexadecimal digits**. Nine or more is literal under every oracle.
  *
  * A gate cannot be right about a slug its oracles disagree on, so it declines to answer, exactly as
  * it does for the other three divergences. That keeps the alternative — silently publishing one
- * oracle's slug and 404ing under the other — off the table. No heading in the corpus contains one,
- * and issue #1193 tracks measuring the real bound against GitHub from a network-capable environment.
+ * oracle's slug and 404ing under the other — off the table. No heading in the corpus contains one.
+ * Issue #1193 tracks establishing the bound from cmark-gfm's own digit cap: the date above is on a
+ * live service, so it records what was observed rather than what is guaranteed.
  */
 const DISPUTED_REFERENCE = /&#(?:[0-9]{8}|[xX][0-9a-fA-F]{7,8});/;
 
@@ -681,7 +683,7 @@ const EMOJI_SHORTCODE = /:[a-z0-9+_-]+:/;
  * the same reason {@link renderedText} skips it — its alt text is an attribute and reaches no
  * anchor — so a shortcode or entity appearing only there cannot refuse a document it does not affect.
  *
- * Three things survive the parse. All three are **conservative refusals**, and the distinction
+ * Four things survive the parse. All four are **conservative refusals**, and the distinction
  * matters: two of them are recognised by *shape*, so a heading whose `&notanentity;` or
  * `:not_an_emoji:` GitHub would publish literally is refused as well. That errs loudly — a refused
  * document names the construct and the remedy — rather than inventing a slug, which is the only

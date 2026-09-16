@@ -1404,7 +1404,7 @@ test("the canary is now four constructs, because the parser obsoleted the rest",
   assert.deepEqual(constructs(["## ![:+1:](x.png) Title"]), []);
   assert.deepEqual(constructs(["## ![&copy;](x.png) Title"]), []);
 
-  // TWO of the three key on SHAPE, not on a table of real entities or real emoji names, and that is
+  // TWO of the four key on SHAPE, not on a table of real entities or real emoji names, and that is
   // deliberate — telling them apart needs exactly the hand-maintained tables the parse was adopted
   // to end. So a heading GitHub would publish LITERALLY is refused as well. This is the gate erring
   // toward refusing loudly (the message names the construct and the remedy) rather than inventing a
@@ -1572,7 +1572,7 @@ test("a duplicate slug is positional, so a citation can silently RETARGET — bo
 });
 test("an anchor into a document the canary refuses fails rather than being answered", () => {
   // An HTML comment no longer refuses anything — the parser reads it correctly, so `#ghost` is a
-  // real heading now. Three refusals survive, and each must refuse END TO END, not merely in
+  // real heading now. Four refusals survive, and each must refuse END TO END, not merely in
   // unsupportedConstructs: a detector that reports a hazard the gate then answers anyway would be
   // the "automatic tolerance" #893's reviewers deleted.
   for (const [name, heading, pattern] of [
@@ -1583,6 +1583,11 @@ test("an anchor into a document the canary refuses fails rather than being answe
       /the entity reference &copy; in a heading/,
     ],
     ["rawhtml", '## Good <img alt="a>b"> work', /raw inline HTML in a heading/],
+    [
+      "disputed",
+      "## Good &#00000065; work",
+      /digit count CommonMark and GitHub's renderer disagree about/,
+    ],
   ]) {
     write(
       `${CONTRACT}/${name}.md`,
