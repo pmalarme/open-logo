@@ -16,6 +16,7 @@
 
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
+import { slug } from "github-slugger";
 import {
   mkdirSync,
   mkdtempSync,
@@ -58,6 +59,7 @@ import {
   resolveCitation,
   runSpecCitationsGate,
   siteFingerprint,
+  SLUG_CHARACTER,
   splitLines,
   suggestException,
   suggestionDistance,
@@ -1226,6 +1228,88 @@ test("a fragment truncated by a character no slug can hold is malformed, not a v
     "and the citation keeps it too",
   );
   assert.equal(anchors[0].malformed, false);
+});
+
+test("SLUG_CHARACTER holds every character the SHIPPED slugger preserves", () => {
+  // The oracle is the library, not a restatement of the class. A hand-written class was wrong twice
+  // in a row here — first missing combining marks, then missing connector punctuation and other
+  // symbols — and both times it MANUFACTURED a failure: GitHub publishes real anchors containing
+  // U+203F, and the citation to one truncated mid-slug and was reported malformed. So this sweeps
+  // every Unicode code point through `slug()` itself and asserts nothing it preserves falls outside.
+  const preservedOutside = (admissible, last = 0x10ffff) => {
+    const missed = [];
+    for (let codePoint = 0; codePoint <= last; codePoint++) {
+      const surrogate = codePoint >= 0xd800 && codePoint <= 0xdfff;
+      const character = surrogate ? "" : String.fromCodePoint(codePoint);
+      // A space is preserved as text but becomes `-`, so it is never IN a slug.
+      const preserved =
+        !surrogate &&
+        character !== " " &&
+        slug(character) === character.toLowerCase();
+      if (preserved && !admissible.test(character)) {
+        missed.push(`U+${codePoint.toString(16).toUpperCase()}`);
+      }
+    }
+    return missed;
+  };
+  assert.deepEqual(
+    preservedOutside(new RegExp(SLUG_CHARACTER, "u")),
+    [],
+    "every preserved character must be citable",
+  );
+
+  // A sweep that can only ever report nothing asserts nothing, so the oracle gets a positive
+  // control: the class as it was written BEFORE this fix must be caught, and caught at the very
+  // character GitHub publishes a live anchor with.
+  assert.ok(
+    preservedOutside(/[\p{L}\p{N}\p{M}_-]/u, 0x2100).includes("U+203F"),
+    "the sweep must detect a class that is too narrow",
+  );
+
+  // Being a SUPERSET is deliberate and safe: resolution compares the whole fragment against a real
+  // slug, so a symbol the slugger would have dropped fails to match rather than being tolerated.
+  // What the class must NOT admit is the delimiters the boundary rule depends on.
+  const admissible = new RegExp(SLUG_CHARACTER, "u");
+  for (const delimiter of [
+    "#",
+    ")",
+    "]",
+    "`",
+    '"',
+    "'",
+    ".",
+    "*",
+    "…",
+    "%",
+    "/",
+    "|",
+    "—",
+  ]) {
+    assert.equal(
+      admissible.test(delimiter),
+      false,
+      `${delimiter} must stay outside the fragment`,
+    );
+  }
+
+  // The two classes the hand-written version missed, end to end.
+  for (const [heading, fragment] of [
+    ["## \u203F", "\u203F"],
+    ["## \u24B6", "\u24D0"],
+  ]) {
+    assert.deepEqual(
+      documentHeadings([heading]).map((found) => found.slug),
+      [fragment],
+      heading,
+    );
+    const cited = collectCitations(
+      "a.md",
+      `see ${CONTRACT}/d.md#${fragment} tail`,
+      CONTRACT,
+    ).anchors[0];
+    assert.equal(cited.fragment, fragment, heading);
+    assert.equal(cited.malformed, false, heading);
+  }
 });
 
 test("the canary is now three constructs, because the parser obsoleted the rest", () => {
