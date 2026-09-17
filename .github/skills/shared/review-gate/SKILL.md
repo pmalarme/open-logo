@@ -340,9 +340,9 @@ introduced new false claims.
 
 So make a pass over **only the prose this change adds or edits**, with the code out of view, and ask
 of each factual claim in it: **what measurement would falsify this, and did I run it?** Judge
-claims, not sentences — a sentence may carry several, and prescriptive text like this paragraph
-asserts no fact to measure. "Findings — every finding gets resolved" below governs what to do with a
-false claim once found; it applies here unchanged.
+claims, not sentences — a sentence may carry several, and a purely prescriptive clause such as
+"delete rather than rewrite" asserts no fact to measure. "Findings — every finding gets resolved"
+below governs what to do with a false claim once found; it applies here unchanged.
 
 - **Remove a derived number, don't update it.** An updated count is a defect with a longer fuse.
   Where a number must stay, anchor it to the revision it was measured at.
@@ -443,7 +443,7 @@ ground out.
 - [ ] A11y / pedagogy checked where applicable.
 - [ ] Instructions / skills / docs / spec drift checked (in-PR if needed); every count and `file:line` citation the change touches was **re-derived**, not trusted.
 - [ ] **Mutation**: for each behaviour introduced, an edit that changes it was confirmed to turn a named test or fixture red, with the mutant verified live in the artifact actually exercised — no-op and clean-direction-only mutations do not count.
-- [ ] **Prose audited as prose**: a separate pass over only the prose this change adds or edits, each factual claim in it measured with its scope, asserting no unenumerated absolute, or resolved under "Findings".
+- [ ] **Prose audited as prose**: a separate pass over only the prose this change adds or edits, each factual claim in it either measured with its scope and free of unenumerated absolutes, or resolved under "Findings".
 - [ ] **Every finding resolved — blocking *and* non-blocking**: each one fixed, or declined with a one-line rationale (+ follow-up issue number when it is real work outside the write-set).
 - [ ] Converged within the **10-round cap** (otherwise: not opened — escalated to `@orchestrator`/maintainer with the open findings and per-round SHAs).
 - [ ] All verdicts `pass` on the **same final HEAD** (SHA-stamped) and attached; any later commit re-ran every reviewer; no self-merge.
