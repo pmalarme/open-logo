@@ -149,7 +149,7 @@ export type ProcedureRegistry = ReadonlyMap<string, ProcedureDefNode>;
  * The whole-program struct-type table the Data profile's `execute-internal.ts` builds once, up
  * front, by scanning every {@link StructDefNode} in the program (mirroring
  * {@link ProcedureRegistry} and the phase-1 procedure pre-scan) — so a `struct` type can be used
- * as a constructor before its textual declaration (`spec/data-structures.md#records-and-structs, spec/data-structures.md#record-operations, spec/data-structures.md#records-and-structs, spec/data-structures.md#record-operations`, issue #329).
+ * as a constructor before its textual declaration (`spec/data-structures.md#records-and-structs, spec/data-structures.md#record-operations`, issue #329).
  * Keyed by the struct type's lowercased name, matching every other case-insensitive command-name
  * lookup in this package. The stored {@link StructDefNode} supplies the declared field list (in
  * order) that the constructor fills and that `:record.field` accesses and `is_a?` validate
@@ -855,7 +855,7 @@ export function findDuplicateBinderName(
 
 /**
  * Bind one iterated element against `binder`: a bare name binds the whole element, while a
- * destructuring pattern destructures it positionally (`spec/execution-model.md#comprehensions-map-filter-and-reduce`). A list
+ * destructuring pattern destructures it positionally (`spec/execution-model.md#records-and-destructuring`). A list
  * element destructures by index; an {@link OLRecord} element destructures by its declared field
  * order (`fields()`/`get()`, `spec/data-structures.md#nested-records-and-dictionaries`) — derived into a plain values array
  * *before* the arity check below, so a record whose field count disagrees with the pattern's arity

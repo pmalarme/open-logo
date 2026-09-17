@@ -4831,7 +4831,7 @@ function callProcedureAsValue(
  * raises `ol-range` (`runtimeDiag.forStepZero`) since it would otherwise never reach `to`.
  * `variable` is bound fresh each pass via {@link pushLoopFrame}, same as `ForIn`'s binder.
  *
- * Both loops' binders are fresh **body-local** bindings (`spec/execution-model.md#variables-scoping-and-procedures, spec/execution-model.md#for--in-with-destructuring`): each
+ * Both loops' binders are fresh **body-local** bindings (`spec/execution-model.md#control-forms, spec/execution-model.md#for--in-with-destructuring`): each
  * pass runs `body` against a *new* {@link Environment} with one extra frame in front of `environment`'s
  * own frames, so the binding is visible inside `body` but never leaks past the loop — `environment` itself
  * is never mutated. `environment.repeatTurns` (same array reference) and `environment.foreverIterationLimit` are

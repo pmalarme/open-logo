@@ -443,13 +443,21 @@ export const SLUG_CHARACTER = "[\\p{L}\\p{N}\\p{M}\\p{Pc}\\p{So}-]";
  *
  * Two guards keep it from firing on text that is not a citation, and both are rules rather than
  * lists. The document must **actually exist** in the specification directory, so `readme.md:10` or a
- * stray `notes.md:4` is not silently adopted. And it counts only on a **prose line**, which is the
- * same structural rule {@link isProseLine} already applies to a bare `:N` — without it the gate's own
- * test suite is the counter-example, where `"<file>.md:4:explicit"` is a `file:line:form` assertion
- * string built by live code and means nothing of the kind.
+ * stray `notes.md:4` is not silently adopted — and the filename class admits an initial capital,
+ * because `spec/README.md` is a real document the oracle publishes and a class that could not match
+ * it would be a blind spot shared by both instruments. And it counts only on a **prose line**, which
+ * is the same structural rule {@link isProseLine} already applies to a bare `:N`.
+ *
+ * **That second guard is a stated bound, not a claim of exhaustiveness.** A citation written inside
+ * a string literal in live code — a `test("… per <file>.md:226", …)` title — is *not* enumerated,
+ * and dropping the guard to reach it was measured: it would catch two genuine citations and thirteen
+ * pieces of fixture data, including this gate's own `file:line:form` assertion strings. Two such
+ * citations existed in this corpus and were converted by hand; nothing prevents a new one. The
+ * rule is structural either way, so it needs no maintenance — but it is narrower than "every line
+ * citation in the tree", and the coverage statement says so.
  */
 const PREFIX_LESS_REFERENCE =
-  /(?<![A-Za-z0-9._/#-])([a-z][a-z0-9-]*\.md):(\d+)(?:-(\d+))?((?:,\d+(?:-\d+)?)+)?/g;
+  /(?<![A-Za-z0-9._/#-])([A-Za-z][A-Za-z0-9-]*\.md):(\d+)(?:-(\d+))?((?:,\d+(?:-\d+)?)+)?/g;
 
 function mentionPattern(specDirectory) {
   return new RegExp(
@@ -485,10 +493,19 @@ function mentionPattern(specDirectory) {
  * resolves emphasis before the slug is computed, so `## _Text_` correctly publishes `#text`.
  *
  * Punctuation may also be closed by a **quote**, which is the one delimiter that cannot be part of a
- * URL: `"… see <dir>/<file>.md#a-heading."` is a sentence inside a JSON string, and the `.` is prose.
- * A closing **bracket** is deliberately NOT admitted there, because a markdown link destination runs
- * to its `)` and the `.` really does belong to the fragment — which is the asymmetry that makes
- * `[bad](x.md#a-heading.)` fail without this module ever parsing a link destination.
+ * bare URL: `"… see <dir>/<file>.md#a-heading."` is a sentence inside a JSON string, and the `.` is
+ * prose. A closing **bracket** is deliberately NOT admitted there, because a markdown link
+ * destination runs to its `)` and the `.` really does belong to the fragment — which is the
+ * asymmetry that makes `[bad](x.md#a-heading.)` fail without this module ever parsing a link
+ * destination.
+ *
+ * One measured limit of that asymmetry, stated rather than hidden. A markdown link may carry a
+ * **title** after its destination, so `[t](x.md#frag."Title")` and `[t](x.md#frag. "Title")` put a
+ * quote where this rule now accepts one — and both are then read as the fragment `#frag`, which
+ * `marked` would not agree with. Refusing every quote would reintroduce the JSON false positive
+ * this admits, and parsing link destinations is what two reviewers already removed for being
+ * defeatable. No instance of the title form exists in this corpus; the shape is pinned in the tests
+ * so the trade is visible rather than discovered.
  */
 const FRAGMENT_BOUNDARY =
   /^(?:[\s`'"“”‘’)\]}>|]|$)|^[.,:;!?*~+=…—–]+(?:\s|["'`]|$)/u;
@@ -1150,7 +1167,7 @@ export function collectCitations(
 
   // The prefix-less line form, enumerated from the same pass so the two can never disagree about
   // what the file says. It is collected BEFORE the early return below, because a file may carry a
-  // prefix-less reference and no prefixed mention at all — which is precisely how 67 of them stayed
+  // prefix-less reference and no prefixed mention at all — which is precisely how 60 of them stayed
   // invisible while the gate reported zero line citations.
   PREFIX_LESS_REFERENCE.lastIndex = 0;
   let bareDocument = PREFIX_LESS_REFERENCE.exec(text);
@@ -1622,7 +1639,7 @@ export function runSpecCitationsGate({
       });
     }
     // A file carrying NO prefixed mention may still carry a prefix-less line reference, and skipping
-    // it on the prefix alone is how 67 of them stayed invisible while the gate reported zero line
+    // it on the prefix alone is how 60 of them stayed invisible while the gate reported zero line
     // citations. The cheap prefix test is kept as a fast path and widened to name any specification
     // document, so the scan still skips the overwhelming majority of files without reading them
     // twice.
@@ -1834,6 +1851,18 @@ export function runSpecCitationsGate({
     specDirectory === SPEC_DIRECTORY ? null : `spec-dir=${specDirectory}`,
     specRoot === undefined ? null : `spec-root=${specRoot}`,
   ].filter((part) => part !== null);
+  // An empty document oracle silently disables the prefix-less rule: a mistyped `--spec-root`
+  // produced a green run over a tree full of line citations while the banner still asserted the
+  // rule was unchanged. It is DISCLOSED rather than failed, because failing would be redundant and
+  // would misdescribe the cause — a run whose specification directory is missing cannot go green
+  // anyway, since every anchor into it reports that the document does not exist. What was wrong was
+  // never the exit code; it was a report claiming a rule is in force when it cannot fire.
+  if (knownDocuments.size === 0) {
+    lines.push(
+      `  RULE INACTIVE: ${specRoot ?? specDirectory} publishes no .md document, so no document is ` +
+        "known and the prefix-less line form cannot be recognised at all.",
+    );
+  }
   if (overrides.length > 0) {
     lines.push(
       `  SCOPED RUN (${overrides.join(", ")}) — this did NOT use the production configuration, so the ` +

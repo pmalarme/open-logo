@@ -12,12 +12,12 @@
  * variadic `(print a b …)` form (`spec/commands.md#print`) both evaluate every operand, in
  * order, and — once all of them evaluate cleanly — emit one `print` event carrying every value
  * (`PrintPayload.values`) right after that statement's `instruction` event. Issue #100 gives `if`
- * (with an optional `else`) and `while` their runtime meaning (`spec/execution-model.md#variables-scoping-and-procedures`):
+ * (with an optional `else`) and `while` their runtime meaning (`spec/execution-model.md#control-forms`):
  * both require a boolean condition (`ol-not-boolean` otherwise, reusing the builder issue #95
  * added for `and`/`or`/`not`), `if` runs exactly one branch (or none, with no `else`), and `while`
  * re-evaluates its condition before every pass — including the first — running the body each time
  * the condition holds. Issue #104 gives `repeat`/`forever` their runtime meaning: `repeat`
- * validates its count TYPE then RANGE, in that order (`spec/execution-model.md#variables-scoping-and-procedures`) —
+ * validates its count TYPE then RANGE, in that order (`spec/execution-model.md#control-forms`) —
  * `ol-type` for a non-whole-number count, `ol-range` for a negative one, zero passes for `repeat
  * 0` — then runs its body that many times; `forever` repeats its body until cancelled or the
  * instruction budget is reached (issue #102 — see {@link ExecuteOptions}). Both thread the active

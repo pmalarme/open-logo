@@ -257,7 +257,7 @@ so expect a tree that does not yet match the rule. The rule, its limits and the 
 fails in four ways and only two are mechanically detectable: it **does not resolve** (missing file,
 past EOF, inverted range, or a region holding no text — covered); it resolves but points at the
 **wrong passage while paraphrasing** (*not* covered, except where the site **quotes an EBNF
-production**, which must then be inside the range cited); the line is right and the **prose beside it
+production**, which must then be inside the section cited); the line is right and the **prose beside it
 misstates it** (*not* covered); or it is a **stale implementation-status claim** — "not yet
 implemented", "a later slice will…" — which is a claim about the repository, not the spec, and must
 name a tracking issue so something can re-check it (the sweep for the ones that predate the gate is

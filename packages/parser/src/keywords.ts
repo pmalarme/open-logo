@@ -140,7 +140,7 @@ const KEYWORDS = new Set<string>(OL_KEYWORDS);
  * - `"sprites"` — the block-heads `ask` and `each` plus the mode-switch command `tell`
  *   (`spec/turtles-and-sprites.md#reserved-words-in-this-profile`).
  * - `"interaction-events"` — the event block-heads `when`, `every`, `on_key`, and `on_click`
- *   (`spec/interaction-events.md#profiles-and-reservation`).
+ *   (`spec/spec/interaction-events.md#profiles-and-reservation`).
  *
  * **Two different questions read this registry, and only one of them is profile-gated.** Confusing
  * them is what issue #841 came to fix, so the split is stated here rather than at each call site:
@@ -159,7 +159,7 @@ const KEYWORDS = new Set<string>(OL_KEYWORDS);
  *   profile-gated, because here the gate is what the spec asks for.
  *
  * Issue #855 aligned the rest of the spec with the `spec/grammar.md#keywords-primitives-and-built-in-names` ruling, so `spec/turtles-and-sprites.md#reserved-words-in-this-profile`,
- * `interaction-events.md#profiles-and-reservation`, and `spec/tooling.md#reserved-words-for-tooling` state the
+ * `spec/interaction-events.md#profiles-and-reservation`, and `spec/tooling.md#reserved-words-for-tooling` state the
  * unconditional rule too.
  */
 export const OL_PROFILE_KEYWORDS = {

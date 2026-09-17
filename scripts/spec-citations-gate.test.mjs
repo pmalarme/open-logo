@@ -1865,7 +1865,7 @@ function writeSections() {
 test("THE PREFIX-LESS LINE FORM is enumerated and rejected, and a relative ANCHOR is not", () => {
   // The hole saga #1180 would otherwise have left open. A `<file>.md:12` written without the
   // directory prefix is a line claim like any other, and until it was enumerated the gate could
-  // report zero line citations while 67 of them sat in the tree — an instrument reporting success
+  // report zero line citations while 60 of them sat in the tree — an instrument reporting success
   // over a corpus it could not see.
   writeGrammar();
   write("bare.md", `See grammar.md:8 for the selector production.\n`);
@@ -1978,27 +1978,98 @@ test("a fragment may be closed by punctuation before a QUOTE, but not before a b
   assert.equal(malformedIn(`'see ${CONTRACT}/d.md#real-heading.'`), false);
   assert.equal(malformedIn(`[bad](${CONTRACT}/d.md#real-heading.)`), true);
   assert.equal(malformedIn(`[bad](${CONTRACT}/d.md#real-heading.]`), true);
+
+  // THE MEASURED LIMIT of that trade, pinned so it is visible rather than discovered. A markdown
+  // link may carry a TITLE after its destination, which puts a quote exactly where the rule now
+  // accepts one — so these read as `#real-heading` although a markdown parser would not agree.
+  // Refusing every quote would reintroduce the JSON false positive this admits, and parsing link
+  // destinations is what two earlier reviewers removed for being defeatable. No instance of the
+  // title form exists in this corpus.
+  assert.equal(
+    malformedIn(`[t](${CONTRACT}/d.md#real-heading."Title")`),
+    false,
+    "the title form is accepted — a known and accepted limit",
+  );
+  assert.equal(
+    malformedIn(`[t](${CONTRACT}/d.md#real-heading. "Title")`),
+    false,
+    "and its spaced spelling likewise",
+  );
 });
 
-test("specDocuments reads the directory, so the prefix-less rule needs no maintained list", () => {
+test("specDocuments reads the directory, and an EMPTY oracle fails the gate loudly", () => {
   // Shared with the converter rather than written twice: the two modules keep their deliberately
   // different site-finding, but disagreeing about which documents EXIST would let one enumerate a
   // citation the other could not see.
   write(`${CONTRACT}/grammar.md`, "# Grammar\n");
   write(`${CONTRACT}/commands.md`, "# Commands\n");
+  write(`${CONTRACT}/README.md`, "# Readme\n");
   write(`${CONTRACT}/notes.txt`, "not markdown\n");
   assert.deepEqual([...specDocuments(join(TEMP_DIR, CONTRACT))].sort(), [
+    "README.md",
     "commands.md",
     "grammar.md",
   ]);
-  // A directory that is not there yields an empty set rather than throwing, so a caller pointed at
-  // a tree with no specification directory simply recognises no prefix-less form.
+  // The helper itself stays total — a caller may legitimately point at a tree with no specification
+  // directory — so the loudness lives where the consequence does.
   assert.deepEqual([...specDocuments(join(TEMP_DIR, "absent"))], []);
+
+  // An empty oracle silently disables the prefix-less rule, so a mistyped --spec-root would leave a
+  // report asserting a rule that cannot fire. It is DISCLOSED rather than failed, because failing
+  // would misdescribe the cause: a run whose specification directory is missing cannot go green
+  // anyway — every anchor into it reports the document does not exist, as the second half here
+  // shows. What was wrong was never the exit code, but a report overstating its own coverage.
+  writeSections();
+  write(
+    "cites.md",
+    `See ${CONTRACT}/conformance.md#heritage and grammar.md:8.\n`,
+  );
+  const misconfigured = runSpecCitationsGate({
+    roots: [TEMP_DIR],
+    specDirectory: CONTRACT,
+    specRoot: join(TEMP_DIR, "absent"),
+  });
+  assert.match(
+    misconfigured.lines.join("\n"),
+    /RULE INACTIVE:.*prefix-less line form cannot be recognised at all/s,
+  );
+  assert.equal(
+    misconfigured.ok,
+    false,
+    "a missing specification directory cannot produce a green run",
+  );
+  assert.match(
+    misconfigured.lines.join("\n"),
+    /conformance\.md does not exist/,
+  );
+  // And the disclosure is absent exactly when the oracle is populated, or it would be noise.
+  assert.ok(
+    !runOverTemp().lines.some((line) => line.includes("RULE INACTIVE")),
+  );
+});
+
+test("an UPPERCASE document is a document, so a citation of it is enumerated", () => {
+  // The oracle publishes every `.md` in the directory, `README.md` included. A filename class that
+  // could not match an initial capital was a blind spot shared by BOTH instruments — and because
+  // they shared it, their cross-check could never have exposed it.
+  write(`${CONTRACT}/README.md`, ["# Readme", "", "Prose here."].join("\n"));
+  write("cites.md", "See README.md:3 for the overview.\n");
+  const result = runOverTemp();
+  assert.equal(
+    result.ok,
+    false,
+    "an uppercase document must not be a blind spot",
+  );
+  assert.equal(result.counts.prefixLess, 1);
+  assert.match(
+    result.lines.join("\n"),
+    /README\.md:3 names a LINE, and omits the contract\/ prefix/,
+  );
 });
 
 test("a file carrying ONLY prefix-less references is still scanned, and its citations ordered", () => {
   // The skip test used to key on the `<dir>/` prefix alone, so a file with no prefixed mention was
-  // never opened — which is precisely how 67 prefix-less references stayed invisible while the gate
+  // never opened — which is precisely how 60 prefix-less references stayed invisible while the gate
   // reported zero line citations. Two references, so the ordering of the early-return path is
   // exercised rather than assumed.
   writeGrammar();

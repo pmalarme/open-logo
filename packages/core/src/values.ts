@@ -112,7 +112,7 @@ export class OLDict {
 }
 
 /**
- * The Data-profile `record` value (`spec/data-structures.md#records-and-structs, spec/data-structures.md#record-operations, spec/data-structures.md#records-and-structs, spec/data-structures.md#record-operations`): a mutable aggregate whose
+ * The Data-profile `record` value (`spec/data-structures.md#records-and-structs, spec/data-structures.md#record-operations`): a mutable aggregate whose
  * field set is FIXED at construction from its `struct` declaration. Unlike an {@link OLDict}, a
  * record can never grow or shrink — its fields are exactly the ones the `struct` declared, in
  * declared order, so writing an undeclared field is an error the runtime raises

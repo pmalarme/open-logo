@@ -192,7 +192,7 @@ function renderComprehension(node: ComprehensionNode): string {
   return `${node.form} ${binderText} in ${renderChild(node.iterable)} [ ${bodyText} ]`;
 }
 
-/** Renders the tail of a worded `is`-predicate (`spec/grammar.md`'s `is-test`). */
+/** Renders the tail of a worded `is`-predicate (`spec/grammar.md`'s `is-predicate`). */
 function renderIsTest(test: IsTest): string {
   switch (test.form) {
     case "empty":

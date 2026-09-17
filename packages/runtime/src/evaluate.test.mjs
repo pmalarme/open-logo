@@ -110,7 +110,7 @@ test("propagates a failing left or right operand before checking types", () => {
   assert.equal(rightFails.diagnostic.code, "ol-div-zero");
 });
 
-test("accepts a word that reads as a number, per execution-model.md:33", () => {
+test("accepts a word that reads as a number, per spec/execution-model.md#value-and-type-model", () => {
   assert.deepEqual(evalExpr('"5" + 1'), { ok: true, value: 6 });
 });
 

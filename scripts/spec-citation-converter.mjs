@@ -3,10 +3,13 @@
  * of the heading that encloses it (saga #1180). Logic module; `scripts/convert-spec-citations.mjs`
  * is the thin CLI shell, per `docs/adr/0009-test-layout.md`.
  *
- * ## Why a converter can be trusted with 777 files
+ * ## Why a converter can be trusted with a corpus nobody can read
  *
- * Nobody can review 2,827 conversions by reading them, so the safety has to come from somewhere
- * else. It comes from three places, and the third is the one that matters:
+ * Nobody can review thousands of conversions by reading them, so the safety has to come from
+ * somewhere else. It comes from three places, and the third is the one that matters. The totals
+ * are deliberately **not** written down here: they move whenever a rule changes — the span,
+ * collapse and prefix-less changes all moved them — and a figure in a comment is an unenforced
+ * assertion that nothing keeps true. The CLI prints every one of them on each run.
  *
  * 1. **The anchor is not invented.** It is read from {@link documentHeadings} — the same real GFM
  *    parse plus `github-slugger` the gate resolves against (ADR-0035). Agreeing with the gate about
@@ -18,9 +21,11 @@
  *    happens on. Two differently-shaped enumerators over the same corpus catch each other's misses,
  *    and {@link planFile} asserts the two agree site-for-site before it rewrites anything.
  * 3. **The result is re-measured by an instrument this module does not own.** After the sweep the
- *    gate must report **zero** line-form citations and a section-anchor count risen by exactly the
- *    number this converter predicted. A converter that silently skipped a file fails the first; one
- *    that wrote an anchor no heading publishes fails the second.
+ *    gate must report **zero** line-form citations, and a section-anchor count risen by the number
+ *    this converter predicted. A converter that silently skipped a file fails the first; one that
+ *    wrote an anchor no heading publishes fails the second. The count reconciles **exactly** only
+ *    across a single sweep commit: later commits add and correct citations by hand, so comparing a
+ *    branch's endpoints to one dry run is arithmetic about two different trees.
  *
  * ## What is *not* checked, stated rather than hidden
  *
@@ -279,7 +284,7 @@ export function applyEdits(text, edits) {
  * same corpus and {@link planFile}'s cross-check stays meaningful.
  */
 const PREFIX_LESS =
-  /(?<![A-Za-z0-9._/#-])([a-z][a-z0-9-]*\.md):(\d+)(?:-(\d+))?((?:,\d+(?:-\d+)?)+)?/g;
+  /(?<![A-Za-z0-9._/#-])([A-Za-z][A-Za-z0-9-]*\.md):(\d+)(?:-(\d+))?((?:,\d+(?:-\d+)?)+)?/g;
 
 /**
  * Every token on one line that names a document, in the order they are written.

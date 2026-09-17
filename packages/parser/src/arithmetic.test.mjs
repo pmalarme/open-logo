@@ -112,7 +112,7 @@ test("nests a full precedence chain correctly: * / mod bind tighter than + -, le
   assert.equal(division.args[1].value, 2);
 });
 
-test("distinguishes a negative literal from subtraction, per grammar.md:226", () => {
+test("distinguishes a negative literal from subtraction, per spec/grammar.md#expressions-and-calls", () => {
   // `-7`: the `-` sits directly against the numeral, so it is a NumberLit, not a Call.
   const literal = OL.parse("print -7", doc).ast.body[0].args[0];
   assert.equal(literal.kind, "NumberLit");
