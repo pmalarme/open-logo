@@ -6,37 +6,38 @@
  * through a subprocess, so it stays outside the loaded-module coverage set
  * `docs/adr/0009-test-layout.md` defines.
  *
- * **Why this exists.** Over two thousand `<spec-dir>/<file>.md:<line>` citations are hand-written
+ * **Why this exists.** Over two thousand `<spec-dir>/<file>.md:<line>` citations were hand-written
  * into code comments, tests, fixture prose, and docs. They are the mechanism binding the
  * implementation to the normative contract — and until this gate, **nothing in the repository
- * checked a single one**. When a spec file gains or loses a line, every citation below it silently
- * becomes wrong; issue #846 shifted 665 of them in one edit, and #885 merged green carrying ten
- * citations that pointed at the wrong lines.
+ * checked a single one**. When a spec file gained or lost a line, every citation below it silently
+ * became wrong; issue #846 shifted 113 of them across 68 files in one edit, and #885 merged green
+ * carrying ten citations that pointed at the wrong lines. Saga #1180 removed the form itself: a
+ * citation now names a **section**, and this gate rejects one that names a line.
  *
  * ## What this gate does and does not cover — read this before trusting a green run
  *
  * A stale citation fails in four distinguishable ways, and only two of them are mechanically
  * detectable without understanding the prose:
  *
- * 1. **It does not resolve** — the file is missing, the line is past end-of-file, the range is
- *    inverted, or the cited region holds no text at all. **COVERED** ({@link resolveCitation}); a
- *    section anchor is covered by {@link resolveAnchor}, which is the same claim in the heading
- *    dimension: the heading it names must exist.
+ * 1. **It does not resolve** — the file is missing, or nothing in it publishes the heading named.
+ *    **COVERED** ({@link resolveAnchor}). The line form's version of this question — is the cited
+ *    line still inside the file, and does it still hold text — is **gone rather than covered**:
+ *    naming a line is now the defect, so the gate rejects the citation instead of resolving it.
  * 2. **It resolves, but points at the wrong passage, and the prose paraphrases rather than quotes.**
  *    **NOT COVERED**, except in the one shape that is mechanically checkable: a citing site that
- *    **quotes an EBNF production** must cite a region containing it ({@link collectQuotations}).
- *    Paraphrase is invisible here — deciding whether a range that resolves supports "a step of `0`
+ *    **quotes an EBNF production** must cite a section containing it ({@link auditRunQuotations}).
+ *    Paraphrase is invisible here — deciding whether a section that resolves supports "a step of `0`
  *    never reaches `end`" requires reading both, which no offline gate can do.
- * 3. **The line is right and the prose beside it misstates what that line says.** **NOT COVERED.**
+ * 3. **The section is right and the prose beside it misstates what that section says.** **NOT COVERED.**
  * 4. **A stale implementation-status claim** — "not yet implemented", "a later slice will…". This is
  *    not a claim about the spec at all; it is a claim about the repository's own state, which rots
  *    when the state changes. **PARTIALLY COVERED** ({@link collectStatusClaims}): every such claim
  *    must name a tracking issue, so it is at least re-checkable. Whether that issue is still open is
  *    deliberately not consulted — a DoD gate must run offline and deterministically.
  *
- * The gate prints this coverage statement on **every run**, and the exceptions manifest repeats it,
- * because a green gate that is quietly narrower than it looks is the exact defect epic #901 exists
- * to remove — and it would be this gate committing it.
+ * The gate prints this coverage statement on **every run**, because a green gate that is quietly
+ * narrower than it looks is the exact defect epic #901 exists to remove — and it would be this gate
+ * committing it.
  *
  * ## Enumeration is exhaustive, not separator-driven
  *
@@ -62,33 +63,27 @@
  * closing brace immediately before a colon and a digit, is live code, and no citation is ever written
  * in an expression. {@link isProseLine}'s tests pin that shape by asserting on that exact literal.
  *
- * ## No automatic tolerance
+ * ## No automatic tolerance, and nowhere to record an exception
  *
  * The gate never searches nearby lines and passes. Issue #893's reviewers deleted exactly that,
  * because tolerance is indistinguishable from the defect a gate exists to catch — and here the wrong
  * passage is usually *adjacent* to the right one, so proximity is evidence of nothing.
  *
- * A citation the gate cannot resolve either **fails**, or carries an entry in the exceptions
- * manifest that declares — and therefore **asserts** — the exact state it is in. The manifest is
- * expected to **shrink**: entries are deleted when the citation is fixed, never re-fingerprinted, and
- * the live total is printed on every run so a number that stops falling is visible.
- *
- * ## The manifest's own prose is fingerprinted
- *
- * `scripts/markdown-examples-gate.mjs` hashes a block's source only and validates its `why` for
- * non-emptiness alone, so wrong rationale prose there can never fail a gate. This gate does not
- * inherit that: {@link siteFingerprint} hashes the citing line, the subject, the entry's own `why`,
- * **and the issue it is tracked by**. An entry therefore goes stale — and must be re-triaged — when
- * the prose it describes changes, when its rationale is edited, or when it is retargeted at a
- * different issue. No gate can decide whether a rationale is *true*; this one guarantees it cannot
- * drift away from the text it describes unnoticed.
+ * A citation this gate cannot accept **fails**. There is no second disposition: saga #1180 deleted
+ * the exceptions manifest, its fingerprinting, and the `UNRESOLVED` counter that let a green run
+ * carry a list of known-wrong citations, along with the 84 entries it held. A manifest is a list that
+ * must grow to stay useful, and a growing list of excused sites is an exemption — the one shape this
+ * saga set out to remove. The only thing resembling a carve-out that survives is a **scope**
+ * ({@link STATUS_CLAIM_EXEMPT_PREFIX}), which names a principle rather than a set of sites, needs no
+ * maintenance, and is printed in the coverage statement on every run.
  *
  * ## Section anchors, and the slug rule written down
  *
  * A **section anchor** (`<file>.md#a-heading`) names a heading rather than a line, so ordinary edits
- * above it do not move it — which is why saga #1180 makes it the preferred form. It was previously
- * enumerated as a mention and never resolved, so a renamed or misspelled heading passed unseen; an
- * unchecked *preferred* form is worse than the fragile one it replaces, so issue #1181 resolves it:
+ * above it do not move it — which is why saga #1180 makes it the **only** accepted form. It was
+ * previously enumerated as a mention and never resolved, so a renamed or misspelled heading passed
+ * unseen; an unchecked *mandatory* form is worse than the fragile one it replaces, so issue #1181
+ * resolves it:
  * {@link resolveAnchor} requires some heading in the cited file to slugify to the fragment, and there
  * is **no automatic tolerance** — a near miss is reported as a did-you-mean suggestion and **still
  * fails**, because a suggestion the gate acted on would be the same indistinguishable-from-the-defect
@@ -137,18 +132,29 @@
  * live-corpus test keeps the cited documents' freedom from all four measured rather than asserted.
  *
  * A fragment of the form `#L30` or `#L28-L84` is GitHub's **line fragment**, not a heading: it names
- * lines, so it is resolved against the file's length by {@link resolveCitation} like any other line
- * claim, and it inherits exactly the drift #1180 exists to remove. A heading slug is lowercased at
- * step 1 and so can never begin with an uppercase `L`, which is what makes the two forms
- * distinguishable without guessing.
+ * lines, so under the anchor-only rule it is rejected on sight rather than resolved against the
+ * file's length. Whether the lines it names still hold text is beside the point — naming lines at
+ * all is the drift #1180 removed. A heading slug is lowercased at step 1 and so can never begin with
+ * an uppercase `L`, which is what makes the two forms distinguishable without guessing.
  *
  * ## Known blind spots, stated rather than hidden
  *
  * Every citation — line form and anchor alike — is found by the literal `<spec-dir>/` prefix, so a
  * **relatively-written** reference is invisible to this gate. `docs/adr/0029-…md` already records
  * that for the line form; the anchor form inherits it, which matters more now that #1180 makes the
- * anchor *preferred*. Such anchors exist today, nearly all of them inside `spec/` itself, and nothing
- * checks any of them. Write the prefix.
+ * anchor the *only* accepted form. Such references exist today, nearly all of them inside `spec/`
+ * itself, and nothing checks any of them — so the rejection this gate performs is exhaustive **only
+ * over the forms it enumerates**, which is the qualification every claim about it has to carry.
+ * Write the prefix.
+ *
+ * `roots` narrows the scan to a filesystem walk instead of the tracked set, and narrowing what an
+ * instrument looks at while its report still reads as authoritative is the recurring defect of this
+ * saga. It does **not** narrow what the gate rejects: the rule is applied per citation, not per
+ * scope, so a line citation inside a rooted scan fails exactly as it does in CI. That is pinned by
+ * tests rather than assumed, because "the stricter rule obviously cannot be bypassed" is precisely
+ * the assumption that produced the earlier `--root=.` defect. One asymmetry is worth knowing:
+ * {@link STATUS_CLAIM_EXEMPT_PREFIX} is repository-relative, so a root outside the repository never
+ * matches it and a rooted run is **stricter** there, never more permissive.
  *
  * The scanned set is the **tracked** set ({@link listCitationFiles} shells out to `git ls-files`), and
  * that has a consequence worth stating as a general rule, because it is not specific to this gate:
@@ -170,17 +176,21 @@ import { marked } from "marked";
 export const SPEC_DIRECTORY = "spec";
 
 /**
- * Files the scan skips — **none**, and that is now literally true rather than nearly true.
+ * Files the scan skips — **none**, and there is no mechanism by which that could change.
  *
- * The one entry here used to be the exceptions manifest, which had to be skipped because every entry
- * quoted the citation it excused, so scanning it made the gate re-discover its own exception list.
- * The manifest is gone (saga #1180): a citation that does not resolve fails, and there is nowhere to
- * record that it is allowed to. Nothing is excluded now, including this module and its own tests —
- * a gate that exempts itself from the rule it enforces asserts less than it appears to. Test
- * fixtures therefore name a `contract/` directory rather than `spec/`, so a deliberately-broken
- * fixture citation cannot masquerade as a real one.
+ * The exceptions manifest used to be skipped here, because every entry quoted the citation it
+ * excused and scanning it made the gate re-discover its own exception list. Saga #1180 deleted the
+ * manifest, which left this list empty and the parameter that applied it without a caller — an
+ * option that can quietly narrow what a gate checks while its report still reads as authoritative,
+ * which is this saga's most repeated defect. So the option is gone too, and "nothing is excluded" is
+ * now asserted by the absence of any way to exclude something rather than by an empty list somebody
+ * could fill in.
+ *
+ * Nothing is excluded **including this module and its own tests** — a gate that exempts itself from
+ * the rule it enforces asserts less than it appears to. Test fixtures therefore name a `contract/`
+ * directory rather than `spec/`, so a deliberately-broken fixture citation cannot masquerade as a
+ * real one.
  */
-export const SCAN_EXCLUSIONS = Object.freeze([]);
 
 /**
  * Where a forward-looking status claim is **not** required to name a tracking issue.
@@ -538,6 +548,13 @@ export function documentHeadings(lines) {
         found.push({
           line: locate(token.raw),
           heading,
+          // The `#` level, which is what makes a section's extent decidable: a section runs until
+          // the next heading at its own level or shallower. Omitting it did not fail loudly — it
+          // made every comparison in {@link sectionRange} `undefined <= undefined`, so every section
+          // silently ran to end-of-file and the quotation check accepted a production quoted
+          // anywhere BELOW the cited heading. An instrument reporting less than it claims, found by
+          // the first test that pinned a range's end rather than only its start.
+          depth: token.depth,
           slug: slugger.slug(heading),
           hazards: headingHazards(token.tokens),
         });
@@ -988,7 +1005,12 @@ const CITATION_FORM_COUNTS = Object.freeze({
   "context-reference": "bare",
 });
 
-/** Render a citation back into the canonical `<spec-dir>/<file>.md:<start>[-<end>]` form. */
+/**
+ * Render a citation back into the canonical `<spec-dir>/<file>.md:<start>[-<end>]` form.
+ *
+ * Kept although the form is rejected: a rejection has to quote back exactly what the author wrote,
+ * or the failure names a site the author cannot find.
+ */
 export function formatCitation(citation) {
   const range = citation.end === undefined ? "" : `-${citation.end}`;
   return `${citation.specDirectory}/${citation.file}:${citation.start}${range}`;
@@ -1134,42 +1156,6 @@ export function collectCitations(path, text, specDirectory = SPEC_DIRECTORY) {
   return { citations, anchors, unattributed };
 }
 
-/**
- * Resolve one citation against the spec document it names.
- *
- * @returns `null` when the citation points at real text, or `{ status, detail }` describing exactly
- *   how it fails to. There is no third outcome: the gate never accepts "close enough".
- */
-export function resolveCitation(citation, specLines) {
-  if (specLines === null) {
-    return {
-      status: "missing-file",
-      detail: `${citation.specDirectory}/${citation.file} does not exist`,
-    };
-  }
-  const end = citation.end ?? citation.start;
-  if (end < citation.start) {
-    return {
-      status: "inverted-range",
-      detail: `the range ends at ${end}, before it starts at ${citation.start}`,
-    };
-  }
-  if (citation.start < 1 || end > specLines.length) {
-    return {
-      status: "past-eof",
-      detail: `${citation.file} has ${specLines.length} line(s)`,
-    };
-  }
-  const region = specLines.slice(citation.start - 1, end);
-  if (region.every((line) => line.trim() === "")) {
-    return {
-      status: "blank-region",
-      detail: "the cited line(s) hold no text",
-    };
-  }
-  return null;
-}
-
 /** Collapse whitespace and drop markdown emphasis so a quotation matches the text it came from. */
 export function normalizeQuotation(text) {
   return text.replace(/[*_`]/g, "").replace(/\s+/g, " ").trim();
@@ -1240,34 +1226,18 @@ export function flattenProseRun(runLines) {
 }
 
 /**
- * Pair every quoted EBNF production in a flattened run with the spec mention a reader would bind it
- * to: the **nearest** one, before or after, preferring the one before on a tie.
+ * Every quoted EBNF production in a flattened run, with the source line it was written on.
  *
- * This is the same attribution philosophy {@link collectCitations} already uses for a bare `:N`, and
- * it is what keeps the check honest in both directions. A mention carrying **no** line number —
- * ``spec/grammar.md`'s `add-statement ::= …` `` — makes no line claim at all, so there is nothing to
- * falsify and the production is reported with a `null` citation rather than checked against some
- * unrelated line cited elsewhere in the same comment.
+ * It used to also bind each production to the nearest spec **mention**, because the check measured a
+ * quotation against the line range that mention named. Anchors carry no range, so the gate now
+ * measures against every section the run cites and the binding has no reader — computing it anyway
+ * would be an instrument producing a number nothing consults, which is the defect this saga keeps
+ * finding. Attribution therefore lives entirely in the caller, where the sections are known.
  *
- * @returns `[{ quotation, line, mention }]`, `mention` being `null` when nothing is claimed.
+ * @returns `[{ quotation, line }]`.
  */
-export function auditRunQuotations(runLines, specDirectory) {
+export function auditRunQuotations(runLines) {
   const { text, offsets } = flattenProseRun(runLines);
-  const mentions = [];
-  const pattern = mentionPattern(specDirectory);
-  let mention = pattern.exec(text);
-  while (mention !== null) {
-    mentions.push({
-      index: mention.index,
-      end: mention.index + mention[0].length,
-      file: mention[1],
-      start: mention[2] === undefined ? undefined : Number(mention[2]),
-      stop: mention[3] === undefined ? undefined : Number(mention[3]),
-      tail: mention[4],
-    });
-    mention = pattern.exec(text);
-  }
-
   const found = [];
   const span = /`([^`]+)`/g;
   let quoted = span.exec(text);
@@ -1277,20 +1247,10 @@ export function auditRunQuotations(runLines, specDirectory) {
     // keeps a correct citation from failing over a backslash.
     if (quoted[1].includes("::=")) {
       const at = quoted.index;
-      let nearest = null;
-      for (const candidate of mentions) {
-        const distance =
-          candidate.end <= at ? at - candidate.end : candidate.index - at;
-        if (nearest === null || distance < nearest.distance) {
-          nearest = { ...candidate, distance };
-        }
-      }
       const source = offsets.filter((entry) => entry.offset <= at).at(-1);
       found.push({
         quotation: normalizeQuotation(quoted[1].replace(/\\(["\\])/g, "$1")),
         line: source.line,
-        mention:
-          nearest === null || nearest.start === undefined ? null : nearest,
       });
     }
     quoted = span.exec(text);
@@ -1317,7 +1277,7 @@ export function collectStatusClaims(lines, runOf) {
     for (const phrase of STATUS_CLAIM_PHRASES) {
       if (lowered.includes(phrase)) {
         // One claim per line. A line that trips two phrases is making one statement, and reporting
-        // it twice would demand two manifest entries to excuse a single site.
+        // it twice would name one site twice in the report a maintainer has to work through.
         hits.push({ line: index + 1, phrase });
         break;
       }
@@ -1428,14 +1388,16 @@ export function readTextFile(path) {
  * @param specDirectory the token citations are written with (`spec`), used to build the scan pattern.
  * @param specRoot where those documents are read from; defaults to `specDirectory`. Split apart so a
  *   test can point the reader at a temp fixture tree without changing the token fixtures cite.
+ * @param roots narrows the scanned set to a filesystem walk of these paths instead of the tracked
+ *   set. It narrows **what is looked at**, never what is rejected — every rule below is applied per
+ *   citation, not per scope.
  * @returns `{ ok, counts, lines, findings }` where `lines` is the printable report and `findings`
- *   lists every site the gate could not accept on its own (each either excused or failed).
+ *   lists every site the gate could not accept. There is one disposition: each of them failed.
  */
 export function runSpecCitationsGate({
   roots,
   specDirectory = SPEC_DIRECTORY,
   specRoot,
-  exclusions = SCAN_EXCLUSIONS,
 } = {}) {
   const lines = [];
   const findings = [];
@@ -1495,10 +1457,7 @@ export function runSpecCitationsGate({
 
   // The canary fires once per cited document, not once per anchor: a construct this reader cannot
   // follow is a property of the document, and repeating it for every citation of one section would
-  // bury the one fact a maintainer needs. It is a bare failure rather than an excusable finding on
-  // purpose — an exception entry is fingerprinted over the CITING line, so it could only ever excuse
-  // one of many identical exposures, and folding an instrument-capability failure into UNRESOLVED
-  // would make that audit count mean two different things.
+  // bury the one fact a maintainer needs.
   const canaried = new Set();
   const canaryFor = (file) => {
     if (canaried.has(file)) {
@@ -1512,18 +1471,15 @@ export function runSpecCitationsGate({
     for (const { line, construct } of unsupportedConstructs(specLines)) {
       fail(
         `${specDirectory}/${file}:${line}: this document contains ${construct} — so an anchor into ` +
-          "it could name a heading GitHub never publishes, or miss one it does. Remove the construct, " +
-          "or cite this document by line instead. (The line here is located by scanning and may be " +
+          "it could name a heading GitHub never publishes, or miss one it does. Remove the construct " +
+          "from the heading; there is no second option, because the line form this remedy used to " +
+          "offer is itself rejected now (ADR-0036). (The line here is located by scanning and may be " +
           "approximate; the construct is what the parser found.)",
       );
     }
   };
 
-  const excluded = new Set(exclusions.map(toPosixPath));
   for (const file of listCitationFiles(roots)) {
-    if (excluded.has(file)) {
-      continue;
-    }
     const text = readTextFile(file);
     if (text === null) {
       continue;
@@ -1679,7 +1635,7 @@ export function runSpecCitationsGate({
       const runLines = fileLines
         .map((text, index) => ({ line: index + 1, text }))
         .filter((entry) => runOf[entry.line] === run);
-      for (const quoted of auditRunQuotations(runLines, specDirectory)) {
+      for (const quoted of auditRunQuotations(runLines)) {
         counts.quotations += 1;
         // The quotation check used to measure a production against the LINE RANGE a citation named.
         // With no line ranges left it had no input at all, and a check with no input reports success
@@ -1737,6 +1693,26 @@ export function runSpecCitationsGate({
       `${counts.quotations} quoted production(s), ` +
       `${counts.statusClaims} status claim(s) — ${counts.failed} failed`,
   );
+  // A run given any scope override did NOT scan the tracked set, so its numbers describe a subset
+  // and must not read as the repository's result. This is the shape that has bitten this saga
+  // repeatedly — an option quietly narrowing what an instrument looks at while its report still
+  // reads as authoritative — and the superseded `--root=.` defect was one instance of it. The rule
+  // itself is unaffected: every check below is applied per citation, never per scope, so a line
+  // citation inside a narrowed scan fails exactly as it does in CI. What the banner removes is the
+  // other half, where a green line is mistaken for a claim about the whole repository.
+  const scope = [
+    roots === undefined ? null : `roots=[${roots.join(", ")}]`,
+    specDirectory === SPEC_DIRECTORY ? null : `spec-dir=${specDirectory}`,
+    specRoot === undefined ? null : `spec-root=${specRoot}`,
+  ].filter((part) => part !== null);
+  if (scope.length > 0) {
+    lines.push(
+      `  SCOPED RUN (${scope.join(", ")}) — this did NOT scan the tracked set, so the numbers above ` +
+        "describe only what it scanned and are not this repository's Definition-of-Done result. The " +
+        "rule is unchanged: a citation naming a line fails inside a scope exactly as it does outside " +
+        "one.",
+    );
+  }
   lines.push(
     "  This gate REJECTS every citation that names a line — a `<file>.md` carrying a line number, a " +
       "comma-appended tail, a bare colon-and-number attributed to a document, and GitHub's `#L` line " +

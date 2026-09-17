@@ -125,7 +125,7 @@ export interface ListLitNode extends NodeBase {
  * `dict-entry ::= dict-key ":" expression`). The key is a literal, never a variable read — a
  * bare identifier reuses {@link WordLitNode} exactly like a bare {@link SelectorSegment} key, and
  * a bare number key reuses {@link NumberLitNode}. Duplicate-key/insertion-order rules
- * (`spec/data-structures.md#derived-list-reporters-in-the-data-profile, spec/data-structures.md#dictionaries`) are a runtime concern; the parser only has to preserve
+ * (`spec/data-structures.md#dictionaries`) are a runtime concern; the parser only has to preserve
  * every entry in source order.
  */
 export interface DictEntryNode {
@@ -462,7 +462,7 @@ export interface ThrowNode extends NodeBase {
 
 /**
  * `add value to target` — append `value` to the list `target` (Data profile,
- * `spec/grammar.md`'s `add-statement ::= "add" expression "to" expression`;
+ * `spec/grammar.md#ebnf-notation`'s `add-statement ::= "add" expression "to" expression`;
  * `spec/execution-model.md#records-and-destructuring`). A statement, never a reporter — it mutates in place and
  * returns nothing. Runtime evaluation lands in its own Data-profile slice.
  */

@@ -45,7 +45,7 @@ With it, saga #572's four M5 profiles are all claimed and no example in the corp
   reading on the table**: the prompt MUST be a `word`, so `number` and `boolean` are rejected
   alongside `list`/`dict`/`record`/`turtle`, and the diagnostic carries `expected: "word"` — the
   identity the `word` reporter itself reports (`word "Question" 3`) and the one `when`/`on_key` use —
-  rather than #681's one-off `expected: "text"`. `spec/interaction-events.md#input-prompt-word`/ now state
+  rather than #681's one-off `expected: "text"`. `spec/interaction-events.md#input-prompt-word`/`spec/interaction-events.md#input-prompt-word` now state
   the rule outright ("**Args:** one prompt, which MUST be a `word`" / "**Errors:** `ol-type` if the
   prompt is not a `word`"), so the fixtures transcribe a normative clause instead of binding a
   reading. Four land: `input-prompt-number-rejected` and `input-prompt-boolean-rejected` (the two
@@ -391,7 +391,7 @@ the gaps it found rather than rubber-stamping them:
 by withdrawing `input-prompt-not-text`, because **#768** recorded both readings of "the prompt cannot
 be displayed as learner text" (`spec/interaction-events.md#input-prompt-word`) as defensible, and a fixture is
 normative for every implementation. #768 has since been ruled — the prompt MUST be a `word` — and the
-spec states that outright at `spec/interaction-events.md#input-prompt-word`/, so the four `input-prompt-*` fixtures described under
+spec states that outright at `spec/interaction-events.md#input-prompt-word`/`spec/interaction-events.md#input-prompt-word`, so the four `input-prompt-*` fixtures described under
 `input/` above now transcribe a normative clause rather than settling a contested one. The runtime
 unit tests in `packages/runtime/src/interaction-input.test.mjs` remain, covering the three rejected
 kinds a fixture would have to import another profile to reach (`dict`, `record`, `turtle`).

@@ -1,6 +1,6 @@
 # Issue #830: the Heritage `value of … for key …` reader must be reachable INSIDE parentheses.
 # `spec/grammar.md` derives it there — `primary` (spec/grammar.md#expressions-and-calls) offers both `parenthesized-expression`
-# (spec/grammar.md#expressions-and-calls, defined ) and `value-of-reader` (, defined ), so
+# (spec/grammar.md#expressions-and-calls, defined spec/grammar.md#expressions-and-calls) and `value-of-reader` (spec/grammar.md#expressions-and-calls, defined spec/grammar.md#expressions-and-calls), so
 # `expression → … → primary → value-of-reader` makes `( value of :d for key "a" )` a
 # `parenthesized-expression` wrapping a `value-of-reader`.
 #

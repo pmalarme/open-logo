@@ -7,7 +7,7 @@
 // failure propagation branches, and the fresh-list (non-mutating) guarantee for `fput`/`lput`/
 // `sentence`.
 //
-// `reverse`/`pick`/`sort` are Data-profile derived reporters (spec/data-structures.md#core-non-mutating-list-reporters, spec/data-structures.md#derived-list-reporters-in-the-data-profile),
+// `reverse`/`pick`/`sort` are Data-profile derived reporters (spec/data-structures.md#derived-list-reporters-in-the-data-profile),
 // not Core, so they are intentionally out of scope here — see the PR description.
 
 import assert from "node:assert/strict";

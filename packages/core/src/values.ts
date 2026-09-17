@@ -19,7 +19,7 @@
  * `instanceof OLDict` and `record` with `instanceof OLRecord`.
  */
 
-/** A legal dictionary key: words or numbers only (`spec/data-structures.md#derived-list-reporters-in-the-data-profile, spec/data-structures.md#dictionaries`). */
+/** A legal dictionary key: words or numbers only (`spec/data-structures.md#dictionaries`). */
 export type OLDictKey = string | number;
 
 /** One live entry inside an {@link OLDict}: the original key plus its current value. */
@@ -29,7 +29,7 @@ interface OLDictEntry {
 }
 
 /**
- * The Data-profile `dict` value (`spec/data-structures.md#derived-list-reporters-in-the-data-profile, spec/data-structures.md#dictionary-writes-and-upserts`): a mutable, insertion-ordered
+ * The Data-profile `dict` value (`spec/data-structures.md#dictionaries, spec/data-structures.md#dictionary-writes-and-upserts`): a mutable, insertion-ordered
  * key/value collection. Keys are words or numbers, compared under OpenLogo's number↔word equality
  * (`spec/execution-model.md#records-and-destructuring`, e.g. `5` and `"5"` name the same slot, `5` and `"05"` do
  * not). {@link set} on an existing canonical key updates the stored value in place rather than

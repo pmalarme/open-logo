@@ -1,7 +1,7 @@
 // Guard tests for the Heritage `value of … for key …` reader **inside parentheses** (issue #830).
 //
 // `spec/grammar.md` derives the reader there. `primary` (`spec/grammar.md#expressions-and-calls`) offers both
-// `parenthesized-expression` (spec/grammar.md#expressions-and-calls, defined ) and `value-of-reader` (, defined ), so
+// `parenthesized-expression` and `value-of-reader`, each defined in that same section, so
 // `expression → … → primary → value-of-reader` makes `( value of :d for key "a" )` a
 // `parenthesized-expression` wrapping a `value-of-reader`.
 //

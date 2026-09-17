@@ -224,7 +224,7 @@ export interface StampPayload {
 /**
  * Payload for a `print` event: the evaluated {@link OLValue}s, in argument order — one element
  * for the single-value `print value` form, two or more for the parenthesized variadic
- * `(print a b …)` form (`spec/commands.md#thing, spec/commands.md#print`). Values are carried raw, not pre-formatted
+ * `(print a b …)` form (`spec/commands.md#print`). Values are carried raw, not pre-formatted
  * text, matching every other effect payload here (e.g. `move`'s raw coordinates): a consumer
  * renders learner-visible text from them via the shared canonical-printed-form rule
  * (`@openlogo/runtime`'s `printedForm`, `spec/execution-model.md#value-and-type-model`).

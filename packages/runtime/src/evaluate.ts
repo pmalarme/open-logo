@@ -1322,7 +1322,7 @@ export function evaluate(
 }
 
 /**
- * Evaluate a dict literal `{ key: value … }` (issue #322, `spec/data-structures.md#derived-list-reporters-in-the-data-profile, spec/data-structures.md#dictionaries`):
+ * Evaluate a dict literal `{ key: value … }` (issue #322, `spec/data-structures.md#dictionaries`):
  * a fresh {@link OLDict}, entries evaluated left to right. `entry.key` is a literal (never
  * evaluated); `OLDict.set` upserts an existing canonical key in place, which gives both
  * "last-duplicate-wins value" and "first-insertion-position iteration" from one call.
@@ -2718,7 +2718,7 @@ export function formatNumber(value: number): string {
 
 /**
  * The canonical printed form of any Core value (`spec/execution-model.md#value-and-type-model` for numbers;
- * `print`/`show` in `spec/commands.md#thing, spec/commands.md#show` for the command surface). Used to render the
+ * `print`/`show` in `spec/commands.md#print, spec/commands.md#show` for the command surface). Used to render the
  * `print value`/`(print …)` trace event as learner-visible text: numbers follow
  * {@link formatNumber}; a word prints verbatim (no surrounding quotes); a boolean prints
  * `true`/`false`; a list prints space-separated and bracketed, recursively, so a nested list
@@ -2824,7 +2824,7 @@ function finishPrintFrame(frame: PrintFrame): string {
 
 /**
  * The canonical printed form of any Core value (`spec/execution-model.md#value-and-type-model` for numbers;
- * `print`/`show` in `spec/commands.md#thing, spec/commands.md#show` for the command surface). Used to render the
+ * `print`/`show` in `spec/commands.md#print, spec/commands.md#show` for the command surface). Used to render the
  * `print value`/`(print …)` trace event as learner-visible text: numbers follow
  * {@link formatNumber}; a word prints verbatim (no surrounding quotes); a boolean prints
  * `true`/`false`; a list prints space-separated and bracketed, recursively, so a nested list
@@ -3130,7 +3130,7 @@ function equalRec(a: OLValue, b: OLValue, inProgress: EqualityMemo): boolean {
 
 /**
  * Structural list equality that terminates on cyclic or shared structure
- * (`spec/execution-model.md#records-and-destructuring, spec/execution-model.md#collections-and-uniform-access`). `inProgress` holds the reference pairs currently on the
+ * (`spec/execution-model.md#collections-and-uniform-access`). `inProgress` holds the reference pairs currently on the
  * comparison stack; re-encountering a pair while it is still in progress is the cyclic back-edge,
  * treated as equal for that branch (bisimulation, not identity short-circuiting). Each pair is
  * removed once its comparison completes, so `inProgress` stays a faithful stack rather than a
@@ -3733,7 +3733,7 @@ function evaluateIsPredicate(
   }
 }
 
-/** `empty? value` — the prefix equivalent of `<value> is empty` (`spec/commands.md#false, spec/commands.md#empty`). */
+/** `empty? value` — the prefix equivalent of `<value> is empty` (`spec/commands.md#empty`). */
 function evaluatePrefixEmpty(
   node: ArithmeticCallNode,
   environment: Environment,
@@ -3752,7 +3752,7 @@ function evaluatePrefixEmpty(
 
 /**
  * `member? value collection` — the prefix equivalent of `<value> is member of <collection>`
- * (`spec/commands.md#empty, spec/commands.md#member`).
+ * (`spec/commands.md#member`).
  */
 function evaluatePrefixMember(
   node: ArithmeticCallNode,
@@ -3778,7 +3778,7 @@ function evaluatePrefixMember(
 
 /**
  * `is_a? value type` — the prefix equivalent of `<value> is a <type-word>`
- * (`spec/commands.md#member, spec/commands.md#is_a`), whose `type` argument is dynamically evaluated
+ * (`spec/commands.md#is_a`), whose `type` argument is dynamically evaluated
  * (see {@link evaluateIsAValue}).
  */
 function evaluatePrefixIsA(
@@ -3815,7 +3815,7 @@ function evaluatePrefixIsA(
 // return a *fresh* value (never mutate an argument list in place); nested element references
 // are shared, only the outer array is copied (`spec/execution-model.md#records-and-destructuring`'s
 // mutation-vs-copy distinction). `reverse`/`pick`/`sort` are Data-profile derived reporters
-// (`spec/data-structures.md#core-non-mutating-list-reporters, spec/data-structures.md#derived-list-reporters-in-the-data-profile`), not Core — they are evaluated just below `count`, sharing
+// (`spec/data-structures.md#derived-list-reporters-in-the-data-profile`), not Core — they are evaluated just below `count`, sharing
 // this section's `isWordOrList`/`listReporterType` helpers, but kept in their own issue #190 doc
 // comment since they are a separate profile slice. Unlike `first`/`last`/`butfirst`/`butlast`/
 // `count` above (fixed at exactly one input, but guarded with `requireMinArgs` only), each of
@@ -4126,7 +4126,7 @@ function evaluateCount(
 }
 
 // --- Data-profile derived list reporters: reverse/pick/sort (issue #190,
-// spec/data-structures.md#core-non-mutating-list-reporters, spec/data-structures.md#derived-list-reporters-in-the-data-profile) --------------------------------------------------------------
+// spec/data-structures.md#derived-list-reporters-in-the-data-profile) --------------------------------------------------------------
 //
 // `reverse`/`sort` always report a *fresh* list — the argument list itself is never mutated, only
 // shallow-copied (its own array is copied, nested element references are shared), matching the
@@ -4583,7 +4583,7 @@ function evaluatePos(
  * `towards x y` — the heading (`[0,360)`) from the turtle's current position toward `(x, y)`
  * (`spec/commands.md` "towards"). `Math.atan2(dx, dy)` (arguments in `(x, y)` order, not the usual
  * `(y, x)`) directly yields OL's compass-bearing convention — `0` points up/`+y`, `right`/clockwise
- * is positive — matching `spec/execution-model.md#collections-and-uniform-access` and verified against the spec's own worked
+ * is positive — matching `spec/execution-model.md#turtle-and-canvas-state` and verified against the spec's own worked
  * example: `towards 100 0` from the origin is `90` (dx=100, dy=0 → atan2(100,0) = 90°).
  * {@link normalizeHeading} folds the `atan2` result's `(-180,180]` range into `[0,360)`, same as
  * every other heading-producing path. Non-number `x`/`y` raise `ol-type`

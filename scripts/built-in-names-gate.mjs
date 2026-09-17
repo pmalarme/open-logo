@@ -1790,7 +1790,7 @@ export function profileGatingFindings(api, entry) {
     }
     findings.push(
       gated
-        ? `${entry.name}: must be "${expected}" ${describe} but the highlighter paints it ${[...painted.classes].join(" and ")} — spec/tooling.md#normative-token-class-model gates a profile word on ITS OWN profile (${entry.profile}), and  makes it "primitive" while that profile is inactive`
+        ? `${entry.name}: must be "${expected}" ${describe} but the highlighter paints it ${[...painted.classes].join(" and ")} — spec/tooling.md#normative-token-class-model gates a profile word on ITS OWN profile (${entry.profile}), and makes it "primitive" while that profile is inactive`
         : `${entry.name}: is painted "${entry.tokenClass}" under every profile but ${[...painted.classes].join(" and ")} ${describe} — only a profile's structural words move`,
     );
   }

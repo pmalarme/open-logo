@@ -1,5 +1,4 @@
-// Unit tests for Core comprehensions (`map`/`filter`/`reduce`) per spec/grammar.md#ebnf-notation, spec/grammar.md#collections-records-and-comprehensions
-// — validating the ALREADY-MERGED parser (packages/parser/src/parser.ts,
+// Unit tests for Core comprehensions (`map`/`filter`/`reduce`) per spec/grammar.md#ebnf-notation, spec/grammar.md#collections-records-and-comprehensions — validating the ALREADY-MERGED parser (packages/parser/src/parser.ts,
 // parseComprehension), plus (issue #72) the destructuring `[:x :y]` binder support added to that
 // same function, mirroring `for … in`'s destructuring binder from issue #91.
 //

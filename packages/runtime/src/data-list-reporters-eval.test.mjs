@@ -1,5 +1,5 @@
 // Unit tests for the Data-profile derived list reporters' runtime evaluation (issue #190,
-// spec/data-structures.md#core-non-mutating-list-reporters, spec/data-structures.md#derived-list-reporters-in-the-data-profile — the derived-reporters table and its ordering rule).
+// spec/data-structures.md#derived-list-reporters-in-the-data-profile — the derived-reporters table and its ordering rule).
 // Conformance fixtures under tests/conformance/data/execution/ cover the primary
 // literal-observable positive/negative cases end to end. These unit tests fill in what a fixture
 // cannot: every dynamically-reachable diagnostic path exercised directly (not via

@@ -1,5 +1,5 @@
 // Unit tests for issue #188: runtime evaluation of the four Data-profile list-mutator statements
-// `add … to`, `remove … from`, `insert … in … at`, and `clear` (spec/data-structures.md#lists, spec/data-structures.md#mutating-list-operations,
+// `add … to`, `remove … from`, `insert … in … at`, and `clear` (spec/data-structures.md#mutating-list-operations,
 // spec/execution-model.md#records-and-destructuring). Each mutates a shared list reference in place, emits no
 // dedicated effect event (only the generic per-statement `instruction` event, like assignment),
 // and raises `ol-type`/`ol-range` on a bad target/position. `clear` and the dict-only

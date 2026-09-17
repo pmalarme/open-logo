@@ -223,7 +223,7 @@ test("#838 AC4: ol-reserved-word carries params { name } only, names no category
   // rather than assumed, because a well-meaning "clearer" message is exactly how they come back.
   //
   // The lowercase `choose` after the period is asserted for the same reason. It is the house voice
-  // (`spec/error-model.md#philosophy`, "the warm, lowercase Logo voice", and its  example
+  // (`spec/error-model.md#philosophy`, "the warm, lowercase Logo voice", and the example there
   // `i don't know how to fowad. did you mean forward?`), which every shipped diagnostic already
   // follows. It looks like a typo to anyone reading this one message in isolation, and
   // `docs/design-notes/0007-binding-vs-registration.md:369-370` capitalizes it — so without this

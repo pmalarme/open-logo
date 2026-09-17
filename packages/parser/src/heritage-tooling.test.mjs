@@ -27,7 +27,7 @@
 //   4. The `value of <dict> for key <key>` reader (#670). A four-word grammar production
 //      (`spec/grammar.md#expressions-and-calls`) lowering to a dedicated `ValueOfKeyNode`. All four of its words are
 //      `keyword` and none carries `defaultLibrary`. `value`/`for`/`key` because they are reserved
-//      words (`spec/tooling.md#reserved-words-for-tooling`); `of` because  — the normative
+//      words (`spec/tooling.md#reserved-words-for-tooling`); `of` because that same section — the normative
 //      highlighter instruction — marks these contextual words `keyword` "only inside an
 //      `is`-predicate or the heritage `value of … for key` reader", this reader being named there
 //      by the maintainer's ruling on #785. Supporting passages elsewhere:

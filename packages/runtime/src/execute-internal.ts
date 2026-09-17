@@ -147,7 +147,7 @@ import { emitAddressingPrimitive, snapshotAddressing } from "./addressing.js";
 
 /**
  * Is `statement` a call to `print` — the single-value `print value` form or the parenthesized
- * variadic `(print a b …)` form (`spec/commands.md#thing, spec/commands.md#print`)? Accepts both the plain infix
+ * variadic `(print a b …)` form (`spec/commands.md#print`)? Accepts both the plain infix
  * `Call` form (`print 1`) and the explicit-parentheses `ParenCall` form (`(print 1 2)`) — both
  * share the same callee/args shape (see `evaluate.ts`'s `ArithmeticCallNode`). Matches
  * regardless of argument count: a zero-argument `print`/`(print)` is handled separately in
@@ -164,8 +164,7 @@ function isPrintCall(
 }
 
 /**
- * Is `statement` a call to `show` — the single-value `show value` form (`spec/commands.md#print, spec/commands.md#show`,
- * issue #234)? Accepts both the plain infix `Call` form (`show 1`) and the explicit-
+ * Is `statement` a call to `show` — the single-value `show value` form (`spec/commands.md#show`, issue #234)? Accepts both the plain infix `Call` form (`show 1`) and the explicit-
  * parentheses `ParenCall` form (`(show 1)`). Unlike {@link isPrintCall}'s `print`, `show` has no
  * documented parenthesized variadic form — its signature is strictly `show value` — so
  * {@link executeStatements} enforces exactly one argument itself, the same way `execute()` is the
@@ -388,7 +387,7 @@ function isTurtleTurnCall(statement: StatementNode): boolean {
  * Turn the turtle by `deltaDegrees` (positive turns clockwise, i.e. `right`; negative turns
  * counter-clockwise, i.e. `left` — `spec/execution-model.md#collections-and-uniform-access`) and emit the `turn` effect-event
  * `spec/execution-model.md#numbers-and-math` requires (`{from, to}`, both headings in degrees). The new heading
- * is normalized to `[0,360)` (`spec/execution-model.md#collections-and-uniform-access`) — never left negative or `>= 360`.
+ * is normalized to `[0,360)` (`spec/execution-model.md#turtle-and-canvas-state`) — never left negative or `>= 360`.
  *
  * Turning has no `move`/`draw-segment` counterpart: it only rotates, never translates, so no
  * position or drawing event follows it.
@@ -722,7 +721,7 @@ function homeTurtleForClearScreen(
  * visibility, and background unchanged).
  *
  * The canvas is cleared **once** however many turtles are addressed, and the homing applies once
- * per addressed turtle — the rule `spec/turtles-and-sprites.md#per-turtle-state-and-turtle-commands` and  now state outright
+ * per addressed turtle — the rule `spec/turtles-and-sprites.md#per-turtle-state-and-turtle-commands` now states outright
  * (issue #738). `clear_screen` is therefore not a per-turtle command
  * ({@link isPerTurtleCommand}): multiplying the whole statement would emit N `clear` events for one
  * shared surface. Only the homing is multiplied, here, over {@link TurtleAddressing.ids} — so
@@ -1526,9 +1525,9 @@ function setHeadingTo(
  * Validate and run a `home`/`set_xy`/`setxy` statement matched by {@link isTurtlePositionCall}.
  * `home` takes zero arguments and resets both position (to `(0,0)`) and heading (to `0`) — it is a
  * move like any other, so it emits `move`/conditional `draw-segment` (via {@link moveTurtleTo})
- * followed by `turn` (via {@link setHeadingTo}) (`spec/commands.md#right, spec/commands.md#home`). `set_xy`/`setxy`
+ * followed by `turn` (via {@link setHeadingTo}) (`spec/commands.md#home`). `set_xy`/`setxy`
  * takes exactly two numeric arguments and moves the turtle to that absolute position, leaving
- * heading untouched (`spec/commands.md#home, spec/commands.md#set_xy`). Diagnostics: `ol-not-enough-inputs`/
+ * heading untouched (`spec/commands.md#set_xy`). Diagnostics: `ol-not-enough-inputs`/
  * `ol-too-many-inputs` for the wrong argument count, `ol-type` for a non-number `set_xy` argument
  * (via {@link requireNumber}), `ol-range` ({@link runtimeDiag.nonFiniteCoordinate}) for a
  * `set_xy` argument that is `Infinity`/`-Infinity` (same "never expose a non-finite learner-facing
@@ -3809,7 +3808,7 @@ function dispatchTurtleCommandOnce(
 /**
  * Dispatch the statements that write a place or mutate a list/dict value in place — `Assign`
  * (`set … to` / `<place> = …`) plus the five Data-profile mutators `add`/`remove`/`insert`/
- * `clear` (issue #188, `spec/data-structures.md#lists, spec/data-structures.md#mutating-list-operations`) and `RemoveKey` (dict key deletion, issue
+ * `clear` (issue #188, `spec/data-structures.md#mutating-list-operations`) and `RemoveKey` (dict key deletion, issue
  * #322, `spec/data-structures.md#dictionary-reads`) — to their evaluators in `evaluate.ts`. Returns the
  * evaluator's {@link AssignResult} (a clean `ok`, or its `ol-type`/`ol-range` diagnostic), or
  * `undefined` when `statement` is none of them — so {@link executeStatements} falls through to its
@@ -4369,7 +4368,7 @@ type DeclarationRegistration =
 
 /**
  * The runtime's phase-1 registration guard, over the grammar's **declaration slots** — `define`/`to`
- * and `struct` (`spec/grammar.md#ebnf-notation`; issue #833's maintainer ruling). 
+ * and `struct` (`spec/grammar.md#ebnf-notation`; issue #833's maintainer ruling). That section
  * enumerates **four** slots: the fourth is the first operand of `alias`, which has no AST node yet
  * (`alias fwd forward` is `ol-bad-token` at parse), so there is nothing here to check for it — it is
  * named so that whoever lands `alias` wires the slot rather than rediscovering it.

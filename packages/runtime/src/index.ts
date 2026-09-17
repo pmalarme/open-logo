@@ -9,7 +9,7 @@
  * "one step"). Issue #93 gave Core literals and arithmetic (`+ - * / mod` plus
  * `abs sqrt int round power`) a runtime value via {@link evaluate} and added a minimal `print`
  * event. Issue #98 completes `print`: the single-value `print value` form and the parenthesized
- * variadic `(print a b …)` form (`spec/commands.md#thing, spec/commands.md#print`) both evaluate every operand, in
+ * variadic `(print a b …)` form (`spec/commands.md#print`) both evaluate every operand, in
  * order, and — once all of them evaluate cleanly — emit one `print` event carrying every value
  * (`PrintPayload.values`) right after that statement's `instruction` event. Issue #100 gives `if`
  * (with an optional `else`) and `while` their runtime meaning (`spec/execution-model.md#variables-scoping-and-procedures`):

@@ -40,7 +40,7 @@ point in `@openlogo/runtime` already has that shape.
 uses. It decides a single thing: a profile block-head — Sprites' `ask`/`each` and its mode-switch
 command `tell`, Interaction's `when`/`every`/`on_key`/`on_click` — is `keyword` while its profile
 is active ([`tooling.md:30`](../../spec/tooling.md#normative-token-class-model)) and `primitive` without it
-([`spec/tooling.md#normative-token-class-model`](../../)). Profile *primitives* (the Sound commands, `wait`, `input`,
+([`spec/tooling.md#normative-token-class-model`](../../spec/tooling.md#normative-token-class-model)). Profile *primitives* (the Sound commands, `wait`, `input`,
 the Sprites reporters) are `primitive` under every profile set. Omit `options` and both APIs read
 as Core Language alone, which is exactly what callers saw before the option existed.
 

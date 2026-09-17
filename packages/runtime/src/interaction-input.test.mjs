@@ -318,10 +318,10 @@ test("an empty scripted answer is a real answer — the empty word — not an ex
   assert.deepEqual(printedValues(result), [true]);
 });
 
-// --- `spec/interaction-events.md#input-prompt-word`/: the prompt MUST be a word ---------------------------
+// --- `spec/interaction-events.md#input-prompt-word`: the prompt MUST be a word ---------------------------
 
 test("a prompt that is not a word raises ol-type", () => {
-  // `spec/interaction-events.md#input-prompt-word`/: "**Args:** one prompt, which MUST be a `word`" /
+  // `spec/interaction-events.md#input-prompt-word`: "**Args:** one prompt, which MUST be a `word`" /
   // "**Errors:** `ol-type` if the prompt is not a `word`", which the profile's error table (`spec/interaction-events.md#errors-and-cancellation`)
   // classes as "an argument has the wrong type".
   //

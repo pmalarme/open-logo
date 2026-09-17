@@ -5,7 +5,7 @@
  *
  * ## Why a converter can be trusted with 777 files
  *
- * Nobody can review 2,861 conversions by reading them, so the safety has to come from somewhere
+ * Nobody can review 2,827 conversions by reading them, so the safety has to come from somewhere
  * else. It comes from three places, and the third is the one that matters:
  *
  * 1. **The anchor is not invented.** It is read from {@link documentHeadings} — the same real GFM
@@ -41,7 +41,6 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import {
-  EXCEPTIONS_PATH,
   SPEC_DIRECTORY,
   collectCitations,
   documentHeadings,
@@ -49,7 +48,6 @@ import {
   listCitationFiles,
   readTextFile,
   splitLines,
-  toPosixPath,
 } from "./spec-citations-gate.mjs";
 
 /**
@@ -94,8 +92,8 @@ export function expandTail(tail) {
  *
  * The boundary is deliberate and tested on both sides: the line a heading is *on* belongs to that
  * heading, and the line above it belongs to the previous one. A citation landing on a blank line
- * still has an enclosing heading, which is why all 83 blank-region landings in this corpus dissolve
- * rather than needing a decision.
+ * still has an enclosing heading, which is why a landing in the blank space between sections
+ * dissolves rather than needing a decision.
  */
 export function enclosingHeading(headings, line) {
   let found = null;
@@ -109,25 +107,91 @@ export function enclosingHeading(headings, line) {
 }
 
 /**
- * Every anchor one line spec becomes: one for the section it starts in, and a second when its range
- * ends in a different section.
+ * Every anchor one line spec becomes: one for the section its content starts in, and a second when
+ * that content ends in a different section.
+ *
+ * **The span rule, stated because it decides thousands of anchors.** A range's anchors come from the
+ * sections its **non-blank content** occupies, not from its raw endpoints. Blank lines are trimmed
+ * off both ends first. Without that, a range whose first line is the blank separator closing the
+ * previous section yields an anchor to a section the claim never relied on — and because that
+ * section exists, the anchor **resolves** and the gate stays green. Anchor resolution catches an
+ * anchor that names no heading; it never catches one that names the wrong heading, so this rule is
+ * the only thing standing between a range and a confidently wrong anchor.
+ *
+ * A range that is blank from end to end names no content at all. There is nothing to trim towards,
+ * so it keeps its enclosing section and is reported by {@link planFile} rather than silently
+ * attributed.
  *
  * A range spanning two sections is not unexpressible — it is two citations that the line form let an
  * author write as one, because line numbers are terse. Anchors are not obliged to inherit that
- * terseness, so the range becomes both anchors rather than losing half its claim.
+ * terseness, so the range becomes both anchors rather than losing half its claim. Like the collapse
+ * above, how often it happens is counted and printed rather than written down here; on the #1180
+ * sweep the tool printed **133**.
  */
-export function anchorsForSpec(headings, spec) {
+export function anchorsForSpec(headings, spec, lines = null) {
+  const bounds = contentBounds(spec, lines);
   const slugs = [];
-  const head = enclosingHeading(headings, spec.start);
+  const head = enclosingHeading(headings, bounds.start);
   if (head === null) {
     return null;
   }
   slugs.push(head.slug);
-  const tail = enclosingHeading(headings, spec.end ?? spec.start);
+  const tail = enclosingHeading(headings, bounds.end);
   if (tail !== null && tail.slug !== head.slug) {
     slugs.push(tail.slug);
   }
   return slugs.every((slug) => slug !== "") ? slugs : null;
+}
+
+/**
+ * The first and last lines of `spec` that hold text, or the raw endpoints when `lines` is unknown or
+ * the whole range is blank.
+ *
+ * @returns `{ start, end, allBlank }`.
+ */
+export function contentBounds(spec, lines) {
+  const last = spec.end ?? spec.start;
+  if (lines === null) {
+    return { start: spec.start, end: last, allBlank: false };
+  }
+  const holdsText = (line) => (lines[line - 1] ?? "").trim() !== "";
+  let start = spec.start;
+  while (start <= last && !holdsText(start)) {
+    start += 1;
+  }
+  if (start > last) {
+    return { start: spec.start, end: last, allBlank: true };
+  }
+  let end = last;
+  while (end > start && !holdsText(end)) {
+    end -= 1;
+  }
+  return { start, end, allBlank: false };
+}
+
+/**
+ * Whether a citation that lands entirely on blank lines is **ambiguous** — that is, whether the
+ * blank space it names sits on a section boundary.
+ *
+ * Most blank landings are harmless: a blank line between two paragraphs of one section has that
+ * section either side of it, so the enclosing heading is the section the author meant whichever way
+ * you reason about it. The dangerous one is the blank **separator closing a section**, where the
+ * enclosing heading is the section *above* while the text the claim relies on begins below. Both
+ * anchors exist, so both resolve, and nothing downstream can tell the difference — which is why this
+ * one case is refused for a human rather than guessed at.
+ */
+export function blankLandingIsAmbiguous(spec, lines, headings) {
+  const last = spec.end ?? spec.start;
+  let next = last + 1;
+  // Walk past the whole run of blank lines: a document that separates sections with several blank
+  // lines would otherwise compare the section with itself and call every such landing unambiguous.
+  while (next <= lines.length && lines[next - 1].trim() === "") {
+    next += 1;
+  }
+  const above = enclosingHeading(headings, spec.start);
+  const below = enclosingHeading(headings, Math.min(next, lines.length));
+  const slugOf = (heading) => (heading === null ? null : heading.slug);
+  return slugOf(above) !== slugOf(below);
 }
 
 /** Render `slugs` of `file` as the citation text that replaces a line spec. */
@@ -139,9 +203,12 @@ export function renderAnchors(specDirectory, file, slugs) {
  * The span a redundant token occupies **including** the punctuation that joined it to its neighbour.
  *
  * Without this a collapse leaves `(#debug, #debug)` — the same anchor written twice because two line
- * specs on one line named two lines of one section. 172 sites in this corpus are that shape, so the
- * separator has to come out with the token: a wrapping pair of backticks first, then the whitespace
- * and single comma in front of it.
+ * specs on one line named two lines of one section. The separator therefore has to come out with the
+ * token: a wrapping pair of backticks first, then the whitespace and single comma in front of it.
+ *
+ * How often this shape occurs is **reported, not asserted**: `convertTree` counts every collapse and
+ * the CLI prints the total, because a figure written into a comment is an unenforced assertion that
+ * nothing keeps true. On the #1180 sweep the tool printed **106**.
  */
 export function redundantSpan(text, start, end) {
   let from = start;
@@ -154,10 +221,36 @@ export function redundantSpan(text, start, end) {
   while (scan > 0 && (text[scan - 1] === " " || text[scan - 1] === "\t")) {
     scan -= 1;
   }
+  let absorbedComma = false;
   if (scan > 0 && text[scan - 1] === ",") {
     from = scan - 1;
+    absorbedComma = true;
   }
-  return { from, to };
+  return { from, to, absorbedComma };
+}
+
+/**
+ * Whether removing `span` is safe — that is, whether the duplicate was an element of a **citation
+ * list** rather than a word of a sentence.
+ *
+ * This is the one judgement a converter can get wrong in a way no gate will ever see. A collapse
+ * that deletes `` `:31` `` from ``(`…:30-31` — `:30` states the active half, `:31` the inactive
+ * one)`` leaves text that does not parse as English, while the anchors that remain all resolve and
+ * every count still balances. Tidiness is not worth that: a repeated anchor is verbose, a deleted
+ * word is wrong, so the rule is deliberately conservative and the fallback is to write the anchor in
+ * full.
+ *
+ * A list element has **both** properties. Its separator was a comma the span absorbed — so removing
+ * it cannot weld two words together — and what follows it immediately closes the list: a bracket, a
+ * further comma, or the end of the sentence or line. `(a, b, c)` therefore collapses and
+ * `, :31 the inactive one` does not, although both are comma-separated.
+ */
+export function isListElement(text, span) {
+  if (!span.absorbedComma) {
+    return false;
+  }
+  const rest = text.slice(span.to);
+  return rest.trimEnd() === "" || /^[)\]},.;]/.test(rest);
 }
 
 /** Apply non-overlapping `edits` (each `{ from, to, text }`) to `text`, last first. */
@@ -230,7 +323,13 @@ export function lineTokens(path, lineText, specDirectory) {
  * a file it had enumerated differently from the verifier would be exactly the instrument that
  * reports success while measuring something else.
  */
-export function planFile(path, text, specDirectory, headingsFor) {
+export function planFile(
+  path,
+  text,
+  specDirectory,
+  headingsFor,
+  linesFor = () => null,
+) {
   const collected = collectCitations(path, text, specDirectory);
   const bareByLine = new Map();
   let expectedSites = 0;
@@ -262,6 +361,8 @@ export function planFile(path, text, specDirectory, headingsFor) {
   let offset = 0;
   let seenSites = 0;
   let invisible = 0;
+  let collapsed = 0;
+  let spanning = 0;
 
   for (const [index, lineText] of lines.entries()) {
     const number = index + 1;
@@ -362,13 +463,40 @@ export function planFile(path, text, specDirectory, headingsFor) {
         });
         continue;
       }
+      const documentLines = linesFor(file);
       const slugs = [];
       let blocked = null;
+      let blankRange = false;
+      let pastEof = false;
       for (const spec of specs) {
-        const resolved = anchorsForSpec(headings, spec);
+        // A line past end-of-file names nothing at all, so no section follows from it. Converting it
+        // would invent an anchor for a citation that is already stale — and the anchor would
+        // RESOLVE, making the staleness permanent and invisible.
+        if (documentLines !== null && spec.start > documentLines.length) {
+          blocked = spec;
+          pastEof = true;
+          break;
+        }
+        // A range that holds no text anywhere names no content, so there is nothing for the span
+        // rule to trim towards and its anchor would rest on the raw endpoint alone. That is reported
+        // rather than quietly attributed: it is the shape most likely to name a section the claim
+        // never relied on, and the anchor would resolve either way.
+        if (
+          documentLines !== null &&
+          contentBounds(spec, documentLines).allBlank &&
+          blankLandingIsAmbiguous(spec, documentLines, headings)
+        ) {
+          blocked = spec;
+          blankRange = true;
+          break;
+        }
+        const resolved = anchorsForSpec(headings, spec, documentLines);
         if (resolved === null) {
           blocked = spec;
           break;
+        }
+        if (resolved.length > 1) {
+          spanning += 1;
         }
         for (const slug of resolved) {
           if (!slugs.includes(slug)) {
@@ -377,10 +505,19 @@ export function planFile(path, text, specDirectory, headingsFor) {
         }
       }
       if (blocked !== null) {
+        const detail = pastEof
+          ? `${specDirectory}/${file}:${blocked.start} is past end-of-file, so it names no text and no section follows from it — this citation was already stale`
+          : blankRange
+            ? `${specDirectory}/${file}:${blocked.start} is blank and sits on a section boundary, so the section above it and the text below it are equally defensible — decide by hand`
+            : `${specDirectory}/${file}:${blocked.start} has no enclosing heading that publishes a slug`;
         problems.push({
-          kind: "no-usable-heading",
+          kind: pastEof
+            ? "past-eof"
+            : blankRange
+              ? "blank-range"
+              : "no-usable-heading",
           site: `${path}:${number}`,
-          detail: `${specDirectory}/${file}:${blocked.start} has no enclosing heading that publishes a slug`,
+          detail,
           context: lineText.trim(),
         });
         continue;
@@ -391,15 +528,23 @@ export function planFile(path, text, specDirectory, headingsFor) {
         emitted.add(`${file}#${slug}`);
       }
       if (fresh.length === 0) {
+        // Every anchor this token would write is already on the line. Removing it is only safe when
+        // it was an element of a citation LIST; when it is a referring expression inside a sentence,
+        // deleting it leaves text that does not parse while every anchor still resolves and every
+        // count still balances. So the anchor is written out in full instead. Verbose beats wrong.
         const span = redundantSpan(lineText, token.from, token.to);
-        edits.push({
-          from: absolute(span.from),
-          to: absolute(span.to),
-          text: "",
-        });
-        continue;
+        if (isListElement(lineText, span)) {
+          collapsed += 1;
+          edits.push({
+            from: absolute(span.from),
+            to: absolute(span.to),
+            text: "",
+          });
+          continue;
+        }
       }
-      produced.push(...fresh.map((slug) => `${file}#${slug}`));
+      const written = fresh.length === 0 ? slugs : fresh;
+      produced.push(...written.map((slug) => `${file}#${slug}`));
       // A replacement abutting a preceding comma needs the space the line form did not: `:39,:85`
       // is legible, `#turtle-creation,spec/…#addressing-model` runs the anchor into the separator
       // and the gate reads the comma as part of the fragment, so the citation stops resolving.
@@ -408,7 +553,7 @@ export function planFile(path, text, specDirectory, headingsFor) {
       edits.push({
         from: absolute(token.from),
         to: absolute(token.to),
-        text: separated + renderAnchors(specDirectory, file, fresh),
+        text: separated + renderAnchors(specDirectory, file, written),
       });
     }
     offset += lineText.length + 1;
@@ -427,9 +572,19 @@ export function planFile(path, text, specDirectory, headingsFor) {
       produced: [],
       sites: expectedSites,
       invisible,
+      collapsed: 0,
+      spanning: 0,
     };
   }
-  return { edits, problems, produced, sites: expectedSites, invisible };
+  return {
+    edits,
+    problems,
+    produced,
+    sites: expectedSites,
+    invisible,
+    collapsed,
+    spanning,
+  };
 }
 
 /**
@@ -443,21 +598,30 @@ export function convertTree({
   specDirectory = SPEC_DIRECTORY,
   specRoot,
   write = false,
-} = {}) {
+}) {
   const cache = new Map();
-  const headingsFor = (file) => {
-    if (!cache.has(file)) {
-      let headings = null;
+  const linesCache = new Map();
+  const linesFor = (file) => {
+    if (!linesCache.has(file)) {
+      let documentLines = null;
       try {
-        headings = documentHeadings(
-          splitLines(
-            readFileSync(join(specRoot ?? specDirectory, file), "utf8"),
-          ),
+        documentLines = splitLines(
+          readFileSync(join(specRoot ?? specDirectory, file), "utf8"),
         );
       } catch {
-        headings = null;
+        documentLines = null;
       }
-      cache.set(file, headings);
+      linesCache.set(file, documentLines);
+    }
+    return linesCache.get(file);
+  };
+  const headingsFor = (file) => {
+    if (!cache.has(file)) {
+      const documentLines = linesFor(file);
+      cache.set(
+        file,
+        documentLines === null ? null : documentHeadings(documentLines),
+      );
     }
     return cache.get(file);
   };
@@ -468,21 +632,17 @@ export function convertTree({
     sites: 0,
     anchors: 0,
     invisible: 0,
+    collapsed: 0,
+    spanning: 0,
     problems: [],
     changed: [],
   };
   for (const path of listCitationFiles(roots)) {
-    // Compared through toPosixPath because git ls-files reports / on every platform while
-    // join yields \ on Windows: the mismatched form silently scanned the manifest, whose 83
-    // entries quote the citations they excuse, and the cross-check caught it as 83 phantom sites.
-    if (toPosixPath(path) === toPosixPath(EXCEPTIONS_PATH)) {
-      continue;
-    }
     const text = readTextFile(path);
     if (text === null || !text.includes(`${specDirectory}/`)) {
       continue;
     }
-    const plan = planFile(path, text, specDirectory, headingsFor);
+    const plan = planFile(path, text, specDirectory, headingsFor, linesFor);
     if (plan.sites === 0) {
       continue;
     }
@@ -490,6 +650,8 @@ export function convertTree({
     report.sites += plan.sites;
     report.anchors += plan.produced.length;
     report.invisible += plan.invisible;
+    report.collapsed += plan.collapsed;
+    report.spanning += plan.spanning;
     report.problems.push(...plan.problems);
     if (plan.edits.length === 0) {
       continue;

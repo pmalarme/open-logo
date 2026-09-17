@@ -53,7 +53,7 @@
  * b)` with `a` greater than `b` — reusing `requireWholeNumber`'s existing `ol-type` for a
  * non-whole bound, checked first (`spec/commands.md`'s `random` entry).
  * Issue #190 adds the Data-profile derived list reporters' diagnostics
- * (`spec/data-structures.md#core-non-mutating-list-reporters, spec/data-structures.md#derived-list-reporters-in-the-data-profile`): a reuse of `ol-type` (via `listReporterType`) for
+ * (`spec/data-structures.md#derived-list-reporters-in-the-data-profile`): a reuse of `ol-type` (via `listReporterType`) for
  * `reverse`/`pick`/`sort`'s non-list argument, `ol-range` (via the new `emptyList`) for `pick` on
  * an empty list — narrower than `emptyInput`'s "word or list" wording since `pick` is list-only —
  * and a reuse of `ol-type` (via `orderingType`) for `sort` given elements that are not mutually
@@ -184,7 +184,7 @@ export interface UnknownKeyParams {
 
 /**
  * Params for an `ol-type` raised by a list-mutator statement (`add`/`remove`/`insert`/`clear`,
- * `spec/data-structures.md#lists, spec/data-structures.md#mutating-list-operations`, `spec/execution-model.md#records-and-destructuring`) whose target is not a list,
+ * `spec/data-structures.md#mutating-list-operations`, `spec/execution-model.md#records-and-destructuring`) whose target is not a list,
  * or by `insert`'s position argument that is not a number. Issue #322 widens this for the dict
  * half of `clear` (target may be a list or dict) and for `remove key … from`, whose target must
  * be a dict specifically (`spec/data-structures.md#dictionary-reads, spec/data-structures.md#dictionary-writes-and-upserts`). Same `{expected, actual, value,
@@ -471,7 +471,7 @@ export interface IsPredicateTypeErrorParams {
  * (`spec/commands.md` — `first`/`last`/`butfirst`/`butlast` accept a word or list; `count` accepts
  * a word, list, or dict (`spec/commands.md#count`, issue #322); `fput`/`lput` require their second
  * argument to be a list; `word` requires every argument to be a word, issue #234) or a
- * Data-profile derived list reporter's wrong-typed argument (`spec/data-structures.md#core-non-mutating-list-reporters, spec/data-structures.md#derived-list-reporters-in-the-data-profile` —
+ * Data-profile derived list reporter's wrong-typed argument (`spec/data-structures.md#derived-list-reporters-in-the-data-profile` —
  * `reverse`/`pick`/`sort` each require a `list`, issue #190). Same `{expected, actual, value,
  * operation}` shape as {@link IsPredicateTypeErrorParams}/{@link OrderingTypeErrorParams} —
  * `operation` names the offending reporter for the message.
@@ -915,7 +915,7 @@ export const runtimeDiag = {
 
   /**
    * `ol-type` for a list-mutator statement's non-list target or `insert`'s non-number position
-   * (issue #188, `spec/data-structures.md#lists, spec/data-structures.md#mutating-list-operations`) — see {@link ListMutatorTypeErrorParams}.
+   * (issue #188, `spec/data-structures.md#mutating-list-operations`) — see {@link ListMutatorTypeErrorParams}.
    */
   listMutatorType(
     source_span: SourceSpan,

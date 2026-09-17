@@ -1,18 +1,21 @@
-// Unit + regression tests for the spec-citation DoD gate (issue #934). These import
-// scripts/spec-citations-gate.mjs's logic directly (for 100% coverage) plus subprocess tests for the
-// CLI shell (scripts/check-spec-citations.mjs), pointed at isolated temp fixtures via
-// --root/--spec-dir/--spec-root/--exceptions rather than the real corpus.
+// Unit + regression tests for the spec-citation DoD gate (issue #934, rewritten for saga #1180).
+// These import scripts/spec-citations-gate.mjs's logic directly (for 100% coverage) plus subprocess
+// tests for the CLI shell (scripts/check-spec-citations.mjs), pointed at isolated temp fixtures via
+// --root/--spec-dir/--spec-root rather than the real corpus.
 //
-// Fixtures name a `contract/` directory, never the real specification directory. That is deliberate:
-// this file is itself scanned by the gate in CI, so a deliberately-broken fixture citation written
-// with the real prefix would be indistinguishable from a real defect in the tree.
+// Fixtures name a `contract/` directory, never the real specification directory, and this file never
+// writes that directory's name as a literal. That is deliberate twice over: the gate scans this file
+// in CI, so a deliberately-broken fixture citation written with the real prefix would be
+// indistinguishable from a real defect — and because the file never contains the real prefix, the
+// gate skips it for citations entirely, so a bare colon-and-number inside a comment here can never be
+// read as a citation either. Two sessions in this saga were bitten by exactly that.
 //
-// The MUTATION block at the end is the gate's own proof that it can go red — the same discipline as
+// The MUTATION block near the end is the gate's own proof that it can go red — the same discipline as
 // tests/conformance/_harness-selftest/, whose fixtures deliberately declare expect: "mismatch". A
 // gate that passes on deliberately broken input asserts nothing, which #934 records as the single
 // most repeated defect in this saga. Every way this gate is supposed to fail therefore has a test
 // that corrupts a known-good citation and asserts it actually fails — including the hard case, where
-// the mutation repoints a citation at a DIFFERENT section that still resolves to non-blank text.
+// the mutation repoints a citation at a DIFFERENT section that still resolves.
 
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
@@ -29,10 +32,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, test } from "node:test";
 import {
-  EXCEPTIONS_PATH,
-  EXCEPTION_KINDS,
-  SCAN_EXCLUSIONS,
   SPEC_DIRECTORY,
+  STATUS_CLAIM_EXEMPT_PREFIX,
   STATUS_CLAIM_PHRASES,
   auditRunQuotations,
   closestHeadingSlug,
@@ -41,6 +42,7 @@ import {
   decodeEntities,
   documentHeadings,
   editDistance,
+  enclosingSlug,
   expandCommaTail,
   flattenProseRun,
   formatAnchor,
@@ -48,7 +50,6 @@ import {
   isProseLine,
   lineLookup,
   listCitationFiles,
-  loadExceptions,
   normalizeQuotation,
   parseArgs,
   proseRuns,
@@ -56,16 +57,13 @@ import {
   readTextFile,
   rejoinedFragment,
   resolveAnchor,
-  resolveCitation,
   runSpecCitationsGate,
-  siteFingerprint,
+  sectionRange,
   SLUG_CHARACTER,
   splitLines,
-  suggestException,
   suggestionDistance,
   toPosixPath,
   unsupportedConstructs,
-  validateExceptionEntry,
   walkFiles,
 } from "./spec-citations-gate.mjs";
 
@@ -90,32 +88,41 @@ function write(name, text) {
   return path;
 }
 
-/** The manifest key a file written by {@link write} gets. */
+/** The repository-relative key a file written by {@link write} is reported under. */
 function keyFor(name) {
   return `${toPosixPath(TEMP_DIR)}/${name}`;
 }
 
-/** Run the gate over the temp tree with an inline (already-parsed) exceptions manifest. */
-function runOverTemp(exceptions = {}) {
+/** Run the gate over the whole temp tree. */
+function runOverTemp() {
   return runSpecCitationsGate({
     roots: [TEMP_DIR],
     specDirectory: CONTRACT,
     specRoot: join(TEMP_DIR, CONTRACT),
-    exceptions,
   });
 }
 
-/** A small grammar document whose productions sit at known lines. */
+/**
+ * A small grammar document with two sibling sections, so one fixture serves both halves of the rule:
+ * a line citation names a line inside a known section (and must be rejected naming that section),
+ * and an anchor names the section itself (and must resolve).
+ */
 const GRAMMAR = [
   "# Grammar", // 1
   "", // 2
-  "```ebnf", // 3
-  'colon-place         ::= ":" name { postfix }', // 4
-  'postfix             ::= selector | "." identifier', // 5
-  'selector            ::= "[" key-term "]"', // 6
-  "```", // 7
-  "", // 8
-  "Prose after the block.", // 9
+  "## EBNF notation", // 3
+  "", // 4
+  "```ebnf", // 5
+  'colon-place         ::= ":" name { postfix }', // 6
+  'postfix             ::= selector | "." identifier', // 7
+  'selector            ::= "[" key-term "]"', // 8
+  "```", // 9
+  "", // 10
+  "## Expressions and calls", // 11
+  "", // 12
+  "comparison          ::= additive { compare-op additive }", // 13
+  "", // 14
+  "Prose after the block.", // 15
 ].join("\n");
 
 /** Write the grammar fixture and return its citable name. */
@@ -124,9 +131,11 @@ function writeGrammar() {
   return `${CONTRACT}/grammar.md`;
 }
 
-test("toPosixPath, splitLines and formatCitation render the shapes the manifest keys on", () => {
+test("toPosixPath, splitLines and formatCitation render the shapes a failure quotes back", () => {
   assert.equal(toPosixPath(join("a", "b", "c.md")), "a/b/c.md");
   assert.deepEqual(splitLines("a\r\nb\nc"), ["a\r", "b", "c"]);
+  // formatCitation survives the form's rejection because a rejection has to quote back exactly what
+  // the author wrote, or the failure names a site the author cannot find.
   assert.equal(
     formatCitation({ specDirectory: "s", file: "g.md", start: 4 }),
     "s/g.md:4",
@@ -183,7 +192,10 @@ test("expandCommaTail enumerates the form neither an anchor nor a bare reference
   ]);
 });
 
-test("collectCitations enumerates explicit citations, comma tails and bare references together", () => {
+test("collectCitations still enumerates every line form, because rejecting one means finding it", () => {
+  // Enumeration is unchanged by #1180 and must stay that way: the gate can only reject a form it can
+  // see, so a sweep that quietly stopped finding comma tails or bare references would turn the
+  // strictest possible rule into a green run over citations nobody looked at.
   const text = [
     "// see contract/grammar.md:4-6,9 and also :5 for the postfix rule",
     "// and contract/other.md then :7 belongs to that one",
@@ -202,13 +214,14 @@ test("collectCitations enumerates explicit citations, comma tails and bare refer
   );
 });
 
-test("a bare reference resolves to the document an earlier anchor gave it, not the nearest mention", () => {
-  // The real case: packages/parser/src/keywords.ts names a `:408` ruling four lines after mentioning
-  // a different document, and only the earlier full anchor says which document `:408` belongs to.
+test("a bare reference resolves to the document an earlier citation gave it, not the nearest mention", () => {
+  // The real case: packages/parser/src/keywords.ts referred back to a line-408 ruling four lines
+  // after mentioning a different document, and only the earlier full citation said which document
+  // that bare reference belonged to.
   const text = [
     "// contract/grammar.md:408 makes profile words built-in names.",
     "// Painting is contract/tooling.md:30's keyword row.",
-    "// Issue #855 aligned the rest of the spec with the :408 ruling.",
+    "// Issue #855 aligned the rest of the contract with the :408 ruling.",
   ].join("\n");
   const { citations } = collectCitations("a.ts", text, CONTRACT);
   const back = citations.find((citation) => citation.form === "back-reference");
@@ -216,7 +229,7 @@ test("a bare reference resolves to the document an earlier anchor gave it, not t
   assert.equal(back.start, 408);
 });
 
-test("a line spec two documents both anchor is ambiguous, so it falls back to context", () => {
+test("a line spec two documents both cite is ambiguous, so it falls back to context", () => {
   const text = [
     "// contract/grammar.md:12 and contract/tooling.md:12 both matter.",
     "// Later, contract/other.md says :12 again.",
@@ -251,22 +264,75 @@ test("collectCitations returns nothing for a file that names no document", () =>
   assert.deepEqual(unattributed, []);
 });
 
-test("resolveCitation names exactly how a citation fails, and accepts one that lands on text", () => {
-  const lines = ["alpha", "", "gamma"];
-  assert.equal(resolveCitation({ start: 1 }, lines), null);
-  assert.equal(resolveCitation({ start: 2, end: 3 }, lines), null);
-  assert.equal(
-    resolveCitation({ specDirectory: "s", file: "g.md", start: 1 }, null)
-      .status,
-    "missing-file",
+test("enclosingSlug names the section a line sits in, and the boundary is exact", () => {
+  // This is what a rejection tells the author to write instead, so its boundary is the difference
+  // between a useful failure and one that sends them to the wrong section.
+  const headings = documentHeadings(splitLines(GRAMMAR));
+  assert.equal(enclosingSlug(headings, 1), "grammar");
+  assert.equal(enclosingSlug(headings, 2), "grammar");
+  // The line a heading is ON belongs to that heading; the line above it to the previous one.
+  assert.equal(enclosingSlug(headings, 3), "ebnf-notation");
+  assert.equal(enclosingSlug(headings, 10), "ebnf-notation");
+  assert.equal(enclosingSlug(headings, 11), "expressions-and-calls");
+  assert.equal(enclosingSlug(headings, 15), "expressions-and-calls");
+  // A line before every heading has no enclosing section, and a heading publishing no slug cannot
+  // be suggested — both report `null` so the caller falls back to a placeholder rather than
+  // suggesting an anchor nobody can follow.
+  assert.equal(enclosingSlug(documentHeadings(["text", "more"]), 1), null);
+  assert.equal(enclosingSlug(documentHeadings(["## ![a](x.png)"]), 1), null);
+});
+
+test("sectionRange ends a section at the next heading of its own level or shallower", () => {
+  const headings = documentHeadings(splitLines(GRAMMAR));
+  // A section's EXTENT is what the quotation check measures against, so its end matters as much as
+  // its start. `depth` went missing from documentHeadings once, which made every comparison here
+  // `undefined <= undefined` and every section run silently to end-of-file — a check accepting a
+  // production quoted anywhere BELOW the cited heading while reporting that it had checked the
+  // section. Both ends are therefore pinned, and `depth` is asserted directly.
+  assert.deepEqual(
+    headings.map(({ slug, depth }) => `${slug}:${depth}`),
+    ["grammar:1", "ebnf-notation:2", "expressions-and-calls:2"],
   );
-  assert.equal(
-    resolveCitation({ start: 3, end: 2 }, lines).status,
-    "inverted-range",
+  // Asserted directly as well, because the regression was silent: `depth` going missing made every
+  // comparison below `undefined <= undefined`, which is false, so no range ever ended early.
+  assert.ok(
+    headings.every(({ depth }) => Number.isInteger(depth)),
+    "every heading must carry its level",
   );
-  assert.equal(resolveCitation({ start: 0 }, lines).status, "past-eof");
-  assert.equal(resolveCitation({ start: 9 }, lines).status, "past-eof");
-  assert.equal(resolveCitation({ start: 2 }, lines).status, "blank-region");
+  // Depth 1 spans the whole document, including both depth-2 sections beneath it.
+  assert.deepEqual(sectionRange(headings, "grammar", 15), {
+    start: 1,
+    end: 15,
+  });
+  // A depth-2 section stops at its depth-2 sibling, NOT at end-of-file.
+  assert.deepEqual(sectionRange(headings, "ebnf-notation", 15), {
+    start: 3,
+    end: 10,
+  });
+  // The last section runs to the end because nothing follows it, which is the one case where
+  // end-of-file is the right answer rather than the symptom of a missing depth.
+  assert.deepEqual(sectionRange(headings, "expressions-and-calls", 15), {
+    start: 11,
+    end: 15,
+  });
+  assert.equal(sectionRange(headings, "not-a-heading", 15), null);
+});
+
+test("a section spans its NESTED subsections, which is what a reader means by a section", () => {
+  // The other half of the rule, and the reason the comparison is `<=` rather than `<`: narrowing to
+  // the next heading of ANY level would manufacture failures for accurate quotations sitting under
+  // a sub-heading of the section cited.
+  const nested = documentHeadings([
+    "## Outer", // 1
+    "", // 2
+    "### Inner", // 3
+    "", // 4
+    "text", // 5
+    "", // 6
+    "## Sibling", // 7
+  ]);
+  assert.deepEqual(sectionRange(nested, "outer", 7), { start: 1, end: 6 });
+  assert.deepEqual(sectionRange(nested, "inner", 7), { start: 3, end: 6 });
 });
 
 test("quotationIsPresent honours an author's ellipsis without consulting anything uncited", () => {
@@ -286,62 +352,40 @@ test("quotationIsPresent honours an author's ellipsis without consulting anythin
 
 test("flattenProseRun strips comment markers so a wrapped quotation reads as one line", () => {
   const { text, offsets } = flattenProseRun([
-    { line: 7, text: " * contract/grammar.md:6's" },
+    { line: 7, text: " * contract/grammar.md#ebnf-notation's" },
     { line: 8, text: ' * `selector ::= "[" key-term "]"` production.' },
   ]);
   assert.equal(
     text,
-    'contract/grammar.md:6\'s `selector ::= "[" key-term "]"` production.',
+    'contract/grammar.md#ebnf-notation\'s `selector ::= "[" key-term "]"` production.',
   );
-  assert.deepEqual(offsets[1], { offset: 24, line: 8 });
+  assert.deepEqual(offsets[1], { offset: 36, line: 8 });
 });
 
-test("a quotation binds to the nearest mention, and a mention with no line claims nothing", () => {
-  const nearest = auditRunQuotations(
-    [
-      {
-        line: 1,
-        text: '// contract/grammar.md:4, `selector ::= "[" key-term "]"`',
-      },
-    ],
-    CONTRACT,
-  );
-  assert.equal(nearest[0].mention.start, 4);
-  assert.equal(nearest[0].line, 1);
+test("auditRunQuotations finds EBNF productions and reports the line each was written on", () => {
+  // It no longer binds a production to the nearest mention. That binding existed to pick a LINE
+  // RANGE, ranges are gone, and a value nothing reads is an instrument producing a number nobody
+  // consults — so attribution now lives in the caller, where the cited sections are known.
+  const found = auditRunQuotations([
+    { line: 7, text: " * contract/grammar.md#ebnf-notation defines" },
+    { line: 8, text: ' * `selector ::= "[" key-term "]"` and nothing else.' },
+  ]);
+  assert.deepEqual(found, [
+    { quotation: 'selector ::= "[" key-term "]"', line: 8 },
+  ]);
+  assert.deepEqual(Object.keys(found[0]).sort(), ["line", "quotation"]);
 
-  const after = auditRunQuotations(
-    [
-      {
-        line: 3,
-        text: '// `selector ::= "[" key-term "]"` (contract/grammar.md:6)',
-      },
-    ],
-    CONTRACT,
+  // A backticked span that is not a production is not a quotation, whatever sits beside it.
+  assert.deepEqual(
+    auditRunQuotations([{ line: 1, text: "// `repeat 0 [ print 1 ]` runs" }]),
+    [],
   );
-  assert.equal(after[0].mention.start, 6);
-
-  const loose = auditRunQuotations(
-    [
-      {
-        line: 1,
-        text: '// contract/grammar.md\'s `add-statement ::= "add" expression`',
-      },
-    ],
-    CONTRACT,
+  // A JSON fixture escapes the quotes inside its prose; that is the file format speaking, not the
+  // author, so it is unescaped on the citing side before comparison.
+  assert.deepEqual(
+    auditRunQuotations([{ line: 3, text: '`a ::= \\"end\\"` closes it' }]),
+    [{ quotation: 'a ::= "end"', line: 3 }],
   );
-  assert.equal(loose[0].mention, null);
-
-  const uncited = auditRunQuotations(
-    [
-      {
-        line: 1,
-        text: "// `selector ::= x` with nothing cited and `plain code` beside it",
-      },
-    ],
-    CONTRACT,
-  );
-  assert.equal(uncited.length, 1);
-  assert.equal(uncited[0].mention, null);
 });
 
 test("collectStatusClaims reports only prose claims, and only untracked ones", () => {
@@ -366,49 +410,20 @@ test("collectStatusClaims reports only prose claims, and only untracked ones", (
   assert.ok(STATUS_CLAIM_PHRASES.includes("not yet implemented"));
 });
 
-test("validateExceptionEntry rejects every way an entry could excuse something unreviewably", () => {
-  const sound = {
-    subject: "contract/grammar.md:4",
-    observed: "blank-region",
-    kind: "stale-citation",
-    issue: "#948",
-    why: "deferred",
-    fingerprint: "abc",
-  };
-  assert.deepEqual(validateExceptionEntry(sound, "a.ts", 0), []);
-  const problems = validateExceptionEntry(
-    {
-      subject: "",
-      observed: "",
-      kind: "nope",
-      issue: "948",
-      why: "  ",
-      fingerprint: "",
-    },
-    "a.ts",
-    0,
+test("nothing is excluded from the scan, and there is no mechanism to exclude anything", () => {
+  // A gate that exempts itself from the rule it enforces asserts less than it appears to. The one
+  // exclusion that ever existed was the exceptions manifest; saga #1180 deleted the manifest, which
+  // left the mechanism without a caller — an option able to narrow a gate quietly — so the mechanism
+  // went too. This is the behavioural form of that claim: the gate's own source and its own tests
+  // are in the scanned set, and no option exists that could take them out.
+  const tracked = listCitationFiles();
+  assert.ok(tracked.includes("scripts/spec-citations-gate.mjs"));
+  assert.ok(tracked.includes("scripts/spec-citations-gate.test.mjs"));
+  assert.ok(tracked.includes("scripts/spec-citation-converter.mjs"));
+  assert.deepEqual(
+    Object.keys(parseArgs(["--exclusions=x", "--exceptions=y"])).sort(),
+    ["roots", "specDirectory", "specRoot"],
   );
-  assert.equal(problems.length, 6);
-  assert.ok(problems.every((problem) => problem.startsWith("a.ts entry 0")));
-  assert.ok(Object.keys(EXCEPTION_KINDS).includes("misquoted-production"));
-});
-
-test("loadExceptions drops the manifest's own underscore-prefixed documentation", () => {
-  const path = join(TEMP_DIR, "exceptions.json");
-  writeFileSync(path, JSON.stringify({ _note: "docs", "a.ts": [] }), "utf8");
-  assert.deepEqual(loadExceptions(path), { "a.ts": [] });
-  assert.equal(loadExceptions(path)._note, undefined);
-  assert.ok(!Object.hasOwn(loadExceptions(), "_"));
-  assert.equal(
-    toPosixPath(EXCEPTIONS_PATH),
-    "scripts/spec-citations-exceptions.json",
-  );
-});
-
-test("the scan carve-out is exactly the manifest, so it cannot quietly grow", () => {
-  // A gate that exempts itself from the rule it enforces asserts less than it appears to. The
-  // manifest is the only unavoidable exclusion: every entry quotes the citation it excuses.
-  assert.deepEqual([...SCAN_EXCLUSIONS], [EXCEPTIONS_PATH]);
 });
 
 test("walkFiles sorts, descends, and skips build output and a root that is not there", () => {
@@ -435,26 +450,11 @@ test("readTextFile returns text and refuses binary or unreadable paths", () => {
   assert.equal(readTextFile(join(TEMP_DIR, "not-there.md")), null);
 });
 
-test("siteFingerprint changes when the line, subject, rationale, or tracking issue changes", () => {
-  const base = siteFingerprint("context", "subject", "why", "#1");
-  assert.equal(base.length, 16);
-  assert.equal(siteFingerprint("  context  ", "subject", "why", "#1"), base);
-  assert.notEqual(siteFingerprint("other", "subject", "why", "#1"), base);
-  assert.notEqual(siteFingerprint("context", "other", "why", "#1"), base);
-  // The point of the design: rewriting a rationale invalidates the entry, so wrong prose in the
-  // manifest cannot survive unreviewed the way a non-emptiness check would let it. The tracking
-  // issue is in for the same reason — an entry asserts who will fix this, so retargeting it at a
-  // different issue changes the assertion and must be re-triaged.
-  assert.notEqual(siteFingerprint("context", "subject", "other", "#1"), base);
-  assert.notEqual(siteFingerprint("context", "subject", "why", "#2"), base);
-});
-
 test("parseArgs reads every override and defaults the rest", () => {
   assert.deepEqual(parseArgs([]), {
     roots: undefined,
     specDirectory: undefined,
     specRoot: undefined,
-    exceptionsPath: undefined,
   });
   assert.deepEqual(
     parseArgs([
@@ -462,43 +462,49 @@ test("parseArgs reads every override and defaults the rest", () => {
       "--root=two",
       "--spec-dir=contract",
       "--spec-root=/tmp/contract",
-      "--exceptions=e.json",
       "--unrecognised",
     ]),
     {
       roots: ["one", "two"],
       specDirectory: "contract",
       specRoot: "/tmp/contract",
-      exceptionsPath: "e.json",
     },
   );
 });
 
-test("a tree of correct citations passes, and the report states what it does not cover", () => {
+// --- The rule: a citation that names a line is REJECTED (saga #1180) ---------------------------
+
+test("a tree of anchor citations passes, and the report states what it does not cover", () => {
   writeGrammar();
   write(
     "ok.ts",
-    '// contract/grammar.md:6\'s `selector ::= "[" key-term "]"` is the form.\n',
+    '// contract/grammar.md#ebnf-notation\'s `selector ::= "[" key-term "]"` is the form.\n',
   );
-  write("plain.md", "This mentions contract/ but cites no line.\n");
+  write("plain.md", "This mentions contract/ but cites nothing.\n");
   writeFileSync(join(TEMP_DIR, "blob.bin"), Buffer.from([0x00]));
   const result = runOverTemp();
   assert.equal(result.ok, true);
   assert.equal(result.counts.failed, 0);
   assert.equal(result.counts.quotations, 1);
   const summary = result.lines.join("\n");
+  // The headline claim, and the qualification it must always carry.
+  assert.match(summary, /This gate REJECTS every citation that names a line/);
+  assert.match(
+    summary,
+    /no exception manifest, no baseline and no\s+grandfathering/,
+  );
+  assert.match(
+    summary,
+    /rejection above is exhaustive only over the forms this gate enumerates/,
+  );
   assert.match(summary, /does NOT prove the section supports the claim/);
   assert.match(summary, /wrong-passage and misstating-prose modes/);
-  // The blind-spot sentence this replaced claimed anchors "pass unseen". Issue #1181 resolves them,
-  // so the statement must no longer say they are unchecked — a coverage statement that understates
-  // the gate is as wrong as one that overstates it.
   assert.match(summary, /names a heading that exists in the file it cites/);
   assert.doesNotMatch(summary, /passes unseen/);
   assert.doesNotMatch(summary, /not checked either/);
-  // The canary's own limit is printed, not just commented: a green run must not read as a complete
-  // block-structure check when it is knowingly incomplete for nested documents. Since ADR-0035 the
-  // parser supplies block structure and rendered text, so the statement names what it now rests on
-  // rather than claiming an incompleteness that no longer exists.
+  // The canary's own limit is printed, not just commented. Since ADR-0035 the parser supplies block
+  // structure and rendered text, so the statement names what it rests on rather than claiming an
+  // incompleteness that no longer exists.
   assert.match(
     summary,
     /Headings come from a GFM parse and slugs from github-slugger/,
@@ -514,192 +520,186 @@ test("a tree of correct citations passes, and the report states what it does not
     summary,
     /fails loudly only when the rename leaves its slug unclaimed/,
   );
-  // And it must name ALL FOUR surviving refusals, not just the one. The statement used to say only
-  // the emoji shortcode was refused while the code also refused entities and raw inline HTML — a
-  // coverage statement that under-reports what the gate declines to answer is exactly the kind of
-  // unenforced assertion this gate exists to stop.
-  assert.match(summary, /a GFM\s+parse and slugs from github-slugger/);
+  // And it must name ALL FOUR surviving refusals, not just the one. A coverage statement that
+  // under-reports what the gate declines to answer is exactly the kind of unenforced assertion this
+  // gate exists to stop.
   assert.match(
     summary,
     /an\s+entity reference outside the escaping set, raw inline HTML, an emoji shortcode shape, or a\s+numeric reference whose digit count CommonMark and GitHub's renderer disagree about/,
   );
   // And it must not claim those refusals are exact. Two of the four key on SHAPE, so a heading
   // GitHub would publish literally is refused as well — erring toward refusing loudly rather than
-  // inventing a slug. A statement that reads as "only genuine divergences are refused" overclaims.
+  // inventing a slug.
   assert.match(
     summary,
     /recognised by shape, so a construct GitHub would publish literally is\s+refused too/,
   );
+  // The status-claim SCOPE is printed too. It is the one carve-out-shaped thing that survives, so a
+  // run that did not say so would be quietly narrower than it reads.
+  assert.match(
+    summary,
+    new RegExp(`does NOT apply under ${STATUS_CLAIM_EXEMPT_PREFIX}`),
+  );
 });
 
-test("an unresolvable citation fails, naming the citing site, and suggests a manifest entry", () => {
+test("an explicit line citation is REJECTED, and the failure names the enclosing heading", () => {
   writeGrammar();
   write(
     "bad.ts",
-    "// contract/grammar.md:8 is the blank line inside the document.\n",
+    "// contract/grammar.md:8 is where the selector production sits.\n",
   );
   const result = runOverTemp();
   assert.equal(result.ok, false);
   const report = result.lines.join("\n");
-  assert.match(report, /bad\.ts:1: contract\/grammar\.md:8 does not resolve/);
-  assert.match(report, /hold no text/);
-  assert.match(report, /add to .*spec-citations-exceptions\.json/);
-});
-
-test("an exception excuses a finding, prints UNRESOLVED, and is counted", () => {
-  writeGrammar();
-  const context =
-    "// contract/grammar.md:8 is the blank line inside the document.";
-  write("bad.ts", `${context}\n`);
-  const why = "Deferred to the corpus sweep.";
-  const result = runOverTemp({
-    [keyFor("bad.ts")]: [
-      {
-        subject: "contract/grammar.md:8",
-        observed: "blank-region",
-        kind: "stale-citation",
-        issue: "#948",
-        why,
-        fingerprint: siteFingerprint(
-          context,
-          "contract/grammar.md:8",
-          why,
-          "#948",
-        ),
-      },
-    ],
-  });
-  assert.equal(result.ok, true);
-  assert.equal(result.counts.excused, 1);
-  const report = result.lines.join("\n");
-  assert.match(report, /UNRESOLVED .*#948.*Deferred to the corpus sweep/s);
-  assert.match(report, /expected to fall to zero/);
-});
-
-test("an exception whose rationale was rewritten goes stale and reports the fingerprint it needs", () => {
-  writeGrammar();
-  const context =
-    "// contract/grammar.md:8 is the blank line inside the document.";
-  write("bad.ts", `${context}\n`);
-  const result = runOverTemp({
-    [keyFor("bad.ts")]: [
-      {
-        subject: "contract/grammar.md:8",
-        observed: "blank-region",
-        kind: "stale-citation",
-        issue: "#948",
-        why: "a rewritten rationale nobody re-reviewed",
-        fingerprint: siteFingerprint(
-          context,
-          "contract/grammar.md:8",
-          "the original rationale",
-          "#948",
-        ),
-      },
-    ],
-  });
-  assert.equal(result.ok, false);
-  const report = result.lines.join("\n");
-  assert.match(report, /no longer\s+matches/);
+  assert.match(report, /bad\.ts:1: contract\/grammar\.md:8 names a LINE/);
+  // The remedy is not generic advice: line 8 is inside the EBNF notation section, and that is the
+  // anchor the author is told to write. A message naming `#a-heading` here would be useless exactly
+  // when the gate has the answer.
   assert.match(
     report,
-    new RegExp(
-      siteFingerprint(
-        context,
-        "contract/grammar.md:8",
-        "a rewritten rationale nobody re-reviewed",
-        "#948",
-      ),
-    ),
+    /Cite the section instead — contract\/grammar\.md#ebnf-notation \(ADR-0034\)/,
+  );
+  assert.match(
+    report,
+    /A heading does not move when text is inserted above it/,
+  );
+  assert.equal(result.counts.citations, 1);
+  assert.equal(result.counts.explicit, 1);
+  // Resolution is not consulted at all any more: line 8 holds real text and is still rejected.
+  assert.doesNotMatch(report, /does not resolve/);
+});
+
+test("the enclosing heading a rejection names tracks the line, section by section", () => {
+  writeGrammar();
+  for (const [line, section] of [
+    [1, "grammar"],
+    [8, "ebnf-notation"],
+    [13, "expressions-and-calls"],
+  ]) {
+    write("bad.ts", `// contract/grammar.md:${line} is cited here.\n`);
+    assert.match(
+      runOverTemp().lines.join("\n"),
+      new RegExp(`Cite the section instead — contract/grammar\\.md#${section}`),
+      `line ${line} belongs to #${section}`,
+    );
+  }
+});
+
+test("a rejection falls back to a placeholder when no heading can be named", () => {
+  writeGrammar();
+  // The document does not exist, so it publishes no headings and there is nothing to suggest.
+  write(
+    "gone.ts",
+    "// contract/absent.md:3 names a document nothing provides.\n",
+  );
+  assert.match(
+    runOverTemp().lines.join("\n"),
+    /Cite the section instead — contract\/absent\.md#a-heading/,
+  );
+  // And a line above every heading in a document that does exist.
+  write(
+    `${CONTRACT}/preamble.md`,
+    ["text before any heading", "", "# Later"].join("\n"),
+  );
+  write("gone.ts", "// contract/preamble.md:1 is above every heading.\n");
+  assert.match(
+    runOverTemp().lines.join("\n"),
+    /Cite the section instead — contract\/preamble\.md#a-heading/,
   );
 });
 
-test("an exception that mislabels, misdeclares, or misfiles what it excuses fails rather than excusing it", () => {
+test("every line form is rejected and counted on its own counter — none is quietly tolerated", () => {
+  // The four forms the coverage statement claims to reject, in one tree, so the claim is measured
+  // rather than asserted. An enumeration that stopped seeing one of them would turn the strictest
+  // possible rule into a green run.
   writeGrammar();
-  const context =
-    "// contract/grammar.md:8 is the blank line inside the document.";
-  write("bad.ts", `${context}\n`);
-  const entry = (overrides) => ({
-    subject: "contract/grammar.md:8",
-    observed: "blank-region",
-    kind: "stale-citation",
-    issue: "#948",
-    why: "w",
-    ...overrides,
-  });
-  const mislabelled = entry({ subject: "contract/grammar.md:99" });
-  mislabelled.fingerprint = siteFingerprint(
-    context,
-    "contract/grammar.md:8",
-    "w",
-    "#948",
-  );
-  assert.match(
-    runOverTemp({ [keyFor("bad.ts")]: [mislabelled] }).lines.join("\n"),
-    /is labelled "contract\/grammar\.md:99"/,
-  );
-
-  const misdeclared = entry({ observed: "past-eof" });
-  misdeclared.fingerprint = siteFingerprint(
-    context,
-    "contract/grammar.md:8",
-    "w",
-    "#948",
-  );
-  assert.match(
-    runOverTemp({ [keyFor("bad.ts")]: [misdeclared] }).lines.join("\n"),
-    /declares "past-eof"/,
-  );
-
-  // `kind` is checked at match time rather than hashed, so an entry authored with the wrong defect
-  // family from the start is caught too — not only one edited afterwards. Both reviewers of this
-  // slice independently got this mutation past an earlier build.
-  const misfiled = entry({ kind: "untracked-status-claim" });
-  misfiled.fingerprint = siteFingerprint(
-    context,
-    "contract/grammar.md:8",
-    "w",
-    "#948",
-  );
-  assert.match(
-    runOverTemp({ [keyFor("bad.ts")]: [misfiled] }).lines.join("\n"),
-    /is filed as "untracked-status-claim" \(a status-claim defect\) but this is a resolution one/,
-  );
-});
-
-test("a malformed entry fails the gate instead of silently disabling a check", () => {
-  writeGrammar();
-  write("ok.ts", "// contract/grammar.md:6 is fine.\n");
-  const result = runOverTemp({ [keyFor("ok.ts")]: [{ why: "" }] });
+  write("explicit.ts", "// contract/grammar.md:6 is explicit.\n");
+  write("tail.ts", "// contract/grammar.md:6,8 appends a tail.\n");
+  write("bare.ts", "// contract/grammar.md:6 then later just :8 on its own.\n");
+  write("fragment.md", "See contract/grammar.md#L6 for the line.\n");
+  const result = runOverTemp();
   assert.equal(result.ok, false);
-  assert.match(result.lines.join("\n"), /missing "fingerprint"/);
+  assert.equal(result.counts.explicit, 3);
+  assert.equal(result.counts.tails, 1);
+  assert.equal(result.counts.bare, 1);
+  assert.equal(result.counts.citations, 5);
+  assert.equal(result.counts.lineFragments, 1);
+  assert.equal(result.counts.failed, 6);
+  assert.equal(result.counts.sectionAnchors, 0);
+  assert.equal(
+    result.findings.filter((finding) => finding.observed === "line-form")
+      .length,
+    5,
+  );
+  assert.equal(
+    result.findings.filter((finding) => finding.observed === "line-fragment")
+      .length,
+    1,
+  );
 });
 
-test("an exception that matches nothing is stale and must be deleted, never re-fingerprinted", () => {
+test("a #L line fragment is rejected on sight, not resolved against the file's length", () => {
+  // It used to be resolved like any other line claim, so `#L6` passed while `#L9999` failed. Under
+  // the anchor-only rule whether the lines still hold text is beside the point: naming lines at all
+  // is the defect, so both fail and both fail the same way.
   writeGrammar();
-  write("ok.ts", "// contract/grammar.md:6 is fine.\n");
-  const result = runOverTemp({
-    [keyFor("ok.ts")]: [
-      {
-        subject: "contract/grammar.md:8",
-        observed: "blank-region",
-        kind: "stale-citation",
-        issue: "#948",
-        why: "w",
-        fingerprint: "0000000000000000",
-      },
-    ],
-  });
-  assert.equal(result.ok, false);
-  assert.match(
-    result.lines.join("\n"),
-    /stale exception .* must shrink this manifest/,
+  write(
+    "bad.md",
+    `See ${CONTRACT}/grammar.md#L6 and ${CONTRACT}/grammar.md#L3-L9.\n`,
   );
+  const result = runOverTemp();
+  assert.equal(result.ok, false);
+  const report = result.lines.join("\n");
+  assert.match(report, /contract\/grammar\.md#L6 names LINES, not a section/);
+  assert.match(
+    report,
+    /contract\/grammar\.md#L3-L9 names LINES, not a section/,
+  );
+  assert.match(
+    report,
+    /GitHub's line fragment drifts exactly as a line number does/,
+  );
+  assert.match(
+    report,
+    /Cite the heading that encloses those lines: contract\/grammar\.md#a-heading \(ADR-0034\)/,
+  );
+  assert.equal(result.counts.lineFragments, 2);
+  assert.equal(result.counts.sectionAnchors, 0);
+  // A fragment naming lines past end-of-file is the same defect, reported the same way — the old
+  // "conformance.md has 11 line(s)" wording would be an answer to a question no longer asked.
+  write("bad.md", `See ${CONTRACT}/grammar.md#L9999.\n`);
+  assert.doesNotMatch(runOverTemp().lines.join("\n"), /line\(s\)/);
+});
+
+test("uppercase L is what separates a line fragment from a heading, and it is decidable", () => {
+  // A heading slug is lowercased by construction, so it can never begin with an uppercase `L`
+  // followed by digits. That is the whole separability argument, and here is the case that would
+  // break if it were ever weakened: a document whose heading really is "L9".
+  write(`${CONTRACT}/liney.md`, ["## L9", "", "text"].join("\n"));
+  assert.deepEqual(
+    documentHeadings(["## L9"]).map(({ slug }) => slug),
+    ["l9"],
+  );
+  write("ok.md", `The heading is ${CONTRACT}/liney.md#l9.\n`);
+  const passing = runOverTemp();
+  assert.equal(passing.ok, true);
+  assert.equal(passing.counts.sectionAnchors, 1);
+  assert.equal(passing.counts.lineFragments, 0);
+
+  write("ok.md", `The line is ${CONTRACT}/liney.md#L9.\n`);
+  const failing = runOverTemp();
+  assert.equal(failing.ok, false);
+  assert.match(failing.lines.join("\n"), /names LINES, not a section/);
+  assert.equal(failing.counts.sectionAnchors, 0);
+  assert.equal(failing.counts.lineFragments, 1);
 });
 
 test("a bare reference nothing attributes fails, asking for the full citation", () => {
   writeGrammar();
-  write("loose.ts", "// :77 comes first\n// then contract/grammar.md:4\n");
+  write(
+    "loose.ts",
+    "// :77 comes first\n// then contract/grammar.md#ebnf-notation\n",
+  );
   const result = runOverTemp();
   assert.equal(result.ok, false);
   assert.match(
@@ -719,70 +719,30 @@ test("an untracked forward-looking claim fails; naming its issue is enough", () 
   assert.equal(runOverTemp().ok, true);
 });
 
-test("the exclusion list is honoured, so the manifest itself is never scanned as a citing file", () => {
-  writeGrammar();
-  write("excused.ts", "// contract/grammar.md:8 is blank.\n");
-  const result = runSpecCitationsGate({
-    roots: [TEMP_DIR],
-    specDirectory: CONTRACT,
-    specRoot: join(TEMP_DIR, CONTRACT),
-    exclusions: [join(TEMP_DIR, "excused.ts")],
-    exceptions: {},
-  });
-  assert.equal(result.ok, true);
-});
-
-test("exceptions load from disk when none are passed in", () => {
-  writeGrammar();
-  write("ok.ts", "// contract/grammar.md:6 is fine.\n");
-  const exceptionsPath = join(TEMP_DIR, "exceptions.json");
-  writeFileSync(exceptionsPath, JSON.stringify({ _note: "docs" }), "utf8");
-  const result = runSpecCitationsGate({
-    roots: [TEMP_DIR],
-    specDirectory: CONTRACT,
-    specRoot: join(TEMP_DIR, CONTRACT),
-    exceptionsPath,
-  });
-  assert.equal(result.ok, true);
-});
-
-test("suggestException produces a pasteable skeleton whose TODO invalidates its own fingerprint", () => {
-  const line = suggestException(
-    {
-      file: "a.ts",
-      context: "// ctx",
-      subject: "contract/grammar.md:8",
-      observed: "blank-region",
-      kind: "stale-citation",
-    },
-    EXCEPTIONS_PATH,
-  );
-  const entry = JSON.parse(line.slice(line.indexOf("{")));
-  assert.equal(entry.issue, "#000");
-  assert.match(entry.why, /^TODO/);
-  assert.equal(
-    entry.fingerprint,
-    siteFingerprint("// ctx", "contract/grammar.md:8", entry.why, entry.issue),
-  );
-});
-
-test("a quoted OpenLogo snippet beside a correct citation is NOT treated as a quotation", () => {
+test("a quoted OpenLogo snippet beside a correct anchor is NOT treated as a quotation", () => {
   // The rule this pins, verified against the real tree: tests/conformance/.../repeat-zero-times
   // correctly cites the `repeat` entry AND contains the span `repeat 0 [ print 1 ]`, which is
   // OpenLogo source the author wrote to illustrate the rule — it appears nowhere in the contract and
-  // never should. A naive "every backticked span must appear in the cited range" would fail that
-  // freshly-corrected, correct citation, and because this gate forbids tolerance the false positive
-  // would be fatal rather than noisy. Only an EBNF production (`::=`) is checkable, because `::=` is
-  // not OpenLogo syntax and so cannot be an illustration the author invented.
+  // never should. A naive "every backticked span must appear in the cited section" would fail that
+  // correct citation, and because this gate forbids tolerance the false positive would be fatal
+  // rather than noisy. Only an EBNF production (`::=`) is checkable, because `::=` is not OpenLogo
+  // syntax and so cannot be an illustration the author invented.
   write(
     `${CONTRACT}/commands.md`,
-    ["# Commands", "", "`repeat 0` runs the body zero times.", ""].join("\n"),
+    [
+      "# Commands",
+      "",
+      "## Repeat",
+      "",
+      "`repeat 0` runs the body zero times.",
+      "",
+    ].join("\n"),
   );
   write(
     "repeat-zero-times.expected.json",
     JSON.stringify({
       description:
-        "`repeat 0 [ print 1 ]` runs the body zero times (contract/commands.md:3).",
+        "`repeat 0 [ print 1 ]` runs the body zero times (contract/commands.md#repeat).",
     }),
   );
   const result = runOverTemp();
@@ -790,55 +750,205 @@ test("a quoted OpenLogo snippet beside a correct citation is NOT treated as a qu
   assert.equal(result.counts.quotations, 0);
 });
 
-test("a comma-appended tail is part of the range a quotation is checked against", () => {
+test("a quotation is checked against EVERY section its run cites, not one of them", () => {
+  // A run routinely cites several sections, and binding a quotation to a single arbitrary one
+  // manufactures failures for accurate quotations — which is what a first cut of this did across the
+  // design notes. So the production need only be inside one of the sections the run names.
   writeGrammar();
   write(
-    "tail.ts",
-    '// contract/grammar.md:4,6 gives `selector ::= "[" key-term "]"`.\n',
+    "many.ts",
+    [
+      "// contract/grammar.md#expressions-and-calls and contract/grammar.md#ebnf-notation",
+      '// together define `selector ::= "[" key-term "]"`.',
+    ].join("\n"),
+  );
+  const result = runOverTemp();
+  assert.equal(result.ok, true);
+  assert.equal(result.counts.quotations, 1);
+});
+
+test("a production quoted beside a section that does not contain it FAILS", () => {
+  // This is the re-pointed quotation check doing the job it was re-pointed for. With no line ranges
+  // left it had no input at all, and a check with no input reports success while measuring nothing —
+  // the defect this saga has caught repeatedly. It now measures against the SECTION an anchor names.
+  writeGrammar();
+  write(
+    "wrong.ts",
+    '// contract/grammar.md#expressions-and-calls gives `selector ::= "[" key-term "]"`.\n',
+  );
+  const result = runOverTemp();
+  assert.equal(result.ok, false);
+  const report = result.lines.join("\n");
+  assert.match(
+    report,
+    /the production `selector ::= "\[" key-term "\]"` is quoted here but is not in contract\/grammar\.md#expressions-and-calls/,
+  );
+  assert.match(
+    report,
+    /the anchor resolves and still points at the wrong section/,
+  );
+});
+
+test("a section spans its subsections, so quoting from one is inside the parent", () => {
+  writeGrammar();
+  write(
+    "parent.ts",
+    '// contract/grammar.md#grammar contains `selector ::= "[" key-term "]"`.\n',
   );
   assert.equal(runOverTemp().ok, true);
 });
 
-test("a quotation beside a citation that already failed to resolve is not reported twice", () => {
+test("a quotation beside an anchor that already failed to resolve is not reported twice", () => {
   writeGrammar();
   write(
     "both.ts",
-    '// contract/grammar.md:8 has `selector ::= "[" key-term "]"`.\n',
+    '// contract/grammar.md#nope has `selector ::= "[" key-term "]"`.\n',
   );
   const result = runOverTemp();
   assert.equal(result.counts.failed, 1);
   assert.match(result.lines.join("\n"), /does not resolve/);
 });
 
-test("a citation naming a document that does not exist fails, and says so", () => {
-  writeGrammar();
-  write(
-    "gone.ts",
-    "// contract/absent.md:3 names a document nothing provides.\n",
-  );
-  const result = runOverTemp();
-  assert.equal(result.ok, false);
-  assert.match(result.lines.join("\n"), /contract\/absent\.md does not exist/);
-});
-
 test("without a specRoot override the gate reads the real specification directory", () => {
   // The production configuration: the token citations carry IS the directory they are read from.
   // Built from SPEC_DIRECTORY rather than written out, so this file — which the gate scans in CI —
-  // carries no literal citation of its own.
+  // carries no real citation of its own.
   write(
-    "real.ts",
-    `// ${SPEC_DIRECTORY}/grammar.md:1 is that document's first line.\n`,
+    "real.md",
+    `The profile is ${SPEC_DIRECTORY}/conformance.md#heritage.\n`,
   );
   const result = runSpecCitationsGate({
     roots: [TEMP_DIR],
     specDirectory: SPEC_DIRECTORY,
-    exceptions: {},
   });
   assert.equal(result.ok, true);
-  assert.equal(result.counts.citations, 1);
+  assert.equal(result.counts.sectionAnchors, 1);
 });
 
-// --- Section anchors (issue #1181) ---------------------------------------------------------------
+// --- Scoping: a narrowed run must not check less than it reports (item 5) ------------------------
+
+test("a ROOTED run still rejects a line citation inside its scope", () => {
+  // The standing question for every check in this saga: does this instrument still measure what it
+  // says when invoked unusually? The superseded ratchet had `--root=.` scan the whole repository,
+  // exit 0, and print a number compared against nothing. The shape — an option that quietly narrows
+  // what a gate checks while its report still reads as authoritative — is what matters, and this
+  // gate has the same option surface. So the rule is exercised THROUGH the option rather than
+  // assumed to survive it.
+  writeGrammar();
+  write("nested/deep/bad.ts", "// contract/grammar.md:8 is cited here.\n");
+  const scoped = runSpecCitationsGate({
+    roots: [join(TEMP_DIR, "nested", "deep")],
+    specDirectory: CONTRACT,
+    specRoot: join(TEMP_DIR, CONTRACT),
+  });
+  assert.equal(
+    scoped.ok,
+    false,
+    "a rooted run must still reject a line citation",
+  );
+  assert.equal(scoped.counts.citations, 1);
+  assert.match(
+    scoped.lines.join("\n"),
+    /Cite the section instead — contract\/grammar\.md#ebnf-notation/,
+  );
+});
+
+test("a scoped run SAYS it is scoped, so its numbers cannot read as the repository's result", () => {
+  writeGrammar();
+  write("ok.ts", "// contract/grammar.md#ebnf-notation is cited here.\n");
+  const scoped = runOverTemp();
+  assert.equal(scoped.ok, true);
+  const banner = scoped.lines.find((line) => line.includes("SCOPED RUN"));
+  assert.ok(banner !== undefined, "a run given overrides must announce them");
+  assert.match(banner, /did NOT scan the tracked set/);
+  assert.match(banner, /are not this repository's Definition-of-Done result/);
+  // Every override actually in effect is named, so the banner describes this run rather than
+  // restating a fixed sentence.
+  assert.match(banner, /roots=\[/);
+  assert.match(banner, new RegExp(`spec-dir=${CONTRACT}`));
+  assert.match(banner, /spec-root=/);
+  // And it repeats that the RULE is not what narrowed.
+  assert.match(
+    banner,
+    /a citation naming a line fails inside a scope exactly as it does outside/,
+  );
+});
+
+test("the default run is the authoritative one, and carries no scope banner", () => {
+  // The other half of the claim: the banner must be absent exactly when the gate did scan the
+  // tracked set, or it becomes noise nobody reads and stops distinguishing anything.
+  const authoritative = runSpecCitationsGate();
+  assert.ok(
+    !authoritative.lines.some((line) => line.includes("SCOPED RUN")),
+    "an unscoped run must not claim to be scoped",
+  );
+  assert.match(authoritative.lines[0], /^spec citations: /);
+  // A spec-dir override alone is enough to scope a run — it is the narrowing with no filesystem
+  // trace, and the easiest to invoke by accident.
+  const narrowed = runSpecCitationsGate({ specDirectory: "no-such-directory" });
+  assert.equal(narrowed.counts.files, 0);
+  assert.equal(narrowed.ok, true);
+  const banner = narrowed.lines.find((line) => line.includes("SCOPED RUN"));
+  assert.ok(
+    banner !== undefined,
+    "a green run that looked at nothing must say what it looked at",
+  );
+  assert.match(banner, /spec-dir=no-such-directory/);
+});
+
+test("a scope narrows what is LOOKED AT, and the summary reports that scope honestly", () => {
+  writeGrammar();
+  write("inside/bad.ts", "// contract/grammar.md:8 is cited here.\n");
+  write(
+    "outside/also-bad.ts",
+    "// contract/grammar.md:13 is cited here too.\n",
+  );
+  const whole = runOverTemp();
+  assert.equal(whole.counts.citations, 2);
+  const half = runSpecCitationsGate({
+    roots: [join(TEMP_DIR, "inside")],
+    specDirectory: CONTRACT,
+    specRoot: join(TEMP_DIR, CONTRACT),
+  });
+  // The narrowed run finds one, says it scanned one citing file, and fails on it. What it must never
+  // do is report the smaller number as though it had looked at everything.
+  assert.equal(half.counts.citations, 1);
+  assert.equal(half.counts.files, 1);
+  assert.equal(half.ok, false);
+  const summary = half.lines.find((line) => line.startsWith("spec citations:"));
+  assert.match(
+    summary,
+    /1 line-form citation\(s\) REJECTED across 1 citing file\(s\)/,
+  );
+  assert.ok(half.lines.some((line) => line.includes("SCOPED RUN")));
+});
+
+test("the ADR status-claim scope is repository-relative, so a rooted run is never more permissive", () => {
+  // An honest asymmetry, pinned rather than discovered later. STATUS_CLAIM_EXEMPT_PREFIX is matched
+  // against a repository-relative path, so a root outside the repository never matches it: the same
+  // ADR text is exempt under the tracked-set run and reported under a rooted one. That direction is
+  // safe — a scope can make this gate stricter, never laxer — and saying so is the point.
+  write(
+    `${STATUS_CLAIM_EXEMPT_PREFIX}0001-example.md`,
+    "A later slice will do it.\n",
+  );
+  const rooted = runOverTemp();
+  assert.equal(
+    rooted.ok,
+    false,
+    "a rooted scan does not honour the repo-relative scope",
+  );
+  assert.match(rooted.lines.join("\n"), /names\s+no tracking issue/);
+  // The tracked-set run is where the scope applies, and the live corpus proves it: docs/adr holds
+  // forward-looking phrases and the authoritative run is green on them. Asserted as an empty
+  // findings list rather than a filtered count, because a predicate over an empty array is a test
+  // that cannot fail — the vacuous-pass shape this saga keeps finding.
+  const authoritative = runSpecCitationsGate();
+  assert.deepEqual(authoritative.findings, []);
+  assert.equal(authoritative.ok, true);
+});
+
+// --- Section anchors, headings and slugs (issue #1181, ADR-0035) --------------------------------
 
 test("the hand-verified literals now cross-check TWO independent implementations", () => {
   // These were verified by hand against github-slugger's published removal class during rounds 1-8,
@@ -1095,14 +1205,13 @@ test("duplicate slugs are numbered positionally, by github-slugger's own occupan
   ]);
 });
 
-test("the duplicate-slug rule is exercised by the LIVE spec, not only by fixtures", () => {
+test("the duplicate-slug rule is exercised by the LIVE corpus, not only by fixtures", () => {
   // The commands document's operator headings are punctuation only, so they all slug to the empty
   // string and are reachable at positional suffixes alone. This is why the module note says the
   // anchor form cannot express a stable citation for that block.
   //
   // The document is named through SPEC_DIRECTORY rather than written out, for the reason this
-  // file's header gives: a literal mention here is a real one, and it would switch on bare-reference
-  // attribution for every `:N` written in a comment below it.
+  // file's header gives: a literal mention here would be a real one.
   const headings = documentHeadings(
     splitLines(readFileSync(join(SPEC_DIRECTORY, "commands.md"), "utf8")),
   );
@@ -1117,6 +1226,7 @@ test("the duplicate-slug rule is exercised by the LIVE spec, not only by fixture
     "positional suffixes must run consecutively from -1",
   );
 });
+
 test("editDistance and closestHeadingSlug find the nearest heading, or none at all", () => {
   assert.equal(editDistance("", "abc"), 3);
   assert.equal(editDistance("abc", ""), 3);
@@ -1216,7 +1326,7 @@ test("a fragment truncated by a character no slug can hold is malformed, not a v
   for (const suffix of ["", ": prose", ". Prose", "`)", " and", '"']) {
     assert.equal(malformedFor(suffix), false, `${suffix} must be accepted`);
   }
-  // #1180 converts thousands of line citations to anchors, and prose emphasises citations. A bolded
+  // #1180 converted thousands of line citations to anchors, and prose emphasises citations. A bolded
   // anchor is correct writing and must not read as a defect.
   for (const suffix of ["**", "*", "~~", "…", " — dash"]) {
     assert.equal(malformedFor(suffix), false, `${suffix} must be accepted`);
@@ -1474,8 +1584,8 @@ test("the canary is now four constructs, because the parser obsoleted the rest",
   }
 });
 
-test("the LIVE spec is clean for the canary, and the canary still reports when it should", () => {
-  // Kept measured rather than asserted. If a spec edit ever introduces a heading the reader refuses,
+test("the LIVE corpus is clean for the canary, and the canary still reports when it should", () => {
+  // Kept measured rather than asserted. If an edit ever introduces a heading the reader refuses,
   // this fails here and the gate fails in CI.
   const scan = (name, lines) =>
     unsupportedConstructs(lines).map(
@@ -1501,9 +1611,8 @@ test("the LIVE spec is clean for the canary, and the canary still reports when i
 
 test("the LIVE execution-model document parses, which is what the parser had to buy", () => {
   // The acceptance test for the whole decision. Its fenced blocks sit on list-item continuation
-  // lines — the shape that defeated the flat reader in both directions — and roughly forty live
-  // anchors point into it. The document is named through SPEC_DIRECTORY so this comment carries no
-  // real citation.
+  // lines — the shape that defeated the flat reader in both directions — and many live anchors point
+  // into it. The document is named through SPEC_DIRECTORY so this comment carries no real citation.
   const headings = documentHeadings(
     splitLines(
       readFileSync(join(SPEC_DIRECTORY, "execution-model.md"), "utf8"),
@@ -1530,11 +1639,10 @@ test("the LIVE execution-model document parses, which is what the parser had to 
 test("a duplicate slug is positional, so a citation can silently RETARGET — both directions", () => {
   // The bound relayed from #1182: resolution proves some heading claims the slug, never that the
   // section the citation meant still claims it. This is inherent to SLUGS, not to any reader, so
-  // replacing the hand-rolled reader with a parser did not touch it — which is why these assertions
-  // read exactly as they did before ADR-0035.
+  // replacing the hand-rolled reader with a parser did not touch it.
   const slugsOf = (lines) => documentHeadings(lines).map(({ slug }) => slug);
-  const headingFor = (lines, slug) =>
-    documentHeadings(lines).findIndex((entry) => entry.slug === slug);
+  const headingFor = (lines, wanted) =>
+    documentHeadings(lines).findIndex((entry) => entry.slug === wanted);
 
   // DEMOTION — a colliding heading inserted AHEAD of the cited one takes the bare slug.
   assert.equal(headingFor(["## Alpha", "", "## Notes"], "notes"), 1);
@@ -1542,8 +1650,8 @@ test("a duplicate slug is positional, so a citation can silently RETARGET — bo
   assert.equal(headingFor(afterInsert, "notes"), 1);
   assert.equal(headingFor(afterInsert, "notes-1"), 2);
 
-  // PROMOTION — the one that will actually happen in spec/: an earlier duplicate is renamed, and the
-  // later one inherits the slug it vacated. `#notes` still resolves, to a different section.
+  // PROMOTION — the one that will actually happen: an earlier duplicate is renamed, and the later
+  // one inherits the slug it vacated. `#notes` still resolves, to a different section.
   const twoNotes = ["## Notes", "", "## Notes"];
   assert.deepEqual(slugsOf(twoNotes), ["notes", "notes-1"]);
   const renamedFirst = ["## Notes on scope", "", "## Notes"];
@@ -1570,6 +1678,7 @@ test("a duplicate slug is positional, so a citation can silently RETARGET — bo
     "the citation now names a different section and the gate cannot tell",
   );
 });
+
 test("an anchor into a document the canary refuses fails rather than being answered", () => {
   // An HTML comment no longer refuses anything — the parser reads it correctly, so `#ghost` is a
   // real heading now. Four refusals survive, and each must refuse END TO END, not merely in
@@ -1601,11 +1710,14 @@ test("an anchor into a document the canary refuses fails rather than being answe
     assert.equal(result.ok, false, name);
     const report = result.lines.join("\n");
     assert.match(report, pattern);
-    // The remedies a maintainer can actually apply are named.
+    // The remedy a maintainer can actually apply is named — and it is the ONLY one. The message
+    // used to offer "or cite this document by line instead", which is advice the gate itself now
+    // rejects: an author who followed it produced a citation the rule forbids.
     assert.match(
       report,
-      /Remove the construct, or cite this document by line instead/,
+      /Remove the construct from the heading; there is no second option/,
     );
+    assert.doesNotMatch(report, /cite this document by line/);
     // Once per document, not once per anchor: two anchors, one report. Counted over the canary
     // sentence rather than the bare construct, because the coverage statement names the refusals too
     // — matching the construct alone would count the statement and pass for the wrong reason.
@@ -1665,7 +1777,7 @@ test("collectCitations returns section anchors beside citations, from one pass",
       `2:${CONTRACT}/conformance.md#sprites`,
     ],
   );
-  // The line form is untouched: an explicit line mention still yields exactly the citations it did.
+  // The line form is still ENUMERATED — it has to be, or it could not be rejected.
   assert.deepEqual(
     citations.map(
       (citation) => `${citation.file}:${citation.start}:${citation.form}`,
@@ -1702,8 +1814,7 @@ test("an anchor naming a real heading passes and is counted on its own counter",
   const result = runOverTemp();
   assert.equal(result.ok, true);
   assert.equal(result.counts.sectionAnchors, 2);
-  // `explicit` is the line form and must not move; a file carrying only an anchor still counts as a
-  // citing file, which it did not before — nothing else in the tally changes.
+  // The line-form counters stay at zero, which is the whole point of the sweep.
   assert.equal(result.counts.citations, 0);
   assert.equal(result.counts.explicit, 0);
   assert.equal(result.counts.files, 2);
@@ -1727,7 +1838,9 @@ test("an anchor naming a heading that does not exist FAILS, naming file, anchor 
     /bad\.md:1: contract\/conformance\.md#educational does not resolve/,
   );
   assert.match(report, /no heading in conformance\.md slugs to "educational"/);
-  assert.match(report, /add to .*spec-citations-exceptions\.json/);
+  // There is nowhere to record that it may fail, and the report must not offer one.
+  assert.doesNotMatch(report, /exceptions/);
+  assert.doesNotMatch(report, /UNRESOLVED/);
 });
 
 test("a `#` line inside a fenced block is not a heading an anchor can reach", () => {
@@ -1759,48 +1872,6 @@ test("duplicate headings are both reachable — #dup and #dup-1 each resolve", (
 
   write("bad.md", `But ${CONTRACT}/dupes.md#notes-2 does not.\n`);
   assert.equal(runOverTemp().ok, false);
-});
-
-test("a #L line fragment is resolved as the line claim it is, not hunted for among headings", () => {
-  writeSections();
-  write(
-    "ok.md",
-    `See ${CONTRACT}/conformance.md#L9 and ${CONTRACT}/conformance.md#L3-L9.\n`,
-  );
-  const passing = runOverTemp();
-  assert.equal(passing.ok, true);
-  assert.equal(passing.counts.lineFragments, 2);
-  assert.equal(passing.counts.sectionAnchors, 0);
-
-  write("bad.md", `See ${CONTRACT}/conformance.md#L9999.\n`);
-  const failing = runOverTemp();
-  assert.equal(failing.ok, false);
-  assert.match(
-    failing.lines.join("\n"),
-    /#L9999 does not resolve — conformance\.md has 11 line\(s\)/,
-  );
-});
-
-test("uppercase L is what separates a line fragment from a heading, and it is decidable", () => {
-  // A heading slug is lowercased by construction, so it can never begin with an uppercase `L`
-  // followed by digits. That is the whole separability argument, and here is the case that would
-  // break if it were ever weakened: a document whose heading really is "L9".
-  write(`${CONTRACT}/liney.md`, ["## L9", "", "text"].join("\n"));
-  assert.deepEqual(
-    documentHeadings(["## L9"]).map(({ slug }) => slug),
-    ["l9"],
-  );
-  write("ok.md", `The heading is ${CONTRACT}/liney.md#l9.\n`);
-  assert.equal(runOverTemp().ok, true);
-
-  // #L9 means line 9, and this document has three lines — so it fails as a line claim, which is
-  // exactly what it is, rather than being reported as a heading that does not exist.
-  write("ok.md", `The line is ${CONTRACT}/liney.md#L9.\n`);
-  const result = runOverTemp();
-  assert.equal(result.ok, false);
-  assert.match(result.lines.join("\n"), /liney\.md has 3 line\(s\)/);
-  assert.equal(result.counts.sectionAnchors, 0);
-  assert.equal(result.counts.lineFragments, 1);
 });
 
 test("an anchor broken by a line break says so, instead of reading as a misspelling", () => {
@@ -1858,104 +1929,53 @@ test("a malformed or dangling fragment fails at the gate, and a wrap says so", (
   assert.match(report, /reads "#heritage"/);
 });
 
-test("an anchor finding is excused by a missing-anchor entry, and only by that kind", () => {
-  writeSections();
-  const context = `See ${CONTRACT}/conformance.md#educational for the profile.`;
-  write("bad.md", `${context}\n`);
-  const why = "Waiting on the section being written.";
-  const issue = "#1181";
-  const entry = {
-    subject: `${CONTRACT}/conformance.md#educational`,
-    observed: "missing-heading",
-    kind: "missing-anchor",
-    issue,
-    why,
-    fingerprint: siteFingerprint(
-      context,
-      `${CONTRACT}/conformance.md#educational`,
-      why,
-      issue,
-    ),
-  };
-  const excused = runOverTemp({ [keyFor("bad.md")]: [entry] });
-  assert.equal(excused.ok, true);
-  assert.equal(excused.counts.excused, 1);
-  assert.match(
-    excused.lines.join("\n"),
-    /UNRESOLVED .*#educational does not resolve/,
-  );
+// --- MUTATION: the gate's own proof that it can go red ------------------------------------------
 
-  // An entry filed as the wrong family fails rather than excusing: the manifest's own totals are
-  // read as an audit signal, so a misfiled entry corrupts them.
-  const misfiled = runOverTemp({
-    [keyFor("bad.md")]: [{ ...entry, kind: "stale-citation" }],
-  });
-  assert.equal(misfiled.ok, false);
-  assert.match(
-    misfiled.lines.join("\n"),
-    /is filed as "stale-citation" .* but this is a heading one/s,
-  );
-  assert.equal(EXCEPTION_KINDS["missing-anchor"], "heading");
-});
-
-test("MUTATION mode 1: a citation moved past end-of-file fails; restoring it passes", () => {
+test("MUTATION: converting a line citation to its enclosing anchor turns the gate green", () => {
+  // The sweep's central claim in miniature, run in both directions. A gate that only ever showed
+  // green would prove nothing, and one that only ever showed red would be unusable — so the same
+  // site is written both ways and the gate must disagree about them.
   writeGrammar();
-  const good =
-    '// contract/grammar.md:6\'s `selector ::= "[" key-term "]"` is the form.\n';
-  write("site.ts", good);
-  assert.equal(
-    runOverTemp().ok,
-    true,
-    "the known-good citation must pass first",
+  const line = "// contract/grammar.md:8 defines the selector.\n";
+  write("site.ts", line);
+  const rejected = runOverTemp();
+  assert.equal(rejected.ok, false, "the line form must be rejected");
+  assert.equal(rejected.counts.citations, 1);
+  assert.equal(rejected.counts.sectionAnchors, 0);
+
+  // Exactly the anchor the failure told the author to write.
+  write(
+    "site.ts",
+    "// contract/grammar.md#ebnf-notation defines the selector.\n",
   );
+  const accepted = runOverTemp();
+  assert.equal(accepted.ok, true, "the anchor the gate suggested must pass");
+  assert.equal(accepted.counts.citations, 0);
+  assert.equal(accepted.counts.sectionAnchors, 1);
 
-  write("site.ts", good.replace(":6", ":9999"));
-  const mutated = runOverTemp();
-  assert.equal(mutated.ok, false);
-  assert.match(mutated.lines.join("\n"), /grammar\.md has 9 line\(s\)/);
-
-  write("site.ts", good);
-  assert.equal(
-    runOverTemp().ok,
-    true,
-    "restoring must return the gate to green",
-  );
-});
-
-test("MUTATION mode 1: a citation moved onto blank space fails, with no nearby-line tolerance", () => {
-  writeGrammar();
-  const good = "// contract/grammar.md:6 defines the selector.\n";
-  write("site.ts", good);
-  assert.equal(runOverTemp().ok, true);
-
-  // :8 is blank and sits two lines from the correct anchor. A gate that searched nearby lines would
-  // pass this, which is exactly the tolerance #893's reviewers deleted.
-  write("site.ts", good.replace(":6", ":8"));
+  // And going back must go red again, so the green above is not an artefact of ordering.
+  write("site.ts", line);
   assert.equal(runOverTemp().ok, false);
-
-  write("site.ts", good);
-  assert.equal(runOverTemp().ok, true);
 });
 
-test("MUTATION mode 2: repointing at a DIFFERENT section that still resolves fails", () => {
-  // The hard case, and the one a resolution-only gate cannot see: :4-5 is real, non-blank text — it
-  // is simply not where `selector` is defined. This is issue #934's instance 4 in miniature, where
-  // a range excluded the very line holding the production it quoted.
+test("MUTATION: repointing an anchor at a DIFFERENT section that still resolves fails", () => {
+  // The hard case, and the one a resolution-only gate cannot see: #expressions-and-calls is a real
+  // heading — it is simply not where `selector` is defined. This is issue #934's instance 4 at the
+  // granularity citations now have, and it is what the quotation check was re-pointed to catch.
   writeGrammar();
   const good =
-    '// contract/grammar.md:6, `selector ::= "[" key-term "]"`, is the form.\n';
+    '// contract/grammar.md#ebnf-notation, `selector ::= "[" key-term "]"`, is the form.\n';
   write("site.ts", good);
   assert.equal(runOverTemp().ok, true);
 
-  const mutated = good.replace(":6", ":4-5");
-  write("site.ts", mutated);
+  write("site.ts", good.replace("#ebnf-notation", "#expressions-and-calls"));
   const result = runOverTemp();
   assert.equal(result.ok, false);
   assert.match(
     result.lines.join("\n"),
-    /is quoted here but is not in contract\/grammar\.md:4-5/,
+    /is quoted here but is not in contract\/grammar\.md#expressions-and-calls/,
   );
-  assert.match(result.lines.join("\n"), /still points at the wrong passage/);
+  assert.match(result.lines.join("\n"), /still points at the wrong section/);
 
   write("site.ts", good);
   assert.equal(runOverTemp().ok, true);
@@ -1966,7 +1986,7 @@ test("MUTATION: a quotation whose wording drifts from the production fails", () 
   writeGrammar();
   write(
     "site.ts",
-    '// contract/grammar.md:6, `selector ::= "[" term "]"`, is the form.\n',
+    '// contract/grammar.md#ebnf-notation, `selector ::= "[" term "]"`, is the form.\n',
   );
   assert.equal(runOverTemp().ok, false);
 });
@@ -1983,9 +2003,9 @@ test("MUTATION: a real heading from the LIVE corpus resolves; one corrupted char
   // confirmed by a raw line scan: a differently-shaped instrument from the one under test. Renaming
   // that heading now fails this test loudly instead of silently moving the goalposts.
   //
-  // The citing fixture names `contract/`, but `specRoot` points the READER at the real specification
-  // directory, so the document is the one that ships while this test file — which the gate scans in
-  // CI — carries no real citation of its own.
+  // The citing fixture names `contract/`, but `specRoot` points the READER at the real
+  // specification directory, so the document is the one that ships while this test file — which the
+  // gate scans in CI — carries no real citation of its own.
   const document = "conformance.md";
   const heading = "### Heritage";
   const known = "heritage";
@@ -1996,18 +2016,17 @@ test("MUTATION: a real heading from the LIVE corpus resolves; one corrupted char
     `${document} must still contain the exact heading line "${heading}"`,
   );
 
-  const runAgainstRealSpec = () =>
+  const runAgainstRealCorpus = () =>
     runSpecCitationsGate({
       roots: [TEMP_DIR],
       specDirectory: CONTRACT,
       specRoot: SPEC_DIRECTORY,
-      exceptions: {},
     });
   const cite = (fragment) =>
     write("site.md", `The profile is ${CONTRACT}/${document}#${fragment}.\n`);
 
   cite(known);
-  const before = runAgainstRealSpec();
+  const before = runAgainstRealCorpus();
   assert.equal(before.ok, true, "the known-good anchor must pass first");
   assert.equal(before.counts.sectionAnchors, 1);
 
@@ -2016,7 +2035,7 @@ test("MUTATION: a real heading from the LIVE corpus resolves; one corrupted char
   const corrupted = "heritagf";
   assert.notEqual(corrupted, known);
   cite(corrupted);
-  const mutated = runAgainstRealSpec();
+  const mutated = runAgainstRealCorpus();
   assert.equal(mutated.ok, false, "one corrupted character must go red");
   assert.match(mutated.lines.join("\n"), /does not resolve/);
   // A near miss is described and STILL fails. Suggesting is not accepting.
@@ -2027,7 +2046,7 @@ test("MUTATION: a real heading from the LIVE corpus resolves; one corrupted char
 
   cite(known);
   assert.equal(
-    runAgainstRealSpec().ok,
+    runAgainstRealCorpus().ok,
     true,
     "restoring must return the gate to green",
   );
@@ -2035,38 +2054,46 @@ test("MUTATION: a real heading from the LIVE corpus resolves; one corrupted char
 
 // --- CLI shell (subprocess; outside the loaded-module coverage set per ADR-0009) ----------------
 
-/** Run the CLI over the temp tree, returning its exit status and combined output. */
-function runCli(exceptionsPath) {
+/** Run the CLI over the temp tree (or a narrower root), returning its exit status and output. */
+function runCli(root = TEMP_DIR) {
   const result = spawnSync(
     process.execPath,
     [
       join("scripts", "check-spec-citations.mjs"),
-      `--root=${TEMP_DIR}`,
+      `--root=${root}`,
       `--spec-dir=${CONTRACT}`,
       `--spec-root=${join(TEMP_DIR, CONTRACT)}`,
-      `--exceptions=${exceptionsPath}`,
     ],
     { encoding: "utf8" },
   );
   return { status: result.status, output: `${result.stdout}${result.stderr}` };
 }
 
-test("the CLI exits 0 and prints the report when every citation resolves", () => {
+test("the CLI exits 0 and prints the report when every citation is an anchor", () => {
   writeGrammar();
-  write("ok.ts", "// contract/grammar.md:6 is fine.\n");
-  const exceptionsPath = join(TEMP_DIR, "exceptions.json");
-  writeFileSync(exceptionsPath, "{}", "utf8");
-  const { status, output } = runCli(exceptionsPath);
+  write("ok.ts", "// contract/grammar.md#ebnf-notation is fine.\n");
+  const { status, output } = runCli();
   assert.equal(status, 0);
-  assert.match(output, /spec citations: \d+ checked/);
+  assert.match(output, /spec citations: 0 line-form citation\(s\) REJECTED/);
+  // Even a green CLI run says it was scoped, so a passing line from a narrowed invocation can never
+  // be quoted as the repository's result.
+  assert.match(output, /SCOPED RUN/);
 });
 
-test("the CLI exits non-zero when a citation does not resolve", () => {
+test("the CLI exits non-zero on a line citation, including from a narrowed root", () => {
   writeGrammar();
-  write("bad.ts", "// contract/grammar.md:8 is blank.\n");
-  const exceptionsPath = join(TEMP_DIR, "exceptions.json");
-  writeFileSync(exceptionsPath, "{}", "utf8");
-  const { status, output } = runCli(exceptionsPath);
-  assert.equal(status, 1);
-  assert.match(output, /FAIL/);
+  write("nested/bad.ts", "// contract/grammar.md:8 names a line.\n");
+  const whole = runCli();
+  assert.equal(whole.status, 1);
+  assert.match(whole.output, /FAIL/);
+  assert.match(whole.output, /names a LINE/);
+  // Narrowing the root to the offending directory must not narrow the RULE. This is the shape the
+  // superseded ratchet got wrong, exercised end to end through the actual entry point CI runs.
+  const narrowed = runCli(join(TEMP_DIR, "nested"));
+  assert.equal(narrowed.status, 1);
+  assert.match(narrowed.output, /names a LINE/);
+  assert.match(
+    narrowed.output,
+    /Cite the section instead — contract\/grammar\.md#ebnf-notation/,
+  );
 });

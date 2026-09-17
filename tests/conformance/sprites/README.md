@@ -34,7 +34,7 @@ citing one as proof:
 
 ### Per-turtle command coverage
 
-The 16 per-turtle commands of `spec/turtles-and-sprites.md#per-turtle-state-and-turtle-commands`, and , and how each is
+The 16 per-turtle commands of `spec/turtles-and-sprites.md#per-turtle-state-and-turtle-commands`, and `spec/turtles-and-sprites.md#per-turtle-state-and-turtle-commands`, and how each is
 proven per-turtle under explicit Sprites addressing. **This table is hand-derived and nothing checks
 it** — a coverage claim in prose or in an unchecked table drifts the moment coverage changes, so
 treat it as a reader's index into the corpus, not as an asserted invariant. The authority is the
@@ -71,7 +71,7 @@ Notes on the table:
   Turtle & Rendering corpus (`turtle-rendering/movement/setxy-alias`, `seth-alias`) but have no
   Sprites-addressed execution fixture of their own; the canonical `set_xy`/`set_heading` fan-out is
   covered above and the aliases dispatch through the same predicate.
-- Each `spec/turtles-and-sprites.md#per-turtle-state-and-turtle-commands`/ fixture above was **mutation-checked** (issue #792): stamping the acting
+- Each `spec/turtles-and-sprites.md#per-turtle-state-and-turtle-commands`/`spec/turtles-and-sprites.md#per-turtle-state-and-turtle-commands` fixture above was **mutation-checked** (issue #792): stamping the acting
   turtle's id as the main turtle's makes every one FAIL (proving per-turtle identity), and making the
   command read the main turtle's state instead of the addressed turtle's also makes each FAIL
   (proving the per-turtle state read), because the two addressed turtles share the single main

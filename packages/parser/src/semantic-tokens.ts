@@ -1,7 +1,7 @@
 /**
  * The LSP `textDocument/semanticTokens`-shaped contract (issue #121) layered over
  * {@link highlight}'s token-class + delimiter-role output — the "Informative LSP-style editor
- * integration" section of `spec/tooling.md#layer-3-style-lints, spec/tooling.md#informative-lsp-style-editor-integration`. It never re-lexes or re-classifies: every
+ * integration" section of `spec/tooling.md#informative-lsp-style-editor-integration`. It never re-lexes or re-classifies: every
  * {@link SemanticToken} carries {@link highlight}'s own `class`/`text`/`source_span`/`role`
  * unchanged, plus a `modifiers` array populated from that section's exact modifier vocabulary —
  * `declaration`, `reference`, `readonly`, `defaultLibrary`, `listRole`, `blockRole`, and

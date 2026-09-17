@@ -265,12 +265,13 @@ are joined by commas, by line wraps, by slashes, by a `,139` tail, and by whole 
 every bare `:N` in a citing file is enumerated and accounted for — a separator regex is not a
 completeness argument, and three separately-written ones gave three different counts of this corpus.
 And **there is no automatic tolerance**: the gate never searches nearby lines and passes, because the
-wrong passage is usually *adjacent* to the right one. A citation it cannot resolve either fails or
-carries an entry in `scripts/spec-citations-exceptions.json` that declares the exact state it is in,
-keyed by a hash of the citing line, the citation, the entry's own `why`, **and the issue it is
-tracked by** — so a rationale cannot drift away from the text it describes, and an exception cannot
-be silently retargeted. Entries are **deleted** when fixed, never re-fingerprinted, and the live
-`UNRESOLVED` total prints every run; the corpus sweep that empties it is #948.
+wrong passage is usually *adjacent* to the right one. A citation it cannot accept **fails** — there
+is no second disposition. Saga #1180 deleted `scripts/spec-citations-exceptions.json` along with its
+fingerprinting and its `UNRESOLVED` counter, because a manifest is a list that must grow to stay
+useful and a growing list of excused sites is an exemption. Its 84 entries went with it: 83 were
+`blank-region` citations tracked by #948, which the sweep converted into anchors that now **resolve**
+and so can no longer fail — the audit record is gone, and #948's corpus sweep is what still owes
+them a correct section.
 
 `npm run adr-numbering` (issue #1042, logic in `scripts/adr-numbering-gate.mjs`) checks the surface
 that binds the decision *records* together: ADR numbers are unique, each filename agrees with its own

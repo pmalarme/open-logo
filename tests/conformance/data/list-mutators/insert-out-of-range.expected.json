@@ -1,5 +1,5 @@
 {
-  "description": "`insert 9 in :nums at 5` into a 3-element list halts with ol-range: a valid insert position is 1..length+1 (Data profile, issue #188, spec/data-structures.md#lists, spec/data-structures.md#mutating-list-operations). The Insert's instruction event is still emitted before the runtime range-check fails.",
+  "description": "`insert 9 in :nums at 5` into a 3-element list halts with ol-range: a valid insert position is 1..length+1 (Data profile, issue #188, spec/data-structures.md#mutating-list-operations). The Insert's instruction event is still emitted before the runtime range-check fails.",
   "profiles": ["core-language", "data"],
   "execute": true,
   "events": [

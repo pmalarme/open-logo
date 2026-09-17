@@ -1592,8 +1592,8 @@ export function parse(source: string, document = "<input>"): ParseResult {
    * rejected in expression position like every other misplaced keyword (issue #853).
    *
    * The reader is legal **wrapped in parentheses** too — `( value of :d for key "a" )` — because
-   * `primary` (`spec/grammar.md#expressions-and-calls`) offers `parenthesized-expression` () and
-   * `value-of-reader` (spec/grammar.md#expressions-and-calls) side by side. That shape arrives here through
+   * `primary` (`spec/grammar.md#expressions-and-calls`) offers `parenthesized-expression` and
+   * `value-of-reader` side by side. That shape arrives here through
    * {@link parseParenthesized}'s fall-through rather than through a `parenthesized-call`; see
    * {@link isCalleeName} for the invariant that keeps it reachable (issue #830).
    *
@@ -1887,7 +1887,7 @@ export function parse(source: string, document = "<input>"): ParseResult {
    * Parse one `dict-entry ::= dict-key ":" expression` (`spec/grammar.md`). `dict-key` is only
    * `identifier | number` — narrower than {@link parseKeyTerm}'s selector `key-term`, which also
    * accepts `:name` reads, word literals, and parenthesized expressions — because a dict key is
-   * always a literal, never evaluated (`spec/data-structures.md#derived-list-reporters-in-the-data-profile, spec/data-structures.md#dictionaries`). A bare identifier
+   * always a literal, never evaluated (`spec/data-structures.md#dictionaries`). A bare identifier
    * reuses {@link WordLitNode} exactly like a bare selector key; built-in names are legal keys
    * for free, since the lexer never special-cases them. Returns `undefined` for anything else so
    * the caller can report the malformed entry.
@@ -2035,7 +2035,7 @@ export function parse(source: string, document = "<input>"): ParseResult {
     //
     // Everything this branch declines falls through to the plain `parenthesized-expression`
     // (`spec/grammar.md#expressions-and-calls`) below, which re-enters the full `expression` grammar — and that is
-    // how the Heritage `value-of-reader` (spec/grammar.md#expressions-and-calls, defined ) stays reachable inside parentheses,
+    // how the Heritage `value-of-reader` stays reachable inside parentheses,
     // as `primary` (spec/grammar.md#expressions-and-calls) requires (issue #830). `value` is not an `isCalleeName`, so
     // `( value of :d for key "a" )` declines here, reaches `parseExpression()`, and lands in
     // {@link parseNamePrimary}'s `value`-then-`of` interception. Widening this condition to admit
@@ -2055,7 +2055,7 @@ export function parse(source: string, document = "<input>"): ParseResult {
     //
     // - **An infix operator continues the head** (`spec/grammar.md#expressions-and-calls`), so meeting one right after
     //   the head proves the head was a whole operand and the group is a `parenthesized-expression`
-    //   (spec/grammar.md#expressions-and-calls), not a `parenthesized-call` () — a reading the call branch has no derivation for
+    //   (spec/grammar.md#expressions-and-calls), not a `parenthesized-call` — a reading the call branch has no derivation for
     //   anyway. {@link isInfixOperatorAt}.
     // - **A postfix segment may extend the head** (`postfix-expression`, spec/grammar.md#expressions-and-calls), so a `.field` or a
     //   glued selector `[` means the head is not a *bare* call and the ordinary expression grammar

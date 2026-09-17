@@ -1,8 +1,8 @@
 /**
  * `check()` — the Layer-2 semantic-checker (and Layer-3 style-linter) entry point (issue #116).
  * It runs over an already-parsed Core AST, *after* parsing, the alias/import pre-pass, and
- * procedure/struct registration (`spec/tooling.md#layer-1-lex-and-parse-checking, spec/tooling.md#layer-2-semantic-checking`), and returns an ordered list of
- * C10-shaped diagnostics (`spec/tooling.md#editor-grammar-guidance, spec/tooling.md#normative-diagnostic-shape`) — `stage: "semantic"`, reusing the exact
+ * procedure/struct registration (`spec/tooling.md#layer-2-semantic-checking`), and returns an ordered list of
+ * C10-shaped diagnostics (`spec/tooling.md#normative-diagnostic-shape`) — `stage: "semantic"`, reusing the exact
  * `Diagnostic` shape and `ol-*`/`ol-style-*` code registry `@openlogo/core` already owns.
  *
  * This is the M1 infrastructure skeleton for epic #108: it stands up the entry point's shape,

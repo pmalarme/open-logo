@@ -3,7 +3,7 @@
 # rules and the parenthesized reader has to be proven to RUN, not merely to parse clean.
 #
 # Every `print` below pins a VALUE that only exists if the `(` path actually entered the
-# `value-of-reader` (`spec/grammar.md#expressions-and-calls`, defined ) instead of taking `value` as a
+# `value-of-reader` (`spec/grammar.md#expressions-and-calls`, defined spec/grammar.md#expressions-and-calls) instead of taking `value` as a
 # `parenthesized-call` callee (spec/grammar.md#expressions-and-calls). The reader operates on a dict, so Heritage also needs
 # Data (`spec/conformance.md#profile-dependency-dag`).
 :d = { a: 7 b: "a" }

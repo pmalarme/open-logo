@@ -1,5 +1,5 @@
 {
-  "description": "`sort` orders word elements lexicographically, the same ordering `<`/`>`/`<=`/`>=` already define over words (spec/data-structures.md#core-non-mutating-list-reporters, spec/data-structures.md#derived-list-reporters-in-the-data-profile). Issue #190.",
+  "description": "`sort` orders word elements lexicographically, the same ordering `<`/`>`/`<=`/`>=` already define over words (spec/data-structures.md#derived-list-reporters-in-the-data-profile). Issue #190.",
   "profiles": ["data"],
   "execute": true,
   "events": [

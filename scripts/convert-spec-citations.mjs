@@ -33,6 +33,10 @@ console.log(
   `${write ? "converted" : "would convert"}: ${report.sites} line-form site(s) into ` +
     `${report.anchors} anchor citation(s) across ${report.filesChanged} of ${report.filesScanned} citing file(s)`,
 );
+console.log(
+  `  of which ${report.collapsed} site(s) collapsed onto an anchor already on their line, and ` +
+    `${report.spanning} line range(s) spanned two sections and became two anchors`,
+);
 for (const problem of report.problems) {
   console.log(
     `UNCONVERTED [${problem.kind}] ${problem.site}: ${problem.detail}`,

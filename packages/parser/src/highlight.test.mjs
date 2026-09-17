@@ -1247,7 +1247,7 @@ test("profiles: no built-in-names.json entry outside OL_PROFILE_KEYWORDS changes
 });
 
 /**
- * `spec/tooling.md#normative-token-class-model`'s four ordinary-name positions for `end`'s `empty`, and two Core
+ * `spec/tooling.md#normative-token-class-model`'s four ordinary-name positions for `end`, its `empty`, and two Core
  * block-heads as positive controls. The expected class is a one-element array, so a filter that
  * silently matched nothing — or matched twice — fails rather than passing vacuously.
  */
@@ -1351,7 +1351,7 @@ test("profiles: every OL_PROFILE_KEYWORDS word moves in both directions", () => 
 
 /**
  * Interaction's `when` is `keyword` while its profile is active and `primitive` while it is not
- * (`spec/tooling.md#normative-token-class-model` —  states the active half the inactive one).
+ * (`spec/tooling.md#normative-token-class-model`, which states the active and inactive halves in consecutive rows).
  */
 const PROFILE_HEAD_SOURCE = 'when "start" [ print 1 ]\n';
 

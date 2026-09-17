@@ -1,5 +1,5 @@
 {
-  "description": "A dict key must be a word or number; a bare `[:flag]` selector carrying a boolean raises `ol-type` (issue #322, `spec/data-structures.md#derived-list-reporters-in-the-data-profile`, `spec/error-model.md#normative-code-registry`).",
+  "description": "A dict key must be a word or number; a bare `[:flag]` selector carrying a boolean raises `ol-type` (issue #322, `spec/data-structures.md#dictionaries`, `spec/error-model.md#normative-code-registry`).",
   "profiles": ["core-language", "data"],
   "execute": true,
   "events": [

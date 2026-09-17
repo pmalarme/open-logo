@@ -1,5 +1,5 @@
 {
-  "description": "`pick` (Data profile, spec/data-structures.md#core-non-mutating-list-reporters, spec/data-structures.md#derived-list-reporters-in-the-data-profile) draws one element from `list` through the shared seeded random-number generator (issue #190), so seeding it with `(randomize 42)` first makes the draw reproducible: index 1 of `[10 20 30]` is `20`.",
+  "description": "`pick` (Data profile, spec/data-structures.md#derived-list-reporters-in-the-data-profile) draws one element from `list` through the shared seeded random-number generator (issue #190), so seeding it with `(randomize 42)` first makes the draw reproducible: index 1 of `[10 20 30]` is `20`.",
   "profiles": ["data"],
   "execute": true,
   "events": [
