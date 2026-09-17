@@ -1,0 +1,4 @@
+{
+  "_note": "Line-form spec citations (issue #1183): this count may fall, never rise. Regenerate with `node scripts/check-spec-citations.mjs --write-baseline`.",
+  "lineFormCitations": 2865
+}

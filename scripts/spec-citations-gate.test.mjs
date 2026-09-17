@@ -29,12 +29,15 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, test } from "node:test";
 import {
+  BASELINE_NOTE,
+  BASELINE_PATH,
   EXCEPTIONS_PATH,
   EXCEPTION_KINDS,
   SCAN_EXCLUSIONS,
   SPEC_DIRECTORY,
   STATUS_CLAIM_PHRASES,
   auditRunQuotations,
+  baselineFor,
   closestHeadingSlug,
   collectCitations,
   collectStatusClaims,
@@ -46,8 +49,10 @@ import {
   formatAnchor,
   formatCitation,
   isProseLine,
+  lineFormCount,
   lineLookup,
   listCitationFiles,
+  loadBaseline,
   loadExceptions,
   normalizeQuotation,
   parseArgs,
@@ -67,6 +72,7 @@ import {
   unsupportedConstructs,
   validateExceptionEntry,
   walkFiles,
+  writeBaselineFile,
 } from "./spec-citations-gate.mjs";
 
 /** The directory name fixtures cite, chosen so it shares no substring with the real one. */
@@ -96,12 +102,13 @@ function keyFor(name) {
 }
 
 /** Run the gate over the temp tree with an inline (already-parsed) exceptions manifest. */
-function runOverTemp(exceptions = {}) {
+function runOverTemp(exceptions = {}, overrides = {}) {
   return runSpecCitationsGate({
     roots: [TEMP_DIR],
     specDirectory: CONTRACT,
     specRoot: join(TEMP_DIR, CONTRACT),
     exceptions,
+    ...overrides,
   });
 }
 
@@ -455,6 +462,8 @@ test("parseArgs reads every override and defaults the rest", () => {
     specDirectory: undefined,
     specRoot: undefined,
     exceptionsPath: undefined,
+    baselinePath: undefined,
+    writeBaseline: false,
   });
   assert.deepEqual(
     parseArgs([
@@ -463,6 +472,8 @@ test("parseArgs reads every override and defaults the rest", () => {
       "--spec-dir=contract",
       "--spec-root=/tmp/contract",
       "--exceptions=e.json",
+      "--baseline=b.json",
+      "--write-baseline",
       "--unrecognised",
     ]),
     {
@@ -470,6 +481,8 @@ test("parseArgs reads every override and defaults the rest", () => {
       specDirectory: "contract",
       specRoot: "/tmp/contract",
       exceptionsPath: "e.json",
+      baselinePath: "b.json",
+      writeBaseline: true,
     },
   );
 });
@@ -1898,6 +1911,165 @@ test("an anchor finding is excused by a missing-anchor entry, and only by that k
   assert.equal(EXCEPTION_KINDS["missing-anchor"], "heading");
 });
 
+// --- the line-form ratchet (issue #1183) -------------------------------------------------------
+
+test("lineFormCount totals every counter that names a line, and only those", () => {
+  const counts = {
+    explicit: 3,
+    tails: 2,
+    bare: 4,
+    lineFragments: 1,
+    citations: 9,
+    sectionAnchors: 7,
+  };
+  assert.equal(lineFormCount(counts), 10);
+  // The four summands are exactly the ones the printed coverage statement groups as still drifting
+  // when the document is edited above them, so the ratchet pins the quantity the saga is about.
+  assert.equal(lineFormCount(counts), counts.citations + counts.lineFragments);
+  // The section anchor is NOT in, which is what makes a conversion lower the number rather than
+  // move it sideways; the line fragment IS in, because #L30 is a line claim in anchor clothing and a
+  // total that skipped it could be held flat while every new citation was written that way.
+  assert.equal(lineFormCount({ ...counts, sectionAnchors: 99 }), 10);
+  assert.equal(lineFormCount({ ...counts, lineFragments: 0 }), 9);
+});
+
+test("baselineFor holds a tree to the mark that describes it, and to none otherwise", () => {
+  const path = join(TEMP_DIR, "baseline.json");
+  writeBaselineFile(path, 7);
+  // A named file is the mark for whichever tree the caller is scanning, fixture or repository.
+  assert.equal(baselineFor([TEMP_DIR], path), 7);
+  assert.equal(baselineFor(undefined, path), 7);
+  // `roots` with no named file is a fixture tree, which the repository's own mark describes not at
+  // all — holding it to that total would be a guaranteed failure rather than a check.
+  assert.equal(baselineFor([TEMP_DIR], undefined), null);
+  // The repository scan falls back to the committed file, which is what CI runs.
+  const committed = baselineFor(undefined, undefined);
+  assert.equal(committed, loadBaseline());
+  assert.ok(Number.isInteger(committed) && committed >= 0);
+  assert.equal(
+    toPosixPath(BASELINE_PATH),
+    "scripts/spec-citations-baseline.json",
+  );
+});
+
+test("a baseline that declares no usable number throws instead of disabling the ratchet", () => {
+  const path = join(TEMP_DIR, "baseline.json");
+  // The shape that matters: a file that parses cleanly and simply has no count. Read as "no
+  // baseline" it would leave the gate green with the ratchet switched off, which is the one defect
+  // a ratchet cannot be allowed to have.
+  for (const document of [
+    "{}",
+    '{"lineFormCitations": null}',
+    '{"lineFormCitations": "7"}',
+    '{"lineFormCitations": -1}',
+    '{"lineFormCitations": 1.5}',
+  ]) {
+    writeFileSync(path, document, "utf8");
+    assert.throws(() => loadBaseline(path), /no non-negative whole number/);
+  }
+  writeBaselineFile(path, 0);
+  assert.equal(loadBaseline(path), 0);
+});
+
+test("--write-baseline generates the number, and the tree it was written from then passes", () => {
+  writeGrammar();
+  write("site.ts", "// contract/grammar.md:6 defines the selector.\n");
+  const baselinePath = join(TEMP_DIR, "baseline.json");
+
+  const written = runOverTemp({}, { baselinePath, writeBaseline: true });
+  assert.equal(written.ok, true);
+  assert.match(
+    written.lines.join("\n"),
+    /1 line-form citation\(s\) is the new baseline/,
+  );
+
+  // Generated by the gate, never hand-written: the file carries the count the scan just measured,
+  // plus the one-line note saying how to produce it again. Two careful manual counts of this corpus
+  // have already disagreed with each other, which is why no other writer is offered.
+  const recorded = JSON.parse(readFileSync(baselinePath, "utf8"));
+  assert.deepEqual(Object.keys(recorded), ["_note", "lineFormCitations"]);
+  assert.equal(recorded.lineFormCitations, lineFormCount(written.counts));
+  assert.equal(recorded._note, BASELINE_NOTE);
+  assert.match(BASELINE_NOTE, /may fall, never rise/);
+  assert.match(BASELINE_NOTE, /--write-baseline/);
+
+  const checked = runOverTemp({}, { baselinePath });
+  assert.equal(checked.ok, true);
+  assert.match(checked.lines.join("\n"), /LINE-FORM 1 of 1 baseline, 0 failed/);
+  // The count is printed on every run, like UNRESOLVED, whether or not a baseline holds it.
+  assert.match(runOverTemp().lines.join("\n"), /LINE-FORM 1, 0 failed/);
+});
+
+test("MUTATION: a line-form citation added without converting one fails, naming the excess", () => {
+  writeGrammar();
+  write("site.ts", "// contract/grammar.md:6 defines the selector.\n");
+  assert.equal(
+    runOverTemp({}, { baseline: 1 }).ok,
+    true,
+    "the settled tree must pass at its own baseline first",
+  );
+
+  write("added.ts", "// contract/grammar.md:5 defines the postfix.\n");
+  const mutated = runOverTemp({}, { baseline: 1 });
+  assert.equal(mutated.ok, false, "one added line citation must go red");
+  const report = mutated.lines.join("\n");
+  assert.match(report, /rose to 2 against a baseline of 1 \(\+1\)/);
+  assert.match(report, /may fall, never rise/);
+  // The message has to say plainly that this is the one check pinned to a total, so it is the one
+  // that can fail for a citation the author inherited rather than wrote — and name the command that
+  // decides which it is, instead of leaving the reader to guess.
+  assert.match(report, /a citation you did not\s+write/);
+  assert.match(report, /git diff -G/);
+  assert.match(report, /is a reviewable act/);
+
+  rmSync(join(TEMP_DIR, "added.ts"));
+  assert.equal(
+    runOverTemp({}, { baseline: 1 }).ok,
+    true,
+    "restoring must return the gate to green",
+  );
+});
+
+test("MUTATION: rewriting a line citation as a #L fragment does not buy a lower count", () => {
+  writeGrammar();
+  write("site.ts", "// contract/grammar.md:6 defines the selector.\n");
+  // GitHub's line fragment names lines exactly as the form it replaces does. If the ratchet counted
+  // only the citations written with a colon, this rewrite would look like a conversion and free a
+  // slot for a genuinely new one.
+  write("site.ts", "// contract/grammar.md#L6 defines the selector.\n");
+  const swapped = runOverTemp({}, { baseline: 1 });
+  assert.equal(swapped.counts.lineFragments, 1);
+  assert.equal(lineFormCount(swapped.counts), 1);
+  assert.equal(swapped.ok, true);
+
+  // Whereas the conversion the convention actually asks for does lower it — and then fails until the
+  // baseline follows, which is the other half of the ratchet.
+  write("site.ts", "// contract/grammar.md#grammar defines the selector.\n");
+  const converted = runOverTemp({}, { baseline: 1 });
+  assert.equal(converted.counts.sectionAnchors, 1);
+  assert.equal(lineFormCount(converted.counts), 0);
+  assert.equal(converted.ok, false);
+});
+
+test("MUTATION: a count that fell below its baseline fails, with the command that lowers it", () => {
+  writeGrammar();
+  write("site.ts", "// contract/grammar.md:6 defines the selector.\n");
+  const stale = runOverTemp({}, { baseline: 3 });
+  assert.equal(
+    stale.ok,
+    false,
+    "a high-water mark two above the live count has stopped ratcheting",
+  );
+  const report = stale.lines.join("\n");
+  assert.match(report, /fell to 1 against a baseline of 3 \(-2\)/);
+  assert.match(report, /2 new line citation\(s\) back in unseen/);
+  assert.match(
+    report,
+    /node scripts\/check-spec-citations\.mjs --write-baseline/,
+  );
+  assert.match(report, /LINE-FORM 1 of 3 baseline/);
+});
+
 test("MUTATION mode 1: a citation moved past end-of-file fails; restoring it passes", () => {
   writeGrammar();
   const good =
@@ -2036,7 +2208,7 @@ test("MUTATION: a real heading from the LIVE corpus resolves; one corrupted char
 // --- CLI shell (subprocess; outside the loaded-module coverage set per ADR-0009) ----------------
 
 /** Run the CLI over the temp tree, returning its exit status and combined output. */
-function runCli(exceptionsPath) {
+function runCli(exceptionsPath, extra = []) {
   const result = spawnSync(
     process.execPath,
     [
@@ -2045,6 +2217,7 @@ function runCli(exceptionsPath) {
       `--spec-dir=${CONTRACT}`,
       `--spec-root=${join(TEMP_DIR, CONTRACT)}`,
       `--exceptions=${exceptionsPath}`,
+      ...extra,
     ],
     { encoding: "utf8" },
   );
@@ -2069,4 +2242,35 @@ test("the CLI exits non-zero when a citation does not resolve", () => {
   const { status, output } = runCli(exceptionsPath);
   assert.equal(status, 1);
   assert.match(output, /FAIL/);
+});
+
+test("the CLI writes a baseline, then holds the next run to it", () => {
+  writeGrammar();
+  write("site.ts", "// contract/grammar.md:6 defines the selector.\n");
+  const exceptionsPath = join(TEMP_DIR, "exceptions.json");
+  writeFileSync(exceptionsPath, "{}", "utf8");
+  const baselinePath = join(TEMP_DIR, "baseline.json");
+
+  const written = runCli(exceptionsPath, [
+    `--baseline=${baselinePath}`,
+    "--write-baseline",
+  ]);
+  assert.equal(written.status, 0);
+  assert.equal(
+    JSON.parse(readFileSync(baselinePath, "utf8")).lineFormCitations,
+    1,
+  );
+
+  const held = runCli(exceptionsPath, [`--baseline=${baselinePath}`]);
+  assert.equal(held.status, 0);
+  assert.match(held.output, /LINE-FORM 1 of 1 baseline/);
+
+  write("added.ts", "// contract/grammar.md:5 defines the postfix.\n");
+  const risen = runCli(exceptionsPath, [`--baseline=${baselinePath}`]);
+  assert.equal(
+    risen.status,
+    1,
+    "a gate that passes on broken input asserts nothing",
+  );
+  assert.match(risen.output, /rose to 2 against a baseline of 1/);
 });

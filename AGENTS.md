@@ -163,7 +163,7 @@ npm run coverage     # node:test 100% line/branch/function gate — verify on No
 npm run conformance  # stack-neutral fixtures (placeholder until issue #6)
 npm run examples     # two gates: every spec/examples/*.logo file, then every ```logo block fenced in spec/ + docs/ markdown
 npm run built-in-names # spec/built-in-names.json vs the parser's registries, both directions + the prose lists
-npm run spec-citations # citations resolve, section anchors name a real heading, quoted productions match, status claims name an issue
+npm run spec-citations # citations resolve, section anchors name a real heading, quoted productions match, status claims name an issue; line-form citations ratcheted
 npm run adr-numbering  # ADR numbers unique, filename↔heading agreement, every ADR reference resolves
 ```
 
@@ -271,6 +271,19 @@ keyed by a hash of the citing line, the citation, the entry's own `why`, **and t
 tracked by** — so a rationale cannot drift away from the text it describes, and an exception cannot
 be silently retargeted. Entries are **deleted** when fixed, never re-fingerprinted, and the live
 `UNRESOLVED` total prints every run; the corpus sweep that empties it is #948.
+
+**The line form is ratcheted: it may fall, never rise** (#1183). The convention above is guidance,
+and guidance did not stop the next change adding twenty fresh `spec/<file>.md` line citations where
+thousands already exist. So the gate totals every citation that names a line — explicit,
+comma-appended, bare, and GitHub's `#L30` line *fragment*, which is a line claim in anchor clothing —
+prints it as `LINE-FORM` beside `UNRESOLVED`, and holds it to the number committed in
+`scripts/spec-citations-baseline.json`. **Both directions fail.** Above it is the growth the ratchet
+exists to stop; below it the recorded number has become a stale high-water mark that would re-admit
+as many new citations as your conversion removed, so lower it in the same change. **Never hand-write
+that number** — `node scripts/check-spec-citations.mjs --write-baseline` generates it, because two
+careful manual counts of this corpus have already disagreed with each other. This is the one check
+here pinned to a total, so it is the one that can go red for a citation you inherited rather than
+wrote; the failure says so, and names the `git diff -G` command that tells the two apart.
 
 `npm run adr-numbering` (issue #1042, logic in `scripts/adr-numbering-gate.mjs`) checks the surface
 that binds the decision *records* together: ADR numbers are unique, each filename agrees with its own
