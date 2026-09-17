@@ -69,7 +69,7 @@ test("reduce's accumulator name case-folds: declared `Sum`, read `:sum` (issue #
   assert.deepEqual(printedValues(result), [6]);
 });
 
-test("reduce over an empty list returns `from` unchanged (spec/execution-model.md#control-forms)", () => {
+test("reduce over an empty list returns `from` unchanged (spec/execution-model.md#comprehensions-map-filter-and-reduce)", () => {
   const result = execute(
     ":total = reduce sum n in [] from 42 [ :sum + :n ]\nprint :total",
     doc,

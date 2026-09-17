@@ -2770,9 +2770,12 @@ function primitivePrintedForm(value: OLValue): string | undefined {
     return value ? "true" : "false";
   }
   if (value instanceof OLTurtle) {
-    // A turtle's printed form is its stable, deterministic identity tag `turtle #<id>`
-    // (`spec/turtles-and-sprites.md#profile-status-and-dependency`, `spec/execution-model.md#equality-and-ordering`): a turtle is an opaque
-    // identity, not a container, so it renders as a single leaf token — never its (mutable) drawing
+    // A turtle's printed form is the stable, deterministic identity tag `turtle #<id>` — a
+    // spelling this implementation chooses, since the spec gives turtle printing no normative
+    // literal syntax, over a rule it does state: a turtle is an opaque identity, not a container
+    // (`spec/turtles-and-sprites.md#profile-status-and-dependency` "Turtle values compare by
+    // identity, not by position or shape", `spec/execution-model.md#equality-and-ordering` "Same
+    // turtle identity"), so it renders as a single leaf token — never its (mutable) drawing
     // state, which would make `print :t` non-deterministic across movement/pen changes.
     return `turtle #${formatNumber(value.id)}`;
   }
@@ -4350,7 +4353,7 @@ function evaluateDict(
 
 /**
  * `keys` — a fresh list of `dict`'s keys, in insertion order (issue #322,
- * `spec/data-structures.md#dictionary-writes-and-upserts`). A non-dict argument raises `ol-type`.
+ * `spec/data-structures.md#dictionary-operations`). A non-dict argument raises `ol-type`.
  */
 function evaluateKeys(
   node: ArithmeticCallNode,
@@ -4381,7 +4384,7 @@ function evaluateKeys(
 
 /**
  * `values` — a fresh list of `dict`'s values, in the same insertion order as {@link evaluateKeys}
- * (issue #322, `spec/data-structures.md#dictionary-writes-and-upserts`). A non-dict argument raises `ol-type`.
+ * (issue #322, `spec/data-structures.md#dictionary-operations`). A non-dict argument raises `ol-type`.
  */
 function evaluateValues(
   node: ArithmeticCallNode,

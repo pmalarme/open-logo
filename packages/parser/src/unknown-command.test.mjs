@@ -124,7 +124,7 @@ test("issue #136 / spec/tooling.md#layer-2-semantic-checking worked example: wit
   );
 });
 
-test("did-you-mean tie-break (spec/error-model.md#normative-code-registry): a Core word beats an optional-profile word at the same edit distance", () => {
+test("did-you-mean tie-break (spec/error-model.md#did-you-mean): a Core word beats an optional-profile word at the same edit distance", () => {
   // "clea" is Levenshtein distance 1 from BOTH the reserved word "clear" (Core) and the Turtle &
   // Rendering primitive "clean" (optional profile) — a genuine tie now that turtle names are
   // registered (issue #136). The spec requires Core to win the tie, never lexicographic order

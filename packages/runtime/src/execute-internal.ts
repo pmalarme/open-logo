@@ -1343,7 +1343,7 @@ function executeTurtleMeasureCall(
 }
 
 /**
- * Is `statement` a call to `set_shape` (issue #210; `spec/commands.md#fill`). Same
+ * Is `statement` a call to `set_shape` (issue #210; `spec/commands.md#set_shape`). Same
  * shape/convention as {@link isTurtleColorCall} — no Turtle & Rendering-profile alias is
  * registered for `set_shape` (unlike `set_color`/`set_width`/`set_xy`/`set_heading`, which each
  * have a one-word alias).

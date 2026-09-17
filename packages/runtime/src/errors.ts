@@ -134,7 +134,7 @@ export interface OrderingTypeErrorParams {
  * indexed with `[ … ]`/`.field`, a non-number list-index key, a non-word/non-number dict key, or
  * a non-word argument to `thing` (`spec/error-model.md#normative-code-registry` — list indexing with a non-number key
  * is `ol-type`, not `ol-range`; issue #322 extends the same postfix-resolution guard to dicts,
- * `spec/data-structures.md#malformed-dictionary-literal-entries`).
+ * `spec/data-structures.md#error-summary`).
  */
 export interface PlaceTypeErrorParams {
   readonly expected:
@@ -175,7 +175,7 @@ export interface IndexRangeParams {
 /**
  * Params for `ol-unknown-key` (`spec/error-model.md#normative-code-registry`): a required dictionary key is absent on
  * read, or an intermediate dictionary key is absent in a nested access chain
- * (`spec/data-structures.md#malformed-dictionary-literal-entries`). Writing a missing *final* key upserts instead of raising
+ * (`spec/data-structures.md#error-summary`). Writing a missing *final* key upserts instead of raising
  * this. `key` is the offending key exactly as the learner wrote it (a word or number).
  */
 export interface UnknownKeyParams {
@@ -823,7 +823,7 @@ export const runtimeDiag = {
   /**
    * `ol-unknown-key`: a required dictionary key is absent on read, or an intermediate dictionary
    * key is absent in a nested access chain (`spec/error-model.md#normative-code-registry`,
-   * `spec/data-structures.md#malformed-dictionary-literal-entries`). Never raised for a missing *final* write key (that
+   * `spec/data-structures.md#error-summary`). Never raised for a missing *final* write key (that
    * upserts instead).
    */
   unknownKey(source_span: SourceSpan, params: UnknownKeyParams): Diagnostic {
@@ -886,7 +886,7 @@ export const runtimeDiag = {
   /**
    * `ol-type` for `type_of` given a non-record argument (issue #329). `type_of` reports a
    * record's struct type name, so its sole input must be a record
-   * (`spec/data-structures.md#dictionary-operations`); any other value is a type error. A dedicated builder because
+   * (`spec/data-structures.md#record-operations`); any other value is a type error. A dedicated builder because
    * {@link PlaceTypeErrorParams}'s `expected` union does not include `"record"`. Same
    * `{ operation, expected, actual }` shape and message voice as the other Core/Data `ol-type`
    * builders so the diagnostics read uniformly.
