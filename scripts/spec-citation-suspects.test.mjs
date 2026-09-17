@@ -343,6 +343,10 @@ test("the coverage statement names every limit a reader would otherwise assume a
   assert.match(summary, /property of THIS instrument/);
   assert.match(summary, /cannot tell a WRONG anchor from a LESS SPECIFIC one/);
   assert.match(summary, /never by re-pointing what the tool ranked/);
+  // The reframing measured across four review batches: the defects a reviewer wants are usually
+  // beside the rows listed, not on them. An abstract recall figure tells a reader nothing to do.
+  assert.match(summary, /FILE ROUTER, NOT A DEFECT DETECTOR/);
+  assert.match(summary, /enumerate the anchor you are LEAVING/);
   assert.ok(SELF_CHECK.floor < SELF_CHECK.ceiling);
 });
 

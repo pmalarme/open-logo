@@ -647,11 +647,15 @@ export function reportSuspects(options = {}) {
     "  This is a RANKED REPORT, not a gate. It scores the prose around a citation against every " +
       "section of the document it cites and lists where another section matches better. It NEVER " +
       "fails on a finding, and its silence proves nothing: measured recall against seeded mutations " +
-      "is roughly a quarter, so three of four deliberately broken anchors score clean. WHAT TO DO " +
-      "ABOUT THAT, concretely: read the surrounding PARAGRAPH, not just the line a row names. A " +
-      "genuinely wrong citation in packages/studio's README was found that way — same paragraph as " +
-      "a ranked row, same defect, and this tool did not rank it at all. An abstract recall figure " +
-      "tells a reader nothing; that working method is the actionable form of it. The flag " +
+      "is roughly a quarter, so three of four deliberately broken anchors score clean. SO READ THIS " +
+      "AS A FILE ROUTER, NOT A DEFECT DETECTOR. Across four review batches the defects found " +
+      "without a row — 7 in one batch alone — were each beside a ranked row, in a file the queue had " +
+      "already sent the reviewer to. Citations were authored in cohorts and drifted in cohorts, so a " +
+      "row means THIS FILE IS WORTH READING far more reliably than it means THIS LINE IS WRONG. " +
+      "Work the neighbourhood a row names, not the row: read the surrounding PARAGRAPH, and " +
+      "enumerate the anchor you are LEAVING as well as the one you are moving to — a narrow section " +
+      "cited for its broader sibling's content leaves the stale anchor sitting immediately above the " +
+      "correct one, and both unranked clusters in this saga were found exactly that way. The flag " +
       "count is a property of THIS instrument — two implementations written from the same " +
       "description differed by 2.3x on the same tree — so it is a queue to read, never a measurement " +
       "of how many citations are wrong. The mechanism, seen in the field: a reviewer changed 1 of " +
