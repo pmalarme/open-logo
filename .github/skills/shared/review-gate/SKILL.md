@@ -298,9 +298,9 @@ A passing suite does not establish that the behaviour you changed is **asserted*
 unexercised, exercised but not asserted, asserted on the wrong value, or measured against a stale
 artifact — and from outside, all of those look like success.
 
-So for each behaviour the change introduces, make an edit that **changes** that behaviour, rebuild,
-and confirm a named test or fixture goes red. If nothing fails, that behaviour is unasserted —
-however many tests pass elsewhere.
+So for each behaviour the change introduces, make an edit that **changes** that behaviour, rebuild
+whatever artifact is actually exercised, and confirm a named test or fixture goes red. If nothing
+fails, that behaviour is unasserted — however many tests pass elsewhere.
 
 In issue #1155, measured at parent `acd0364d` and recorded by `066ce9fe`, this one-field edit is
 behaviour-changing — it lets a program begin running and fail partway instead of being refused
@@ -316,9 +316,11 @@ one slice, each beside a passing test.
 
 Three traps, each of which produced a wrong answer in that slice:
 
-- **Verify the mutant reached `dist/`.** `tsc -b` serves a stale build when a restored file gets an
-  older mtime, and `Copy-Item -Recurse node_modules` dereferences workspace symlinks so the sandbox
-  resolves a stale package. Both report "survived" while testing the *unmutated* tree.
+- **Verify the mutant reached the artifact under test.** For compiled package code that means
+  `dist/` — `tsc -b` serves a stale build when a restored file gets an older mtime, and
+  `Copy-Item -Recurse node_modules` dereferences workspace symlinks so a sandbox resolves a stale
+  package. For a script or workflow run directly from source, confirm the run loaded the edited
+  file. Both failures report "survived" while testing the *unmutated* artifact.
 - **Read the result, not the diff.** A diff proves the text changed, not that behaviour changed —
   confirm the mutation with a control whose observed result differs.
   `context !== "inside" && context !== "dispatch-dependent"` is just `=== "outside"` — a no-op
@@ -336,14 +338,12 @@ sentence next to correct code and a green fixture looks right. PR #1176 records 
 surviving and reappearing across review rounds in issue #1155 — including replacement prose that
 introduced new false claims.
 
-So make a pass over **only the sentences this change adds or edits**, with the code out of view, and
-ask of each: **what measurement would falsify this, and did I run it?**
+So make a pass over **only the prose this change adds or edits**, with the code out of view, and ask
+of each factual claim in it: **what measurement would falsify this, and did I run it?** Judge
+claims, not sentences — a sentence may carry several, and prescriptive text like this paragraph
+asserts no fact to measure. "Findings — every finding gets resolved" below governs what to do with a
+false claim once found; it applies here unchanged.
 
-Keep a sentence only if it is a measurement with its scope, a rationale that asserts no universal,
-or a pointer. Otherwise:
-
-- **Delete rather than rewrite.** A sentence you cannot verify is removed, not hedged — deleted text
-  cannot be wrong.
 - **Remove a derived number, don't update it.** An updated count is a defect with a longer fuse.
   Where a number must stay, anchor it to the revision it was measured at.
 - **No unenumerated absolutes** — *no*, *only*, *every*, *never*, *all*, *none* — unless the
@@ -351,9 +351,9 @@ or a pointer. Otherwise:
 - **Prefer a pointer to a reconstructed cause.** Where deleting would invite a maintainer into a
   trap, cite the mechanism's source instead of explaining it: a pointer avoids restating a causal
   story you would have to verify. It is still a citation, so item (f) applies — check that it
-  resolves *and* that it supports the sentence beside it, and prefer a stable symbol, an issue or PR
+  resolves *and* that it supports the claim beside it, and prefer a stable symbol, an issue or PR
   number, or a commit-anchored reference over a bare `file.ts:NN`.
-- **When you change what class something belongs to**, search for sentences citing the subject as an
+- **When you change what class something belongs to**, search for claims citing the subject as an
   example of the old class, and revalidate them. The definition site is where the change is obvious;
   the citing sites are where it is not.
 
@@ -442,8 +442,8 @@ ground out.
 - [ ] Runnable `spec/examples/*.logo` and doc snippets parse/run.
 - [ ] A11y / pedagogy checked where applicable.
 - [ ] Instructions / skills / docs / spec drift checked (in-PR if needed); every count and `file:line` citation the change touches was **re-derived**, not trusted.
-- [ ] **Mutation**: for each behaviour introduced, an edit that changes it was confirmed to turn a named test or fixture red, with the mutant verified live in `dist` — no-op and clean-direction-only mutations do not count.
-- [ ] **Prose audited as prose**: a separate pass over only the sentences this change adds or edits, each one kept only as a verified measurement with its scope, a rationale asserting no unenumerated absolute, or a checked pointer — everything else deleted.
+- [ ] **Mutation**: for each behaviour introduced, an edit that changes it was confirmed to turn a named test or fixture red, with the mutant verified live in the artifact actually exercised — no-op and clean-direction-only mutations do not count.
+- [ ] **Prose audited as prose**: a separate pass over only the prose this change adds or edits, each factual claim in it measured with its scope, asserting no unenumerated absolute, or resolved under "Findings".
 - [ ] **Every finding resolved — blocking *and* non-blocking**: each one fixed, or declined with a one-line rationale (+ follow-up issue number when it is real work outside the write-set).
 - [ ] Converged within the **10-round cap** (otherwise: not opened — escalated to `@orchestrator`/maintainer with the open findings and per-round SHAs).
 - [ ] All verdicts `pass` on the **same final HEAD** (SHA-stamped) and attached; any later commit re-ran every reviewer; no self-merge.
