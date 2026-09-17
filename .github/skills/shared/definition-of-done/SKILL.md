@@ -122,7 +122,7 @@ The rule, in priority order:
    only superseded by a new record. Prefer a pointer there, always.
 4. **Spec citations are the same defect wearing a different hat.** Verify every one the change
    touches against the *current* tree — a stale citation goes wrong silently, in files nobody
-   edited. Write new ones as section anchors; the form and its limits belong to
+   edited. Cite by section anchor, never by line; the form and its limits belong to
    [`shared/spec-fidelity`](../spec-fidelity/SKILL.md).
 
 Two measurement traps produce a *plausible wrong number* rather than an error, so re-derive with a

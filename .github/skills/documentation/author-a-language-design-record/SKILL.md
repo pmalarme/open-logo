@@ -67,7 +67,7 @@ originating motivation and the full seed list of LDRs.
   naming the source of a count (a spec section, a script, an exported constant) over copying its
   current value, and verify every `spec/` citation against the *current* file — a wrong count or a
   stale citation in an immutable record can never be corrected in place, only superseded. Cite by
-  section anchor; the form and its limits belong to
+  section anchor, never by line; the form and its limits belong to
   [`shared/spec-fidelity`](../../shared/spec-fidelity/SKILL.md). See
   [`shared/definition-of-done`](../../shared/definition-of-done/SKILL.md)'s "Derived counts in
   prose".
