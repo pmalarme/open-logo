@@ -4,8 +4,8 @@
  * idea, parameters such as `:sides` and `:size` are variables scoped to that idea, `return` hands
  * a value back from a reporter, a command procedure may draw without returning a value, and
  * `local` names a variable that lives only inside the procedure. Heritage spellings `to … end`
- * and `output` are recognized but are taught second, after `define`/`return` (educational-model.md
- * spec/educational-model.md#level-5--functions-and-procedures) — this lesson only mentions them in prose, per the maintainer's scope-trim comment on
+ * and `output` are recognized but are taught second, after `define`/`return`
+ * (`spec/educational-model.md#level-5--functions-and-procedures`) — this lesson only mentions them in prose, per the maintainer's scope-trim comment on
  * issue #327, which also moves any *recursive* exercise (the "tree"/"xmas tree" idea) out to
  * Level 6 (Geometry): this slice's payoff is procedure reuse, not recursion.
  *
