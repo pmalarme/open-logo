@@ -86,10 +86,10 @@ const HEADINGS = documentHeadings(splitLines(GRAMMAR));
 const GRAMMAR_LINES = splitLines(GRAMMAR);
 
 /** Resolve headings for the grammar fixture only; anything else is a missing document. */
-const headingsFor = (file) => (file === "grammar.md" ? HEADINGS : null);
+const headingsFor = (file) => (file === "syntax-rules.md" ? HEADINGS : null);
 
 /** Resolve document lines for the fixtures that have them, which is what the span rule reads. */
-const DOCUMENT_LINES = new Map([["grammar.md", GRAMMAR_LINES]]);
+const DOCUMENT_LINES = new Map([["syntax-rules.md", GRAMMAR_LINES]]);
 const linesFor = (file) => {
   const lines = DOCUMENT_LINES.get(file);
   // A total lookup on purpose: `planFile` only asks for a document whose headings it already has,
@@ -305,12 +305,12 @@ test("a blank landing is ambiguous only when it sits on a section boundary", () 
 
 test("renderAnchors writes the citable form, joining a two-section range with a comma", () => {
   assert.equal(
-    renderAnchors(CONTRACT, "grammar.md", ["ebnf-notation"]),
-    "contract/grammar.md#ebnf-notation",
+    renderAnchors(CONTRACT, "syntax-rules.md", ["ebnf-notation"]),
+    "contract/syntax-rules.md#ebnf-notation",
   );
   assert.equal(
-    renderAnchors(CONTRACT, "grammar.md", ["ebnf-notation", "debug"]),
-    "contract/grammar.md#ebnf-notation, contract/grammar.md#debug",
+    renderAnchors(CONTRACT, "syntax-rules.md", ["ebnf-notation", "debug"]),
+    "contract/syntax-rules.md#ebnf-notation, contract/syntax-rules.md#debug",
   );
 });
 
@@ -420,7 +420,7 @@ test("applyEdits rewrites last-first, so earlier offsets stay valid", () => {
 test("lineTokens finds mentions anywhere, and a bare reference only on a prose line", () => {
   const tokens = lineTokens(
     "a.ts",
-    "// contract/grammar.md:5-6,10 and also :14 here",
+    "// contract/syntax-rules.md:5-6,10 and also :14 here",
     CONTRACT,
   );
   assert.deepEqual(
@@ -430,18 +430,24 @@ test("lineTokens finds mentions anywhere, and a bare reference only on a prose l
   assert.equal(tokens[0].end, 6);
   assert.equal(tokens[0].tail, ",10");
   // A different directory is not this corpus and is left alone.
-  assert.deepEqual(lineTokens("a.ts", "// other/grammar.md:5", CONTRACT), []);
+  assert.deepEqual(
+    lineTokens("a.ts", "// other/syntax-rules.md:5", CONTRACT),
+    [],
+  );
   // Live code carries no citations, so a formatted ratio is never offered as one.
   assert.deepEqual(
     lineTokens("a.ts", "const label = ratio + ':1';", CONTRACT),
     [],
   );
   // A colon-and-number INSIDE a mention is part of it, never a second token.
-  assert.equal(lineTokens("a.md", "contract/grammar.md:5", CONTRACT).length, 1);
+  assert.equal(
+    lineTokens("a.md", "contract/syntax-rules.md:5", CONTRACT).length,
+    1,
+  );
   // A mention with no line spec is still a token — it may carry an anchor a later collapse lands on.
   const anchored = lineTokens(
     "a.md",
-    "contract/grammar.md#debug and contract/grammar.md",
+    "contract/syntax-rules.md#debug and contract/syntax-rules.md",
     CONTRACT,
   );
   assert.deepEqual(
@@ -453,27 +459,29 @@ test("lineTokens finds mentions anywhere, and a bare reference only on a prose l
 // --- planFile: the conversion itself -------------------------------------------------------------
 
 test("an explicit citation becomes the anchor of its enclosing section", () => {
-  const { plan, text } = convert("// contract/grammar.md:5 defines it.\n");
+  const { plan, text } = convert("// contract/syntax-rules.md:5 defines it.\n");
   assert.deepEqual(plan.problems, []);
   assert.equal(plan.sites, 1);
-  assert.deepEqual(plan.produced, ["grammar.md#ebnf-notation"]);
-  assert.equal(text, "// contract/grammar.md#ebnf-notation defines it.\n");
+  assert.deepEqual(plan.produced, ["syntax-rules.md#ebnf-notation"]);
+  assert.equal(text, "// contract/syntax-rules.md#ebnf-notation defines it.\n");
 });
 
 test("a range spanning two sections becomes BOTH anchors, not half the claim", () => {
-  const { plan, text } = convert("// contract/grammar.md:5-10 covers both.\n");
+  const { plan, text } = convert(
+    "// contract/syntax-rules.md:5-10 covers both.\n",
+  );
   assert.deepEqual(plan.problems, []);
   assert.equal(plan.spanning, 1);
   assert.equal(
     text,
-    "// contract/grammar.md#ebnf-notation, contract/grammar.md#debug covers both.\n".replace(
+    "// contract/syntax-rules.md#ebnf-notation, contract/syntax-rules.md#debug covers both.\n".replace(
       "#debug",
       "#expressions-and-calls",
     ),
   );
   assert.deepEqual(plan.produced, [
-    "grammar.md#ebnf-notation",
-    "grammar.md#expressions-and-calls",
+    "syntax-rules.md#ebnf-notation",
+    "syntax-rules.md#expressions-and-calls",
   ]);
 });
 
@@ -482,13 +490,13 @@ test("a COLLAPSE writes one anchor where the duplicate was a citation-LIST eleme
   // the first. Emitting both leaves `(#debug, #debug)`, which every gate accepts and every reader
   // calls wrong.
   const { plan, text } = convert(
-    "// See (contract/grammar.md:14, contract/grammar.md:15) for it.\n",
+    "// See (contract/syntax-rules.md:14, contract/syntax-rules.md:15) for it.\n",
   );
   assert.deepEqual(plan.problems, []);
   assert.equal(plan.sites, 2, "both sites are still counted");
   assert.equal(plan.collapsed, 1, "and one of them collapsed");
-  assert.deepEqual(plan.produced, ["grammar.md#debug"], "into ONE anchor");
-  assert.equal(text, "// See (contract/grammar.md#debug) for it.\n");
+  assert.deepEqual(plan.produced, ["syntax-rules.md#debug"], "into ONE anchor");
+  assert.equal(text, "// See (contract/syntax-rules.md#debug) for it.\n");
   assert.doesNotMatch(text, /#debug.*#debug/, "never the same anchor twice");
 });
 
@@ -498,13 +506,13 @@ test("a duplicate that is LOAD-BEARING in the sentence is written out, never del
   // not parse while every anchor still resolved and every count still balanced. Verbose beats wrong,
   // so the anchor is repeated instead.
   const { plan, text } = convert(
-    "// contract/grammar.md:14 states the first half, :15 the second.\n",
+    "// contract/syntax-rules.md:14 states the first half, :15 the second.\n",
   );
   assert.deepEqual(plan.problems, []);
   assert.equal(plan.collapsed, 0, "this is not a list element");
   assert.equal(
     text,
-    "// contract/grammar.md#debug states the first half, contract/grammar.md#debug the second.\n",
+    "// contract/syntax-rules.md#debug states the first half, contract/syntax-rules.md#debug the second.\n",
   );
   assert.match(
     text,
@@ -514,17 +522,20 @@ test("a duplicate that is LOAD-BEARING in the sentence is written out, never del
 
   // Three more shapes that each lost a word in the first sweep, now intact.
   assert.equal(
-    convert("// the rule contract/grammar.md:14 and :15 now state it.\n").text,
-    "// the rule contract/grammar.md#debug and contract/grammar.md#debug now state it.\n",
-  );
-  assert.equal(
-    convert("// offers `x` (contract/grammar.md:14) and `y` (:15).\n").text,
-    "// offers `x` (contract/grammar.md#debug) and `y` (contract/grammar.md#debug).\n",
-  );
-  assert.equal(
-    convert("// `contract/grammar.md:14`/`contract/grammar.md:15`: one rule.\n")
+    convert("// the rule contract/syntax-rules.md:14 and :15 now state it.\n")
       .text,
-    "// `contract/grammar.md#debug`/`contract/grammar.md#debug`: one rule.\n",
+    "// the rule contract/syntax-rules.md#debug and contract/syntax-rules.md#debug now state it.\n",
+  );
+  assert.equal(
+    convert("// offers `x` (contract/syntax-rules.md:14) and `y` (:15).\n")
+      .text,
+    "// offers `x` (contract/syntax-rules.md#debug) and `y` (contract/syntax-rules.md#debug).\n",
+  );
+  assert.equal(
+    convert(
+      "// `contract/syntax-rules.md:14`/`contract/syntax-rules.md:15`: one rule.\n",
+    ).text,
+    "// `contract/syntax-rules.md#debug`/`contract/syntax-rules.md#debug`: one rule.\n",
   );
 });
 
@@ -532,17 +543,20 @@ test("a collapse removes the punctuation that joined the duplicate to its neighb
   // Two list shapes the corpus actually writes. Leaving the separator behind is the visible defect:
   // a dangling comma, or a pair of empty backticks.
   assert.equal(
-    convert("// See (contract/grammar.md:14, contract/grammar.md:15).\n").text,
-    "// See (contract/grammar.md#debug).\n",
+    convert(
+      "// See (contract/syntax-rules.md:14, contract/syntax-rules.md:15).\n",
+    ).text,
+    "// See (contract/syntax-rules.md#debug).\n",
   );
   assert.equal(
-    convert("// See (`contract/grammar.md:14`, `contract/grammar.md:15`).\n")
-      .text,
-    "// See (`contract/grammar.md#debug`).\n",
+    convert(
+      "// See (`contract/syntax-rules.md:14`, `contract/syntax-rules.md:15`).\n",
+    ).text,
+    "// See (`contract/syntax-rules.md#debug`).\n",
   );
   assert.equal(
-    convert("// See contract/grammar.md:14,15.\n").text,
-    "// See contract/grammar.md#debug.\n",
+    convert("// See contract/syntax-rules.md:14,15.\n").text,
+    "// See contract/syntax-rules.md#debug.\n",
   );
 });
 
@@ -551,12 +565,12 @@ test("a collapse lands on an anchor ALREADY on the line, rather than repeating i
   // anchor. This is why a plain mention seeds the emitted set even though it converts nothing
   // itself — and it still obeys the list-element rule.
   const { plan, text } = convert(
-    "// See (`contract/grammar.md#debug`, contract/grammar.md:15).\n",
+    "// See (`contract/syntax-rules.md#debug`, contract/syntax-rules.md:15).\n",
   );
   assert.deepEqual(plan.problems, []);
   assert.deepEqual(plan.produced, [], "nothing new was written");
   assert.equal(plan.collapsed, 1);
-  assert.equal(text, "// See (`contract/grammar.md#debug`).\n");
+  assert.equal(text, "// See (`contract/syntax-rules.md#debug`).\n");
 });
 
 test("a bare reference is converted using the document the GATE attributes to it", () => {
@@ -564,39 +578,45 @@ test("a bare reference is converted using the document the GATE attributes to it
   // converts to an anchor that RESOLVES, so the gate would pass it and the error would be permanent
   // and silent. A missed site is loud; a mis-attributed one is not.
   const { plan, text } = convert(
-    "// contract/grammar.md:5 and later just :10 on its own.\n",
+    "// contract/syntax-rules.md:5 and later just :10 on its own.\n",
   );
   assert.deepEqual(plan.problems, []);
   assert.equal(plan.sites, 2);
   assert.equal(
     text,
-    "// contract/grammar.md#ebnf-notation and later just contract/grammar.md#expressions-and-calls on its own.\n",
+    "// contract/syntax-rules.md#ebnf-notation and later just contract/syntax-rules.md#expressions-and-calls on its own.\n",
   );
 });
 
 test("a bare reference abutting a comma gains the space the line form did not need", () => {
   // `:5,:10` is legible; running an anchor straight into the separator is not — the gate reads the
   // comma as part of the fragment and the citation stops resolving.
-  const { text } = convert("// contract/grammar.md:5,:10 both matter.\n");
+  const { text } = convert("// contract/syntax-rules.md:5,:10 both matter.\n");
   assert.match(
     text,
-    /#ebnf-notation, contract\/grammar\.md#expressions-and-calls/,
+    /#ebnf-notation, contract\/syntax-rules\.md#expressions-and-calls/,
   );
   assert.doesNotMatch(text, /#ebnf-notation,contract/);
 });
 
 test("a #L line fragment is converted like the line claim it is", () => {
   const { plan, text } = convert(
-    "See contract/grammar.md#L10 for it.\n",
+    "See contract/syntax-rules.md#L10 for it.\n",
     "a.md",
   );
   assert.deepEqual(plan.problems, []);
   assert.equal(plan.sites, 1);
-  assert.equal(text, "See contract/grammar.md#expressions-and-calls for it.\n");
-  const ranged = convert("See contract/grammar.md#L5-L10 for it.\n", "a.md");
+  assert.equal(
+    text,
+    "See contract/syntax-rules.md#expressions-and-calls for it.\n",
+  );
+  const ranged = convert(
+    "See contract/syntax-rules.md#L5-L10 for it.\n",
+    "a.md",
+  );
   assert.equal(
     ranged.text,
-    "See contract/grammar.md#ebnf-notation, contract/grammar.md#expressions-and-calls for it.\n",
+    "See contract/syntax-rules.md#ebnf-notation, contract/syntax-rules.md#expressions-and-calls for it.\n",
   );
 });
 
@@ -605,11 +625,11 @@ test("a bare reference may name a RANGE, and the half already on the line is not
   // only the fresh half is emitted. Nothing is lost — both sections are named on the line — and no
   // word is deleted, which is the rule the collapse fix established.
   const { text } = convert(
-    "// contract/grammar.md:5 and later :5-10 as well.\n",
+    "// contract/syntax-rules.md:5 and later :5-10 as well.\n",
   );
   assert.equal(
     text,
-    "// contract/grammar.md#ebnf-notation and later contract/grammar.md#expressions-and-calls as well.\n",
+    "// contract/syntax-rules.md#ebnf-notation and later contract/syntax-rules.md#expressions-and-calls as well.\n",
   );
 });
 
@@ -624,10 +644,10 @@ test("a citation that names no real text is REFUSED, not given an anchor it woul
     allBlank: true,
   });
   for (const [citation, why] of [
-    ["contract/grammar.md:99", "past end-of-file"],
-    ["contract/grammar.md:5-99", "a range whose end is past end-of-file"],
-    ["contract/grammar.md:10-5", "an inverted range"],
-    ["contract/grammar.md:0", "before line 1"],
+    ["contract/syntax-rules.md:99", "past end-of-file"],
+    ["contract/syntax-rules.md:5-99", "a range whose end is past end-of-file"],
+    ["contract/syntax-rules.md:10-5", "an inverted range"],
+    ["contract/syntax-rules.md:0", "before line 1"],
   ]) {
     const { plan, text } = convert(`// ${citation} is cited here.\n`);
     assert.equal(plan.problems.length, 1, why);
@@ -643,21 +663,23 @@ test("a bare reference carrying a comma tail agrees with the gate, site for site
   // the cross-check then refused a file that was perfectly convertible — an enumeration guard
   // firing on its own arithmetic rather than on either sweep being blind.
   const { plan, text } = convert(
-    "// contract/grammar.md and later :5,13 both matter.\n",
+    "// contract/syntax-rules.md and later :5,13 both matter.\n",
   );
   assert.deepEqual(plan.problems, []);
   assert.equal(plan.sites, 2);
   assert.equal(
     text,
-    "// contract/grammar.md and later contract/grammar.md#ebnf-notation, contract/grammar.md#debug both matter.\n",
+    "// contract/syntax-rules.md and later contract/syntax-rules.md#ebnf-notation, contract/syntax-rules.md#debug both matter.\n",
   );
 });
 
 test("a mention with no line spec and no fragment is left exactly as written", () => {
-  const { plan, text } = convert("// contract/grammar.md is the document.\n");
+  const { plan, text } = convert(
+    "// contract/syntax-rules.md is the document.\n",
+  );
   assert.equal(plan.sites, 0);
   assert.deepEqual(plan.edits, []);
-  assert.equal(text, "// contract/grammar.md is the document.\n");
+  assert.equal(text, "// contract/syntax-rules.md is the document.\n");
 });
 
 // --- planFile: what it REFUSES -------------------------------------------------------------------
@@ -672,7 +694,7 @@ test("a citation hard-wrapped across a line break is REFUSED, not half-converted
     [",", " * 10): the same word"],
   ]) {
     const { plan } = convert(
-      [` * (\`contract/grammar.md:5${dangling}`, second, ""].join("\n"),
+      [` * (\`contract/syntax-rules.md:5${dangling}`, second, ""].join("\n"),
     );
     const wrapped = plan.problems.find(
       (problem) => problem.kind === "wrapped-citation",
@@ -703,14 +725,14 @@ test("a trailing comma that is ordinary prose is NOT mistaken for a wrap", () =>
     "// issue #99) covers the remainder.",
   ]) {
     const { plan, text } = convert(
-      ["// see contract/grammar.md:5,", second, ""].join("\n"),
+      ["// see contract/syntax-rules.md:5,", second, ""].join("\n"),
     );
     assert.deepEqual(plan.problems, [], second);
     assert.match(text, /#ebnf-notation/);
   }
   // And a citation on the LAST line of a file has no next line at all, which must read as "no
   // continuation" rather than throwing or guessing.
-  const last = convert("// see contract/grammar.md:5,");
+  const last = convert("// see contract/syntax-rules.md:5,");
   assert.deepEqual(last.plan.problems, []);
   assert.match(last.text, /#ebnf-notation/);
 });
@@ -719,12 +741,12 @@ test("a bare `#` names no fragment, so it seeds nothing and blocks no later anch
   // A mention whose `#` carries no slug is unresolvable as written; it must not be entered into the
   // set of anchors already on the line, or it would suppress a perfectly good conversion beside it.
   const { plan, text } = convert(
-    "// contract/grammar.md# and contract/grammar.md:14 here.\n",
+    "// contract/syntax-rules.md# and contract/syntax-rules.md:14 here.\n",
   );
   assert.deepEqual(plan.problems, []);
   assert.equal(
     text,
-    "// contract/grammar.md# and contract/grammar.md#debug here.\n",
+    "// contract/syntax-rules.md# and contract/syntax-rules.md#debug here.\n",
   );
 });
 
@@ -759,7 +781,9 @@ test("a citation landing on a blank line ON A SECTION BOUNDARY is refused for a 
   // #ebnf-notation, so the section above it and the text below it are equally defensible and both
   // anchors would RESOLVE. The converter refuses rather than picking one, because a wrong anchor
   // that resolves is permanent and silent — nothing downstream can catch it.
-  const { plan, text } = convert("// contract/grammar.md:7 is cited here.\n");
+  const { plan, text } = convert(
+    "// contract/syntax-rules.md:7 is cited here.\n",
+  );
   assert.deepEqual(
     plan.problems.map((problem) => problem.kind),
     ["blank-range"],
@@ -769,12 +793,15 @@ test("a citation landing on a blank line ON A SECTION BOUNDARY is refused for a 
     /is blank and sits on a section boundary, so the section above it and the text below it are equally defensible — decide by hand/,
   );
   assert.deepEqual(plan.edits, [], "and nothing is rewritten");
-  assert.equal(text, "// contract/grammar.md:7 is cited here.\n");
+  assert.equal(text, "// contract/syntax-rules.md:7 is cited here.\n");
 
   // A blank line INSIDE a section is not ambiguous, so it converts without a murmur.
-  const inside = convert("// contract/grammar.md:13 is cited here.\n");
+  const inside = convert("// contract/syntax-rules.md:13 is cited here.\n");
   assert.deepEqual(inside.plan.problems, []);
-  assert.equal(inside.text, "// contract/grammar.md#debug is cited here.\n");
+  assert.equal(
+    inside.text,
+    "// contract/syntax-rules.md#debug is cited here.\n",
+  );
 });
 
 test("a line with no citable enclosing heading is reported rather than pointed at `#`", () => {
@@ -802,13 +829,15 @@ test("the two enumerations are cross-checked BEFORE anything is rewritten", () =
   // per line — so a disagreement means one of them is blind, and rewriting a file the two had
   // enumerated differently would be exactly the instrument that reports success while measuring
   // something else.
-  const agreeing = convert("// contract/grammar.md:5 and :10 both.\n").plan;
+  const agreeing = convert(
+    "// contract/syntax-rules.md:5 and :10 both.\n",
+  ).plan;
   assert.deepEqual(agreeing.problems, []);
   assert.equal(agreeing.sites, 2);
   assert.ok(agreeing.edits.length > 0);
 
   const disagreeing = convert(
-    ["// contract/grammar.md:5,", "// 10 continues here", ""].join("\n"),
+    ["// contract/syntax-rules.md:5,", "// 10 continues here", ""].join("\n"),
   ).plan;
   const mismatch = disagreeing.problems.find(
     (problem) => problem.kind === "enumeration-disagreement",
@@ -828,13 +857,13 @@ test("a continuation the gate cannot see is converted and counted apart, so the 
   // `/:301` is a line claim the gate's bare-reference lookbehind excludes. Ignoring it would strand a
   // stale line spec beside a freshly written anchor; counting it as a gate-visible site would make
   // the cross-check fire on every file that has one.
-  const { plan, text } = convert("// contract/grammar.md:5/:10 both.\n");
+  const { plan, text } = convert("// contract/syntax-rules.md:5/:10 both.\n");
   assert.deepEqual(plan.problems, [], "the cross-check must still agree");
   assert.equal(plan.sites, 1, "one site to the gate");
   assert.equal(plan.invisible, 1, "plus one it cannot see");
   assert.equal(
     text,
-    "// contract/grammar.md#ebnf-notation, contract/grammar.md#expressions-and-calls both.\n",
+    "// contract/syntax-rules.md#ebnf-notation, contract/syntax-rules.md#expressions-and-calls both.\n",
   );
 });
 
@@ -856,17 +885,17 @@ test("a PREFIX-LESS reference converts to the FULL prefixed anchor, never to ano
   // silent one. The replacement therefore carries the prefix the original omitted.
   const plan = planFile(
     "a.ts",
-    "// grammar.md:5 defines the selector.\n",
+    "// syntax-rules.md:5 defines the selector.\n",
     CONTRACT,
     headingsFor,
     linesFor,
-    new Set(["grammar.md"]),
+    new Set(["syntax-rules.md"]),
   );
   assert.deepEqual(plan.problems, []);
   assert.equal(plan.sites, 1);
   assert.equal(
-    applyEdits("// grammar.md:5 defines the selector.\n", plan.edits),
-    "// contract/grammar.md#ebnf-notation defines the selector.\n",
+    applyEdits("// syntax-rules.md:5 defines the selector.\n", plan.edits),
+    "// contract/syntax-rules.md#ebnf-notation defines the selector.\n",
   );
 });
 
@@ -876,7 +905,7 @@ test("a prefix-less reference is invisible without the document set, so the gate
   // no directory to read, and is exactly why the gate's own run is pinned separately.
   const blind = planFile(
     "a.ts",
-    "// grammar.md:5 defines the selector.\n",
+    "// syntax-rules.md:5 defines the selector.\n",
     CONTRACT,
     headingsFor,
     linesFor,
@@ -891,14 +920,14 @@ test("an en- or em-dash range is REFUSED rather than half-converted", () => {
   // `#style-linter-codes–194`, which resolves nowhere. One site in this corpus had that shape and
   // it did produce exactly that broken anchor before this guard existed.
   for (const dash of ["\u2013", "\u2014"]) {
-    const source = `// grammar.md:5${dash}13 covers both.\n`;
+    const source = `// syntax-rules.md:5${dash}13 covers both.\n`;
     const plan = planFile(
       "a.ts",
       source,
       CONTRACT,
       headingsFor,
       linesFor,
-      new Set(["grammar.md"]),
+      new Set(["syntax-rules.md"]),
     );
     const kinds = plan.problems.map((problem) => problem.kind);
     assert.ok(kinds.includes("dash-range"), `${dash} must be refused`);
@@ -911,11 +940,11 @@ test("an en- or em-dash range is REFUSED rather than half-converted", () => {
   // A plain hyphen is the range separator this module reads, and converts normally.
   const hyphen = planFile(
     "a.ts",
-    "// grammar.md:5-13 covers both.\n",
+    "// syntax-rules.md:5-13 covers both.\n",
     CONTRACT,
     headingsFor,
     linesFor,
-    new Set(["grammar.md"]),
+    new Set(["syntax-rules.md"]),
   );
   assert.deepEqual(hyphen.problems, []);
 });
@@ -926,9 +955,9 @@ test("a prefix-less scan never re-counts text already inside a prefixed mention"
   // spans. The overlap guard is what stops that, and it only fires when both forms share a line.
   const tokens = lineTokens(
     "a.ts",
-    "// contract/grammar.md:5 and grammar.md:13 both matter.",
+    "// contract/syntax-rules.md:5 and syntax-rules.md:13 both matter.",
     CONTRACT,
-    new Set(["grammar.md"]),
+    new Set(["syntax-rules.md"]),
   );
   assert.deepEqual(
     tokens.map((token) => `${token.kind}:${token.start}`),
@@ -936,26 +965,27 @@ test("a prefix-less scan never re-counts text already inside a prefixed mention"
   );
 
   // End to end: the line converts once, both halves, with no double rewrite.
-  const source = "// contract/grammar.md:5 and grammar.md:13 both matter.\n";
+  const source =
+    "// contract/syntax-rules.md:5 and syntax-rules.md:13 both matter.\n";
   const plan = planFile(
     "a.ts",
     source,
     CONTRACT,
     headingsFor,
     linesFor,
-    new Set(["grammar.md"]),
+    new Set(["syntax-rules.md"]),
   );
   assert.deepEqual(plan.problems, []);
   assert.equal(
     applyEdits(source, plan.edits),
-    "// contract/grammar.md#ebnf-notation and contract/grammar.md#debug both matter.\n",
+    "// contract/syntax-rules.md#ebnf-notation and contract/syntax-rules.md#debug both matter.\n",
   );
 });
 
 test("a dry run reports exactly what a sweep would do, and writes nothing", () => {
-  write(`${CONTRACT}/grammar.md`, GRAMMAR);
+  write(`${CONTRACT}/syntax-rules.md`, GRAMMAR);
   const source =
-    "// See (contract/grammar.md:14, contract/grammar.md:15) for it.\n";
+    "// See (contract/syntax-rules.md:14, contract/syntax-rules.md:15) for it.\n";
   write("cite.ts", source);
   const dry = runTree();
   assert.equal(dry.filesScanned, 1);
@@ -977,7 +1007,7 @@ test("a dry run reports exactly what a sweep would do, and writes nothing", () =
   assert.deepEqual(wet.changed, dry.changed);
   assert.equal(
     readFileSync(join(TEMP_DIR, "cite.ts"), "utf8"),
-    "// See (contract/grammar.md#debug) for it.\n",
+    "// See (contract/syntax-rules.md#debug) for it.\n",
   );
   // Re-running over a converted tree is a no-op, which is what "the sweep is finished" means.
   const again = runTree({ write: true });
@@ -986,12 +1016,12 @@ test("a dry run reports exactly what a sweep would do, and writes nothing", () =
 });
 
 test("the tree walk skips what cannot carry a citation, and counts only what can", () => {
-  write(`${CONTRACT}/grammar.md`, GRAMMAR);
-  write("cited.ts", "// contract/grammar.md:5 is cited.\n");
+  write(`${CONTRACT}/syntax-rules.md`, GRAMMAR);
+  write("cited.ts", "// contract/syntax-rules.md:5 is cited.\n");
   write("silent.ts", "// this file names no document at all\n");
   write(
     "mentions.ts",
-    "// contract/grammar.md is mentioned but no line named\n",
+    "// contract/syntax-rules.md is mentioned but no line named\n",
   );
   writeFileSync(join(TEMP_DIR, "blob.bin"), Buffer.from([0x00, 0x01]));
   const report = runTree();
@@ -1019,7 +1049,7 @@ test("a document that cannot be read publishes no headings, once, for the whole 
 test("specRoot defaults to the directory citations name, which is the production configuration", () => {
   // Without an override the token a citation carries IS the directory the reader opens, so a tree
   // whose documents live elsewhere reports them missing rather than silently resolving something.
-  write("cite.ts", "// contract/grammar.md:5 is cited.\n");
+  write("cite.ts", "// contract/syntax-rules.md:5 is cited.\n");
   const report = convertTree({ roots: [TEMP_DIR], specDirectory: CONTRACT });
   assert.deepEqual(
     report.problems.map((problem) => problem.kind),

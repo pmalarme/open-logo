@@ -29,7 +29,7 @@ interface OLDictEntry {
 }
 
 /**
- * The Data-profile `dict` value (`spec/data-structures.md#dictionaries, spec/data-structures.md#dictionary-reads`): a mutable, insertion-ordered
+ * The Data-profile `dict` value (`spec/data-structures.md#dictionaries`): a mutable, insertion-ordered
  * key/value collection. Keys are words or numbers, compared under OpenLogo's number↔word equality
  * (`spec/execution-model.md#equality-and-ordering`, e.g. `5` and `"5"` name the same slot, `5` and `"05"` do
  * not). {@link set} on an existing canonical key updates the stored value in place rather than

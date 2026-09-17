@@ -248,8 +248,8 @@ grandfathering: a line number and a `#L`-style line fragment are both **rejected
 claim rests on one table row or one production you quote the words it relies on instead. The gate
 **resolves** anchors (#1181): a fragment naming no heading in the file it cites fails, with a
 did-you-mean that is reported and never acted on. It proves the heading exists and nothing more.
-Rejecting the line form, and sweeping the corpus onto anchors, are `@testing`'s under saga #1180 —
-so expect a tree that does not yet match the rule. The rule, its limits and the evidence live in
+Rejecting the line form, and sweeping the corpus onto anchors, are done: the gate rejects every
+spelling and the tree carries no line citation. The rule, its limits and the evidence live in
 [`shared/spec-fidelity`](.github/skills/shared/spec-fidelity/SKILL.md) and
 [ADR-0036](docs/adr/0036-cite-the-spec-by-section-anchor-only.md).
 

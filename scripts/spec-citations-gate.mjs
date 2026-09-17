@@ -61,9 +61,11 @@
  * In JavaScript and TypeScript sources a bare `:N` counts only inside a comment line. That is a
  * structural rule, not a tolerance: a formatted contrast ratio, whose template literal ends with a
  * closing brace immediately before a colon and a digit, is live code. It is a **bound, not a proof
- * of exhaustiveness** — a citation CAN be written in an expression, and two were, inside `test(…)`
- * titles; both were converted by hand once review found them. {@link isProseLine}'s tests pin the
- * ratio shape by asserting on that exact literal.
+ * of exhaustiveness** — a bare `:N` CAN be written in an expression. {@link isProseLine}'s tests pin
+ * the ratio shape by asserting on that exact literal. The *prefix-less* line form carries no such
+ * bound: it names its own document, so it is enumerated in code as well as prose (see
+ * {@link PREFIX_LESS_REFERENCE}). Two citations had been written inside `test(…)` titles, and this
+ * is what now reaches them.
  *
  * ## No automatic tolerance, and nowhere to record an exception
  *
@@ -492,16 +494,20 @@ export const SLUG_CHARACTER = "[\\p{L}\\p{N}\\p{M}\\p{Pc}\\p{So}-]";
  * lists. The document must **actually exist** in the specification directory, so `readme.md:10` or a
  * stray `notes.md:4` is not silently adopted — and the filename class admits an initial capital,
  * because `spec/README.md` is a real document the oracle publishes and a class that could not match
- * it would be a blind spot shared by both instruments. And it counts only on a **prose line**, which
- * is the same structural rule {@link isProseLine} already applies to a bare `:N`.
+ * it would be a blind spot shared by both instruments.
  *
- * **That second guard is a stated bound, not a claim of exhaustiveness.** A citation written inside
- * a string literal in live code — a `test("… per <file>.md:226", …)` title — is *not* enumerated,
- * and dropping the guard to reach it was measured: it would catch those citations along with a
- * larger and growing number of fixture-data sites, including this gate's own `file:line:form`
- * assertion strings. The exact ratio is not recorded here because it moves with every test added —
- * what matters, and does not move, is that the guard trades a small known miss for a false-positive
- * class that would be fatal in a gate with no tolerance.
+ * **The LINE form is counted wherever it appears, including inside a string literal in live code.**
+ * It used to require a prose line, on the argument that dropping the guard would catch fixture data
+ * along with real citations. That argument was wrong in the way that matters: the form is banned
+ * outright, two real citations had already been written in `test(…)` titles where the gate could not
+ * see them, and a hole disclosed in a coverage statement is still a hole. The cost is real and is
+ * named rather than hidden — test data mirroring this gate's own `document:line:form` output trips
+ * it when the document is one the specification publishes. The remedy is to name fixtures after
+ * documents the specification does **not** publish, which this gate's own suite now does.
+ *
+ * The unprefixed **anchor** half keeps the prose-line guard, because it is a different rule: it
+ * governs how a citation is *written*, and a fragment-shaped token inside code is not a citation
+ * anybody wrote. Reporting one would invent a citation, which is the mirror image of missing one.
  */
 const PREFIX_LESS_REFERENCE =
   /(?<![A-Za-z0-9._/#-])([A-Za-z][A-Za-z0-9-]*\.md)(?::(\d+)(?:-(\d+))?((?:,\d+(?:-\d+)?)+)?|#([\p{L}\p{N}\p{M}\p{Pc}-]+))/gu;
@@ -1251,12 +1257,22 @@ export function collectCitations(
     const inside = mentions.some(
       (mention) => index >= mention.index && index < mention.end,
     );
-    const eligible =
-      !inside &&
-      knownDocuments.has(bareDocument[1]) &&
-      isProseLine(path, lines[line - 1]);
-    if (eligible && bareDocument[5] !== undefined) {
-      if (!insideSpecDirectory) {
+    const attributable = !inside && knownDocuments.has(bareDocument[1]);
+    // The two halves of this form are governed by different rules, so they get different guards.
+    //
+    // The LINE form is **prohibited outright** — ADR-0036 admits no carve-out — so it is enumerated
+    // wherever it appears, including inside a string literal in live code. That used to require
+    // `isProseLine`, which meant a citation written in a `test(...)` title was invisible to the very
+    // gate that bans it; disclosing the hole in the coverage statement is not the same as closing
+    // it, and two genuine citations had already been found in exactly that position.
+    //
+    // The unprefixed ANCHOR form is a different rule — it is about how a citation is *written* in
+    // prose, not about a banned construct — so it stays prose-scoped, because a fragment-looking
+    // token inside code (a URL, a selector, an expected-output string) is not a citation anybody
+    // wrote and reporting it would be an invention.
+    const prose = isProseLine(path, lines[line - 1]);
+    if (attributable && bareDocument[5] !== undefined) {
+      if (!insideSpecDirectory && prose) {
         unprefixedAnchors.push({
           specDirectory,
           file: bareDocument[1],
@@ -1265,7 +1281,7 @@ export function collectCitations(
           written: bareDocument[0],
         });
       }
-    } else if (eligible) {
+    } else if (attributable) {
       citations.push({
         specDirectory,
         file: bareDocument[1],
@@ -2080,15 +2096,15 @@ export function runSpecCitationsGate({
       "the slug it vacated; both retarget a citation silently and both leave this gate green. A renamed " +
       "heading therefore fails loudly only when the rename leaves its slug unclaimed. A citation written " +
       "without the spec-directory prefix is now enumerated too: the LINE form anywhere, and the " +
-      "ANCHOR form outside the specification directory, both only on a prose line naming a document " +
+      "ANCHOR form outside the specification directory. The LINE form is counted ANYWHERE, " +
+      "including inside a string literal in live code; the ANCHOR form only on a prose line naming a document " +
       "whose basename is unique in the repository — an ambiguous one such as a README is left alone, " +
       "because attributing it to the specification would invent a citation nobody wrote. Inside the " +
       "specification directory the relative anchor is the normal way one document links to a sibling " +
       "and is never reported. A relative path that still carries the spec-directory segment " +
       "(`../../<dir>/<file>.md#y`) IS matched and resolved; one with no such segment is not seen at " +
-      "all. So the rejection above is exhaustive over every spelling this gate can name, and a " +
-      "citation written inside a string literal in live code is the one shape it deliberately does " +
-      "not reach. " +
+      "all. So the rejection above is exhaustive over every spelling this gate can name, in prose " +
+      "and in code alike. " +
       "Headings come from a GFM " +
       "parse and slugs from github-slugger (ADR-0035), so block structure and rendered text are no longer " +
       "approximated; where GitHub can still resolve something this reader does not — an entity reference " +

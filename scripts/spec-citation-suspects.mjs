@@ -15,10 +15,16 @@
  * **It is a ranked report for a human, never a gate verdict**, and that is not modesty. It is
  * measured. Two facts decide it:
  *
- * 1. **Recall is roughly 25%.** Repointing known-good anchors to a random other section of the same
- *    document and re-scoring catches about a quarter of them. Three of four *deliberately broken*
- *    anchors score clean. A detector that misses three quarters of known-wrong inputs cannot gate
- *    anything, because its silence carries almost no information.
+ * 1. **It detects only about half of the mutations it plants in itself, and even that overstates
+ *    what it can do.** The seeded control repoints a citation at a random *other real section* of
+ *    the same document and re-scores; the shipped scorer catches roughly 55% of those (the live
+ *    figure is printed on every run and interpolated into the report, never written down here).
+ *    Two things stop that number from being "recall against wrong anchors". The control's
+ *    population is the citations **this same heuristic did not flag**, which is not the same as
+ *    citations a human verified; and a random repoint can land on a section that supports the claim
+ *    perfectly well, so some of what it "fails to detect" was never wrong. What the figure honestly
+ *    measures is **sensitivity to random retargeting**. A detector that misses half of even that
+ *    cannot gate anything, because its silence carries little information.
  * 2. **The flag rate is a property of the instrument, not of the corpus.** Two implementations
  *    written from the same prose description — differing only in tokenizer and stop-list — produced
  *    rates 2.3× apart on the same tree. So this module never publishes a rate as a measurement of
@@ -457,37 +463,44 @@ export function seededRandom(seed) {
 }
 
 /**
- * Sections that review has refuted **every time** this tool proposed them.
+ * Sections this tool has been observed to suggest wrongly, recorded so the next reader is warned.
  *
  * This is not a tuning constant and it is not an exclusion: rows suggesting these sections are still
  * ranked and still printed, because suppressing them would be the tool judging a citation, which is
- * the one thing it must never do. The list exists because concentration turned out to be the wrong
- * detector for this class. `#tutor-output-educational-profile` drew 23 suggestions across 8 rows in
- * one review batch and was rejected on all 23, while sitting **below** the artifact threshold the
- * whole time — so a reader watching only the share had no warning at all.
+ * the one thing it must never do.
  *
- * The signal that would genuinely catch it is "a section never accepted across a review", and this
- * tool cannot compute that: it sees citations, never decisions. Naming the sections review has
- * already refuted is the honest substitute, and it carries its own expiry — an entry here is a
- * record of what reviewers found, so it must be re-earned rather than trusted indefinitely.
+ * **What is actually known, stated at the size it was measured.** In one review batch
+ * `#tutor-output-educational-profile` was suggested 23 times across 8 rows and the reviewer rejected
+ * all 23 — while it sat **below** the concentration threshold throughout, so a reader watching only
+ * the share had no warning. That is one batch, by one reviewer, at one point in the corpus. It is
+ * not a claim that the section is always a wrong suggestion, and this list must never be read as
+ * one; an entry is a warning to look harder, not a verdict.
+ *
+ * The signal that would genuinely catch the class is "a section never accepted across a review", and
+ * this tool **cannot compute it**: it sees citations and never decisions. Nothing here expires
+ * automatically, because there is no decision record to expire against — so an entry is only as
+ * current as the last person who re-read it, and that is a limitation rather than a design.
  *
  * **Only a section with that evidence belongs here.** `#normative-code-registry` and
  * `#keywords-primitives-and-built-in-names` also dominate this tool's output, but what is known
  * about them is weaker and different — they are large enumerations that win on vocabulary, which the
- * share-based artifact check already reports. Listing them beside a measured refutation rate would
- * state something nobody measured, and a sentence written to explain an instrument acquires a false
- * claim exactly that easily.
+ * concentration line already reports. Listing them beside an observed rejection record would state
+ * something nobody measured, and a sentence written to explain an instrument acquires a false claim
+ * exactly that easily.
  */
 export const KNOWN_ATTRACTORS = ["#tutor-output-educational-profile"];
 
 /**
  * The band the seeded mutation control must land inside, and the sample size.
  *
- * **Calibrated to THIS scorer, and that is the point.** The design prototype measured ~25% recall
- * with a citing-line claim window; this implementation uses the enclosing prose run, IDF weighting
- * and leaf bodies, and measures ~55% on the same corpus. A band inherited from the prototype would
- * have failed every run of the shipped tool — so the band is re-measured whenever the scorer
- * changes, and the measured value is printed on every run rather than merely compared.
+ * **Calibrated to THIS scorer, and that is the point.** The design prototype detected ~25% of
+ * seeded retargetings with a citing-line claim window; this implementation uses the enclosing prose
+ * run, IDF weighting and leaf bodies, and detects ~55% on the same corpus. A band inherited from
+ * the prototype would have failed every run of the shipped tool — so the band is re-measured
+ * whenever the scorer changes, and the measured value is printed on every run rather than merely
+ * compared. **Do not restate either figure as prose elsewhere**: the report interpolates the live
+ * one, because a number written into a sentence is an assertion nothing keeps true, which is the
+ * rule this whole saga exists to enforce.
  *
  * Both bounds carry information. Falling through the floor means the instrument has stopped
  * detecting and a green queue would mean nothing. Punching through the ceiling means it has become
@@ -596,6 +609,26 @@ export function reportSuspects(options = {}) {
     `citation suspects: ${pairs.length} ranked pair(s) over ${total} site(s), from ${scorable} ` +
       `scorable of ${scanned} anchor(s) across ${documents.length} cited document(s)`,
   );
+  // Parity with the gate's banner. A scoped run of a REPORT is milder than a scoped run of a gate,
+  // but it is the same shape: an option that narrows what was examined while the numbers above
+  // still read as the repository's. Saying so is the whole remedy.
+  const overrides = [];
+  if (options.roots !== undefined) {
+    overrides.push(`roots=[${[].concat(options.roots).join(", ")}]`);
+  }
+  if (options.specDirectory !== undefined) {
+    overrides.push(`spec-dir=${options.specDirectory}`);
+  }
+  if (options.specRoot !== undefined) {
+    overrides.push(`spec-root=${options.specRoot}`);
+  }
+  if (overrides.length > 0) {
+    lines.push(
+      `  SCOPED RUN (${overrides.join(", ")}) — this did NOT use the production configuration. The ` +
+        "counts above describe only what was scanned, the self-check was calibrated against that " +
+        "narrower corpus, and neither is this repository's queue.",
+    );
+  }
   lines.push(
     `  self-check: ${check.caught}/${check.sampled} seeded mutations detected ` +
       `(${(check.detection * 100).toFixed(1)}%, band ${(SELF_CHECK.floor * 100).toFixed(0)}-${(SELF_CHECK.ceiling * 100).toFixed(0)}%)` +
@@ -621,18 +654,19 @@ export function reportSuspects(options = {}) {
     // `ranked` is non-empty only when `pairs` is, which requires sites, so `total` is never zero here.
     const share = count / total;
     lines.push(
-      `  attractor check: ${section} absorbs ${count} site(s) (${(share * 100).toFixed(0)}%)` +
-        `${share > 0.25 ? " — ARTIFACT, not a discovery: a large enumeration wins on vocabulary alone" : ""}` +
-        `${KNOWN_ATTRACTORS.some((known) => section.endsWith(known)) ? " — KNOWN ATTRACTOR: refuted by reading every time it has been reviewed; do not machine-apply" : ""}`,
+      `  concentration: ${section} is suggested for ${count} site(s) (${(share * 100).toFixed(0)}%)` +
+        `${share > 0.25 ? " — AUDIT THIS BEFORE ACTING ON IT: a large section can win on vocabulary alone, so a high share may be an artifact of the scorer rather than a cluster of real defects. It may equally be a real cluster; this line does not decide which, and only reading does." : ""}` +
+        `${KNOWN_ATTRACTORS.some((known) => section.endsWith(known)) ? " — PREVIOUSLY REJECTED: in one review batch a reviewer rejected every suggestion of this section. That is one batch, not a verdict; look harder rather than machine-applying or machine-dismissing." : ""}`,
     );
   }
   lines.push(
     "  Concentration is a share, and a share is NOT acceptance. A section can sit far below the " +
-      "artifact threshold and still be wrong every single time it is suggested — that is exactly " +
-      `what happened to ${KNOWN_ATTRACTORS.join(", ")}, named above by identity rather than by ` +
-      "share. The signal that would actually catch this class is a section never " +
-      "accepted across a review, which this tool cannot see: it has no record of what a reviewer " +
-      "decided. Until it does, a low share is not evidence a suggestion is sound.",
+      "threshold above and still have been rejected every time it was suggested — that is what was " +
+      `observed for ${KNOWN_ATTRACTORS.join(", ")}, which is why it is named by identity rather ` +
+      "than by share. The signal that would actually settle this is a section never accepted across " +
+      "a review, which this tool cannot see: it has no record of what any reviewer decided, so " +
+      "neither line above is a judgement about whether a suggestion is right. A low share is not " +
+      "evidence a suggestion is sound, and a high one is not evidence it is spurious.",
   );
 
   for (const pair of pairs) {
@@ -646,8 +680,14 @@ export function reportSuspects(options = {}) {
   lines.push(
     "  This is a RANKED REPORT, not a gate. It scores the prose around a citation against every " +
       "section of the document it cites and lists where another section matches better. It NEVER " +
-      "fails on a finding, and its silence proves nothing: measured recall against seeded mutations " +
-      "is roughly a quarter, so three of four deliberately broken anchors score clean. SO READ THIS " +
+      "fails on a finding, and its silence proves little. The seeded control above detected " +
+      `${(check.detection * 100).toFixed(1)}% of the mutations it planted in itself, and that ` +
+      "figure OVERSTATES what the tool can do, for two reasons it cannot correct: the control is " +
+      "drawn from the citations THIS SAME HEURISTIC did not flag, which is not the same as " +
+      "citations a human verified; and a random repoint can land on a section that supports the " +
+      "claim perfectly well, so some of what it 'missed' was never wrong. Read it as SENSITIVITY " +
+      "TO RANDOM RETARGETING, not as recall against known-wrong anchors — the honest summary is " +
+      "that a clean row list is close to no evidence at all. SO READ THIS " +
       "AS A FILE ROUTER, NOT A DEFECT DETECTOR. Across four review batches the defects found " +
       "without a row — 7 in one batch alone — were each beside a ranked row, in a file the queue had " +
       "already sent the reviewer to. Citations were authored in cohorts and drifted in cohorts, so a " +

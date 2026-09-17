@@ -41,7 +41,7 @@ export interface ArityRange {
  * for commands and effect-only special forms"*).
  *
  * The block-result rule judges a block by its last statement (`spec/execution-model.md#the-block-result-rule`,
- * whose closing sentence at `spec/execution-model.md#the-block-result-rule` is the `ol-no-value` rule itself), so this is the fact a
+ * whose closing sentence is the `ol-no-value` rule itself), so this is the fact a
  * comprehension body's `ol-no-value` (`checker-control-flow.ts`, and `@openlogo/runtime`'s
  * `runComprehensionBody`) and a control body's `ol-style-useless-value` (`checker-style.ts`) all
  * need about a call — three consumers, and before issue #932 two hand-written three-name lists.

@@ -22,8 +22,12 @@
  *    and {@link planFile} asserts the two agree site-for-site before it rewrites anything.
  * 3. **The result is re-measured by an instrument this module does not own.** After the sweep the
  *    gate must report **zero** line-form citations, and a section-anchor count risen by the number
- *    this converter predicted. A converter that silently skipped a file fails the first; one that
- *    wrote an anchor no heading publishes fails the second. The count reconciles **exactly** only
+ *    this converter predicted. A converter that silently skipped a file fails the first. One that
+ *    wrote an anchor no heading publishes fails the gate's **anchor resolution** — not the count,
+ *    which cannot see it: the gate increments its anchor total before resolving, so an unpublished
+ *    anchor still counts. Two separate checks, and it is worth keeping them distinct, because
+ *    "the count reconciles" is a statement about how many citations moved and nothing whatever
+ *    about whether they landed anywhere real. The count reconciles **exactly** only
  *    across a single sweep commit: later commits add and correct citations by hand, so comparing a
  *    branch's endpoints to one dry run is arithmetic about two different trees.
  *

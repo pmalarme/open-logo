@@ -87,12 +87,11 @@ the escaping set, raw inline HTML, a numeric reference whose digit count CommonM
 renderer disagree about — is **refused** rather than answered. Read the coverage statement
 the gate prints; never read a green run as "every citation is right".
 
-**What is not yet true.** The rule above binds you **now**; the tooling is catching up behind it.
-Today `npm run spec-citations` still **accepts** a line citation, and the corpus is still
-overwhelmingly line-form — the counters the gate prints are the live measure. The gate change that
-rejects the line form, the sweep that converts the corpus, and the deletion of the exceptions file
-are `@testing`'s, under saga #1180. Do not read the gate's silence as permission: a rule is not a
-preference because nothing rejects it yet.
+**What the tooling now does.** The rule above binds you, and the tooling enforces it. `npm run
+spec-citations` **rejects** a line citation in every spelling — explicit, comma-appended, bare, `#L`
+fragment, and prefix-less — the corpus is entirely section anchors, and the exceptions file and its
+machinery are gone. The counters the gate prints are the live measure. There is no baseline and
+nothing records that a line citation may stay.
 
 ## Procedure
 

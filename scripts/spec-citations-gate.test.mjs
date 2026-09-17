@@ -130,8 +130,8 @@ const GRAMMAR = [
 
 /** Write the grammar fixture and return its citable name. */
 function writeGrammar() {
-  write(`${CONTRACT}/grammar.md`, GRAMMAR);
-  return `${CONTRACT}/grammar.md`;
+  write(`${CONTRACT}/syntax-rules.md`, GRAMMAR);
+  return `${CONTRACT}/syntax-rules.md`;
 }
 
 test("toPosixPath, splitLines and formatCitation render the shapes a failure quotes back", () => {
@@ -200,7 +200,7 @@ test("collectCitations still enumerates every line form, because rejecting one m
   // see, so a sweep that quietly stopped finding comma tails or bare references would turn the
   // strictest possible rule into a green run over citations nobody looked at.
   const text = [
-    "// see contract/grammar.md:4-6,9 and also :5 for the postfix rule",
+    "// see contract/syntax-rules.md:4-6,9 and also :5 for the postfix rule",
     "// and contract/other.md then :7 belongs to that one",
   ].join("\n");
   const { citations } = collectCitations("a.ts", text, CONTRACT);
@@ -209,9 +209,9 @@ test("collectCitations still enumerates every line form, because rejecting one m
       (citation) => `${citation.file}:${citation.start}:${citation.form}`,
     ),
     [
-      "grammar.md:4:explicit",
-      "grammar.md:9:comma-tail",
-      "grammar.md:5:context-reference",
+      "syntax-rules.md:4:explicit",
+      "syntax-rules.md:9:comma-tail",
+      "syntax-rules.md:5:context-reference",
       "other.md:7:context-reference",
     ],
   );
@@ -222,19 +222,19 @@ test("a bare reference resolves to the document an earlier citation gave it, not
   // after mentioning a different document, and only the earlier full citation said which document
   // that bare reference belonged to.
   const text = [
-    "// contract/grammar.md:408 makes profile words built-in names.",
+    "// contract/syntax-rules.md:408 makes profile words built-in names.",
     "// Painting is contract/tooling.md:30's keyword row.",
     "// Issue #855 aligned the rest of the contract with the :408 ruling.",
   ].join("\n");
   const { citations } = collectCitations("a.ts", text, CONTRACT);
   const back = citations.find((citation) => citation.form === "back-reference");
-  assert.equal(back.file, "grammar.md");
+  assert.equal(back.file, "syntax-rules.md");
   assert.equal(back.start, 408);
 });
 
 test("a line spec two documents both cite is ambiguous, so it falls back to context", () => {
   const text = [
-    "// contract/grammar.md:12 and contract/tooling.md:12 both matter.",
+    "// contract/syntax-rules.md:12 and contract/tooling.md:12 both matter.",
     "// Later, contract/other.md says :12 again.",
   ].join("\n");
   const { citations } = collectCitations("a.ts", text, CONTRACT);
@@ -247,7 +247,7 @@ test("a bare reference in live code is not a citation, and one before any mentio
   const text = [
     "const label = formatRatio(value) + ':1 contrast';",
     "// :77 appears before this file names any document",
-    "// contract/grammar.md:4 is the first mention",
+    "// contract/syntax-rules.md:4 is the first mention",
   ].join("\n");
   const { citations, unattributed } = collectCitations("a.ts", text, CONTRACT);
   assert.deepEqual(
@@ -355,14 +355,17 @@ test("quotationIsPresent honours an author's ellipsis without consulting anythin
 
 test("flattenProseRun strips comment markers so a wrapped quotation reads as one line", () => {
   const { text, offsets } = flattenProseRun([
-    { line: 7, text: " * contract/grammar.md#ebnf-notation's" },
+    { line: 7, text: " * contract/syntax-rules.md#ebnf-notation's" },
     { line: 8, text: ' * `selector ::= "[" key-term "]"` production.' },
   ]);
   assert.equal(
     text,
-    'contract/grammar.md#ebnf-notation\'s `selector ::= "[" key-term "]"` production.',
+    'contract/syntax-rules.md#ebnf-notation\'s `selector ::= "[" key-term "]"` production.',
   );
-  assert.deepEqual(offsets[1], { offset: 36, line: 8 });
+  // The offset is the length of the first flattened line plus the joining space, so it moves with
+  // the fixture document's name; it is asserted rather than computed to keep the test a check on
+  // `flattenProseRun` and not a restatement of it.
+  assert.deepEqual(offsets[1], { offset: 41, line: 8 });
 });
 
 test("auditRunQuotations finds EBNF productions and reports the line each was written on", () => {
@@ -370,7 +373,7 @@ test("auditRunQuotations finds EBNF productions and reports the line each was wr
   // RANGE, ranges are gone, and a value nothing reads is an instrument producing a number nobody
   // consults — so attribution now lives in the caller, where the cited sections are known.
   const found = auditRunQuotations([
-    { line: 7, text: " * contract/grammar.md#ebnf-notation defines" },
+    { line: 7, text: " * contract/syntax-rules.md#ebnf-notation defines" },
     { line: 8, text: ' * `selector ::= "[" key-term "]"` and nothing else.' },
   ]);
   assert.deepEqual(found, [
@@ -481,7 +484,7 @@ test("a tree of anchor citations passes, and the report states what it does not 
   writeGrammar();
   write(
     "ok.ts",
-    '// contract/grammar.md#ebnf-notation\'s `selector ::= "[" key-term "]"` is the form.\n',
+    '// contract/syntax-rules.md#ebnf-notation\'s `selector ::= "[" key-term "]"` is the form.\n',
   );
   write("plain.md", "This mentions contract/ but cites nothing.\n");
   writeFileSync(join(TEMP_DIR, "blob.bin"), Buffer.from([0x00]));
@@ -502,11 +505,18 @@ test("a tree of anchor citations passes, and the report states what it does not 
   );
   // And the bound is stated in both directions: a citation inside a string literal in live code is
   // the one shape the rule deliberately does not reach, so a green run must not be read as "no line
-  // citation exists anywhere in the tree".
+  // citation exists anywhere in the tree". That hole is now closed for the prefix-less LINE form.
+  // The line form is now reached in code as well as prose, so the statement must claim exhaustive
+  // coverage over the spellings it can name — and must not go on advertising a hole that is closed.
   assert.match(
     summary,
-    /citation written inside a string literal in live code is the one shape it deliberately does\s+not reach/,
+    /The LINE form is counted ANYWHERE,\s+including inside a string literal in live code/,
   );
+  assert.match(
+    summary,
+    /exhaustive over every spelling this gate can name, in prose\s+and in code alike/,
+  );
+  assert.doesNotMatch(summary, /one shape it deliberately does/);
   // An ambiguous basename is left alone rather than attributed to the specification.
   assert.match(summary, /an ambiguous one such as a README is left alone/);
   assert.match(summary, /does NOT prove the section supports the claim/);
@@ -558,18 +568,18 @@ test("an explicit line citation is REJECTED, and the failure names the enclosing
   writeGrammar();
   write(
     "bad.ts",
-    "// contract/grammar.md:8 is where the selector production sits.\n",
+    "// contract/syntax-rules.md:8 is where the selector production sits.\n",
   );
   const result = runOverTemp();
   assert.equal(result.ok, false);
   const report = result.lines.join("\n");
-  assert.match(report, /bad\.ts:1: contract\/grammar\.md:8 names a LINE/);
+  assert.match(report, /bad\.ts:1: contract\/syntax-rules\.md:8 names a LINE/);
   // The remedy is not generic advice: line 8 is inside the EBNF notation section, and that is the
   // anchor the author is told to write. A message naming `#a-heading` here would be useless exactly
   // when the gate has the answer.
   assert.match(
     report,
-    /Cite the section instead — contract\/grammar\.md#ebnf-notation \(ADR-0034\)/,
+    /Cite the section instead — contract\/syntax-rules\.md#ebnf-notation \(ADR-0034\)/,
   );
   assert.match(
     report,
@@ -588,10 +598,12 @@ test("the enclosing heading a rejection names tracks the line, section by sectio
     [8, "ebnf-notation"],
     [13, "expressions-and-calls"],
   ]) {
-    write("bad.ts", `// contract/grammar.md:${line} is cited here.\n`);
+    write("bad.ts", `// contract/syntax-rules.md:${line} is cited here.\n`);
     assert.match(
       runOverTemp().lines.join("\n"),
-      new RegExp(`Cite the section instead — contract/grammar\\.md#${section}`),
+      new RegExp(
+        `Cite the section instead — contract/syntax-rules\\.md#${section}`,
+      ),
       `line ${line} belongs to #${section}`,
     );
   }
@@ -625,10 +637,13 @@ test("every line form is rejected and counted on its own counter — none is qui
   // rather than asserted. An enumeration that stopped seeing one of them would turn the strictest
   // possible rule into a green run.
   writeGrammar();
-  write("explicit.ts", "// contract/grammar.md:6 is explicit.\n");
-  write("tail.ts", "// contract/grammar.md:6,8 appends a tail.\n");
-  write("bare.ts", "// contract/grammar.md:6 then later just :8 on its own.\n");
-  write("fragment.md", "See contract/grammar.md#L6 for the line.\n");
+  write("explicit.ts", "// contract/syntax-rules.md:6 is explicit.\n");
+  write("tail.ts", "// contract/syntax-rules.md:6,8 appends a tail.\n");
+  write(
+    "bare.ts",
+    "// contract/syntax-rules.md:6 then later just :8 on its own.\n",
+  );
+  write("fragment.md", "See contract/syntax-rules.md#L6 for the line.\n");
   const result = runOverTemp();
   assert.equal(result.ok, false);
   assert.equal(result.counts.explicit, 3);
@@ -657,15 +672,18 @@ test("a #L line fragment is rejected on sight, not resolved against the file's l
   writeGrammar();
   write(
     "bad.md",
-    `See ${CONTRACT}/grammar.md#L6 and ${CONTRACT}/grammar.md#L3-L9.\n`,
+    `See ${CONTRACT}/syntax-rules.md#L6 and ${CONTRACT}/syntax-rules.md#L3-L9.\n`,
   );
   const result = runOverTemp();
   assert.equal(result.ok, false);
   const report = result.lines.join("\n");
-  assert.match(report, /contract\/grammar\.md#L6 names LINES, not a section/);
   assert.match(
     report,
-    /contract\/grammar\.md#L3-L9 names LINES, not a section/,
+    /contract\/syntax-rules\.md#L6 names LINES, not a section/,
+  );
+  assert.match(
+    report,
+    /contract\/syntax-rules\.md#L3-L9 names LINES, not a section/,
   );
   assert.match(
     report,
@@ -673,13 +691,13 @@ test("a #L line fragment is rejected on sight, not resolved against the file's l
   );
   assert.match(
     report,
-    /Cite the heading that encloses those lines: contract\/grammar\.md#a-heading \(ADR-0034\)/,
+    /Cite the heading that encloses those lines: contract\/syntax-rules\.md#a-heading \(ADR-0034\)/,
   );
   assert.equal(result.counts.lineFragments, 2);
   assert.equal(result.counts.sectionAnchors, 0);
   // A fragment naming lines past end-of-file is the same defect, reported the same way — the old
   // "conformance.md has 11 line(s)" wording would be an answer to a question no longer asked.
-  write("bad.md", `See ${CONTRACT}/grammar.md#L9999.\n`);
+  write("bad.md", `See ${CONTRACT}/syntax-rules.md#L9999.\n`);
   assert.doesNotMatch(runOverTemp().lines.join("\n"), /line\(s\)/);
 });
 
@@ -710,7 +728,7 @@ test("a bare reference nothing attributes fails, asking for the full citation", 
   writeGrammar();
   write(
     "loose.ts",
-    "// :77 comes first\n// then contract/grammar.md#ebnf-notation\n",
+    "// :77 comes first\n// then contract/syntax-rules.md#ebnf-notation\n",
   );
   const result = runOverTemp();
   assert.equal(result.ok, false);
@@ -771,7 +789,7 @@ test("a quotation is checked against EVERY section its run cites, not one of the
   write(
     "many.ts",
     [
-      "// contract/grammar.md#expressions-and-calls and contract/grammar.md#ebnf-notation",
+      "// contract/syntax-rules.md#expressions-and-calls and contract/syntax-rules.md#ebnf-notation",
       '// together define `selector ::= "[" key-term "]"`.',
     ].join("\n"),
   );
@@ -787,14 +805,14 @@ test("a production quoted beside a section that does not contain it FAILS", () =
   writeGrammar();
   write(
     "wrong.ts",
-    '// contract/grammar.md#expressions-and-calls gives `selector ::= "[" key-term "]"`.\n',
+    '// contract/syntax-rules.md#expressions-and-calls gives `selector ::= "[" key-term "]"`.\n',
   );
   const result = runOverTemp();
   assert.equal(result.ok, false);
   const report = result.lines.join("\n");
   assert.match(
     report,
-    /the production `selector ::= "\[" key-term "\]"` is quoted here but is not in contract\/grammar\.md#expressions-and-calls/,
+    /the production `selector ::= "\[" key-term "\]"` is quoted here but is not in contract\/syntax-rules\.md#expressions-and-calls/,
   );
   assert.match(
     report,
@@ -814,7 +832,7 @@ test("a section STOPS at its sibling, end to end — the shape the `depth` regre
   writeGrammar();
   write(
     "below.ts",
-    "// contract/grammar.md#ebnf-notation gives `comparison ::= additive { compare-op additive }`.\n",
+    "// contract/syntax-rules.md#ebnf-notation gives `comparison ::= additive { compare-op additive }`.\n",
   );
   const result = runOverTemp();
   assert.equal(
@@ -824,14 +842,14 @@ test("a section STOPS at its sibling, end to end — the shape the `depth` regre
   );
   assert.match(
     result.lines.join("\n"),
-    /is quoted here but is not in contract\/grammar\.md#ebnf-notation/,
+    /is quoted here but is not in contract\/syntax-rules\.md#ebnf-notation/,
   );
 
   // And the control: cited correctly, the same production passes, so the failure above is the
   // boundary being enforced rather than the quotation never matching anything.
   write(
     "below.ts",
-    "// contract/grammar.md#expressions-and-calls gives `comparison ::= additive { compare-op additive }`.\n",
+    "// contract/syntax-rules.md#expressions-and-calls gives `comparison ::= additive { compare-op additive }`.\n",
   );
   assert.equal(runOverTemp().ok, true);
 });
@@ -840,7 +858,7 @@ test("a section spans its subsections, so quoting from one is inside the parent"
   writeGrammar();
   write(
     "parent.ts",
-    '// contract/grammar.md#grammar contains `selector ::= "[" key-term "]"`.\n',
+    '// contract/syntax-rules.md#grammar contains `selector ::= "[" key-term "]"`.\n',
   );
   assert.equal(runOverTemp().ok, true);
 });
@@ -849,7 +867,7 @@ test("a quotation beside an anchor that already failed to resolve is not reporte
   writeGrammar();
   write(
     "both.ts",
-    '// contract/grammar.md#nope has `selector ::= "[" key-term "]"`.\n',
+    '// contract/syntax-rules.md#nope has `selector ::= "[" key-term "]"`.\n',
   );
   const result = runOverTemp();
   assert.equal(result.counts.failed, 1);
@@ -882,7 +900,7 @@ test("a ROOTED run still rejects a line citation inside its scope", () => {
   // gate has the same option surface. So the rule is exercised THROUGH the option rather than
   // assumed to survive it.
   writeGrammar();
-  write("nested/deep/bad.ts", "// contract/grammar.md:8 is cited here.\n");
+  write("nested/deep/bad.ts", "// contract/syntax-rules.md:8 is cited here.\n");
   const scoped = runSpecCitationsGate({
     roots: [join(TEMP_DIR, "nested", "deep")],
     specDirectory: CONTRACT,
@@ -896,13 +914,13 @@ test("a ROOTED run still rejects a line citation inside its scope", () => {
   assert.equal(scoped.counts.citations, 1);
   assert.match(
     scoped.lines.join("\n"),
-    /Cite the section instead — contract\/grammar\.md#ebnf-notation/,
+    /Cite the section instead — contract\/syntax-rules\.md#ebnf-notation/,
   );
 });
 
 test("a scoped run SAYS it is scoped, so its numbers cannot read as the repository's result", () => {
   writeGrammar();
-  write("ok.ts", "// contract/grammar.md#ebnf-notation is cited here.\n");
+  write("ok.ts", "// contract/syntax-rules.md#ebnf-notation is cited here.\n");
   const scoped = runOverTemp();
   assert.equal(scoped.ok, true);
   const banner = scoped.lines.find((line) => line.includes("SCOPED RUN"));
@@ -968,10 +986,10 @@ test("the default run is the authoritative one, and carries no scope banner", ()
 
 test("a scope narrows what is LOOKED AT, and the summary reports that scope honestly", () => {
   writeGrammar();
-  write("inside/bad.ts", "// contract/grammar.md:8 is cited here.\n");
+  write("inside/bad.ts", "// contract/syntax-rules.md:8 is cited here.\n");
   write(
     "outside/also-bad.ts",
-    "// contract/grammar.md:13 is cited here too.\n",
+    "// contract/syntax-rules.md:13 is cited here too.\n",
   );
   const whole = runOverTemp();
   assert.equal(whole.counts.citations, 2);
@@ -1836,7 +1854,7 @@ test("rejoinedFragment identifies a slug hard-wrapped across a line break, and n
 
 test("collectCitations returns section anchors beside citations, from one pass", () => {
   const text = [
-    "// contract/conformance.md#heritage names a section, contract/grammar.md:4 a line.",
+    "// contract/conformance.md#heritage names a section, contract/syntax-rules.md:4 a line.",
     "// A trailing colon is prose, not part of the slug: contract/conformance.md#sprites:",
   ].join("\n");
   const { citations, anchors } = collectCitations("a.ts", text, CONTRACT);
@@ -1852,7 +1870,7 @@ test("collectCitations returns section anchors beside citations, from one pass",
     citations.map(
       (citation) => `${citation.file}:${citation.start}:${citation.form}`,
     ),
-    ["grammar.md:4:explicit"],
+    ["syntax-rules.md:4:explicit"],
   );
 });
 
@@ -1883,19 +1901,19 @@ test("THE PREFIX-LESS FORMS are rejected, and the relative anchor inside spec/ i
   // report zero line citations while 60 of them sat in the tree — an instrument reporting success
   // over a corpus it could not see.
   writeGrammar();
-  write("bare.md", `See grammar.md:8 for the selector production.\n`);
+  write("bare.md", `See syntax-rules.md:8 for the selector production.\n`);
   const rejected = runOverTemp();
   assert.equal(rejected.ok, false);
   const report = rejected.lines.join("\n");
   assert.match(
     report,
-    /grammar\.md:8 names a LINE, and omits the contract\/ prefix/,
+    /syntax-rules\.md:8 names a LINE, and omits the contract\/ prefix/,
   );
   // The remedy names BOTH corrections — the section AND the prefix — because fixing only the form
   // would leave an anchor that nothing checks.
   assert.match(
     report,
-    /Cite the section, WITH the prefix — contract\/grammar\.md#ebnf-notation/,
+    /Cite the section, WITH the prefix — contract\/syntax-rules\.md#ebnf-notation/,
   );
   assert.equal(rejected.counts.prefixLess, 1);
   assert.match(report, /0 bare, 1 prefix-less/);
@@ -1904,7 +1922,7 @@ test("THE PREFIX-LESS FORMS are rejected, and the relative anchor inside spec/ i
   // but nothing resolves it either, and ADR-0036 admits exactly one form.
   write(
     "bare.md",
-    `See grammar.md#ebnf-notation for the selector production.\n`,
+    `See syntax-rules.md#ebnf-notation for the selector production.\n`,
   );
   const unprefixed = runOverTemp();
   assert.equal(
@@ -1915,7 +1933,7 @@ test("THE PREFIX-LESS FORMS are rejected, and the relative anchor inside spec/ i
   assert.equal(unprefixed.counts.unprefixedAnchors, 1);
   assert.match(
     unprefixed.lines.join("\n"),
-    /omits the contract\/ prefix, so nothing resolves it — write contract\/grammar\.md#ebnf-notation/,
+    /omits the contract\/ prefix, so nothing resolves it — write contract\/syntax-rules\.md#ebnf-notation/,
   );
 
   // INSIDE the specification directory the same anchor is the normal way one document links to a
@@ -1923,7 +1941,7 @@ test("THE PREFIX-LESS FORMS are rejected, and the relative anchor inside spec/ i
   rmSync(join(TEMP_DIR, "bare.md"));
   write(
     `${CONTRACT}/sibling.md`,
-    "# Sibling\n\nSee grammar.md#ebnf-notation for the rule.\n",
+    "# Sibling\n\nSee syntax-rules.md#ebnf-notation for the rule.\n",
   );
   const inside = runOverTemp();
   assert.equal(
@@ -1949,18 +1967,18 @@ test("an AMBIGUOUS basename is never attributed to the specification", () => {
   assert.equal(result.counts.unprefixedAnchors, 0);
 
   // The unambiguous document beside it is still caught, so the guard narrows rather than disabling.
-  write("cites.md", "See README.md#overview and grammar.md:8 here.\n");
+  write("cites.md", "See README.md#overview and syntax-rules.md:8 here.\n");
   assert.equal(runOverTemp().counts.prefixLess, 1);
 
   assert.deepEqual(
     [
       ...unambiguousSpecDocuments(join(TEMP_DIR, CONTRACT), [
-        join(TEMP_DIR, CONTRACT, "grammar.md"),
+        join(TEMP_DIR, CONTRACT, "syntax-rules.md"),
         join(TEMP_DIR, CONTRACT, "README.md"),
         join(TEMP_DIR, "README.md"),
       ]),
     ],
-    ["grammar.md"],
+    ["syntax-rules.md"],
   );
 });
 
@@ -1990,38 +2008,62 @@ test("a DOUBLED directory prefix is rejected, not read as the valid citation ins
   assert.equal(relative.counts.sectionAnchors, 1);
 });
 
-test("the prefix-less rule is structural: a prose line, and a document that exists", () => {
-  // Both guards are rules rather than lists, which is what the no-exemptions instruction requires.
+test("the prefix-less rule is structural, and the LINE form has no code carve-out", () => {
+  // The attribution guard is a rule rather than a list, which is what the no-exemptions
+  // instruction requires.
   writeGrammar();
 
   // (a) A document the specification directory does not publish is not adopted.
   write("other.md", `See changelog.md:8 and notes.md:3 for context.\n`);
   assert.equal(runOverTemp().ok, true, "an unknown document is not a citation");
 
-  // (b) LIVE CODE is not prose, so a `file:line:form` assertion string is not a citation. This is
-  // the gate's own test suite in miniature, where such a triple means nothing of the kind — and an
-  // enumerator that rejected it would be worse than no enumerator.
+  // (b) The LINE form is rejected WHEREVER it appears, including inside a string literal in live
+  // code. An earlier version of this gate required a prose line here, which meant a real citation
+  // written in a `test(...)` title was invisible to the very gate that bans it — two such citations
+  // had already been found and hand-converted, and disclosing the hole in the coverage statement is
+  // not the same as closing it. The cost is named rather than hidden: test data that mirrors this
+  // gate's own `document:line:form` output now trips it if the document is one the specification
+  // publishes. The remedy is to name fixtures after documents the specification does NOT publish —
+  // which this suite now does, and which is better practice anyway, because a fixture sharing a
+  // real document's name is one rename away from being mistaken for it.
   write(
     "assertions.mjs",
     [
       "const expected = [",
-      '  "grammar.md:4:explicit",',
-      '  "grammar.md:9:comma-tail",',
+      '  "syntax-rules.md:4:explicit",',
+      '  "syntax-rules.md:9:comma-tail",',
       "];",
       "",
     ].join("\n"),
   );
   assert.equal(
     runOverTemp().ok,
-    true,
-    "a file:line:form assertion string is test data, not a citation",
+    false,
+    "the line form is rejected in code exactly as it is in prose",
   );
 
-  // And the same characters IN A COMMENT are a citation, which is what makes (b) a structural rule
-  // rather than a blanket exemption for the shape.
-  write("assertions.mjs", "// grammar.md:4 is the selector production.\n");
+  // And the same characters in a comment are rejected identically — the point being that there is
+  // no longer any difference between the two, which is what "no carve-out" means.
+  write("assertions.mjs", "// syntax-rules.md:4 is the selector production.\n");
   assert.equal(runOverTemp().ok, false);
   assert.match(runOverTemp().lines.join("\n"), /omits the contract\/ prefix/);
+});
+
+test("the unprefixed ANCHOR form stays prose-scoped, because it is a different rule", () => {
+  // The line form is a banned construct, so it is hunted everywhere. An unprefixed anchor is a
+  // rule about how a citation is WRITTEN in prose, so a fragment-looking token inside code — a URL,
+  // a selector, an expected-output string — must not be reported: nobody wrote it as a citation,
+  // and inventing one would be the mirror image of missing one.
+  writeGrammar();
+  write("code.mjs", 'expect(link).toBe("syntax-rules.md#ebnf-notation");\n');
+  assert.equal(
+    runOverTemp().ok,
+    true,
+    "an anchor-shaped token in code is not a citation anybody wrote",
+  );
+  // In prose the same token IS reported, which is what makes this a scope and not an exemption.
+  write("prose.md", "See syntax-rules.md#ebnf-notation for the production.\n");
+  assert.equal(runOverTemp().ok, false);
 });
 
 test("a prefix-less reference carries its own document, so it never consumes a bare attribution", () => {
@@ -2031,24 +2073,24 @@ test("a prefix-less reference carries its own document, so it never consumes a b
   writeGrammar();
   write(
     "mixed.ts",
-    "// contract/grammar.md:6 and grammar.md:13 and later :8 as well.\n",
+    "// contract/syntax-rules.md:6 and syntax-rules.md:13 and later :8 as well.\n",
   );
   const { citations } = collectCitations(
     "mixed.ts",
-    "// contract/grammar.md:6 and grammar.md:13 and later :8 as well.\n",
+    "// contract/syntax-rules.md:6 and syntax-rules.md:13 and later :8 as well.\n",
     CONTRACT,
-    new Set(["grammar.md"]),
+    new Set(["syntax-rules.md"]),
   );
   assert.deepEqual(
     citations.map(
       (citation) => `${citation.file}:${citation.start}:${citation.form}`,
     ),
     [
-      "grammar.md:6:explicit",
-      "grammar.md:13:prefix-less",
+      "syntax-rules.md:6:explicit",
+      "syntax-rules.md:13:prefix-less",
       // Attributed to the nearest preceding mention, which is the prefixed one — NOT shifted off a
       // queue the prefix-less reference had joined.
-      "grammar.md:8:context-reference",
+      "syntax-rules.md:8:context-reference",
     ],
   );
 });
@@ -2115,14 +2157,14 @@ test("specDocuments reads the directory, and an EMPTY oracle FAILS the gate", ()
   // Shared with the converter rather than written twice: the two modules keep their deliberately
   // different site-finding, but disagreeing about which documents EXIST would let one enumerate a
   // citation the other could not see.
-  write(`${CONTRACT}/grammar.md`, "# Grammar\n");
+  write(`${CONTRACT}/syntax-rules.md`, "# Grammar\n");
   write(`${CONTRACT}/commands.md`, "# Commands\n");
   write(`${CONTRACT}/README.md`, "# Readme\n");
   write(`${CONTRACT}/notes.txt`, "not markdown\n");
   assert.deepEqual([...specDocuments(join(TEMP_DIR, CONTRACT))].sort(), [
     "README.md",
     "commands.md",
-    "grammar.md",
+    "syntax-rules.md",
   ]);
   // The helper itself stays total — a caller may legitimately point at a tree with no specification
   // directory — so the loudness lives where the consequence does.
@@ -2184,9 +2226,9 @@ test("a file carrying ONLY prefix-less references is still scanned, and its cita
   write(
     "only-bare.md",
     [
-      "Later prose cites grammar.md:13.",
+      "Later prose cites syntax-rules.md:13.",
       "",
-      "Earlier prose cites grammar.md:5.",
+      "Earlier prose cites syntax-rules.md:5.",
     ].join("\n"),
   );
   const result = runOverTemp();
@@ -2199,8 +2241,8 @@ test("a file carrying ONLY prefix-less references is still scanned, and its cita
     report.indexOf("only-bare.md:1") < report.indexOf("only-bare.md:3"),
     "findings must follow the order of the file",
   );
-  assert.match(report, /only-bare\.md:1: grammar\.md:13 names a LINE/);
-  assert.match(report, /only-bare\.md:3: grammar\.md:5 names a LINE/);
+  assert.match(report, /only-bare\.md:1: syntax-rules\.md:13 names a LINE/);
+  assert.match(report, /only-bare\.md:3: syntax-rules\.md:5 names a LINE/);
 });
 
 test("a link DESTINATION is judged by the parser, so a title cannot disguise a broken href", () => {
@@ -2216,28 +2258,39 @@ test("a link DESTINATION is judged by the parser, so a title cannot disguise a b
     return runOverTemp();
   };
   assert.equal(
-    run(`[t](${CONTRACT}/grammar.md#ebnf-notation. "Title")\n`).ok,
+    run(`[t](${CONTRACT}/syntax-rules.md#ebnf-notation. "Title")\n`).ok,
     false,
     "a spaced title must not disguise an href ending in punctuation",
   );
   assert.equal(
-    run(`[t](${CONTRACT}/grammar.md#ebnf-notation."Title")\n`).ok,
+    run(`[t](${CONTRACT}/syntax-rules.md#ebnf-notation."Title")\n`).ok,
     false,
     "nor the unspaced spelling",
   );
   // And the shapes that must keep passing — a clean link, and the prose idiom that made rejecting
   // punctuation-space-quote by pattern a false positive in four live places.
-  assert.equal(run(`[t](${CONTRACT}/grammar.md#ebnf-notation)\n`).ok, true);
   assert.equal(
-    run(`see ${CONTRACT}/grammar.md#ebnf-notation: "quoted spec text"\n`).ok,
+    run(`[t](${CONTRACT}/syntax-rules.md#ebnf-notation)\n`).ok,
     true,
   );
-  assert.equal(run(`see ${CONTRACT}/grammar.md#ebnf-notation.\n`).ok, true);
+  assert.equal(
+    run(`see ${CONTRACT}/syntax-rules.md#ebnf-notation: "quoted spec text"\n`)
+      .ok,
+    true,
+  );
+  assert.equal(
+    run(`see ${CONTRACT}/syntax-rules.md#ebnf-notation.\n`).ok,
+    true,
+  );
 
   // The destination reader itself, pinned on the hrefs marked actually reports.
   assert.deepEqual(
-    [...linkDestinations(`[t](${CONTRACT}/grammar.md#ebnf-notation. "T")\n`)],
-    [`${CONTRACT}/grammar.md#ebnf-notation.`],
+    [
+      ...linkDestinations(
+        `[t](${CONTRACT}/syntax-rules.md#ebnf-notation. "T")\n`,
+      ),
+    ],
+    [`${CONTRACT}/syntax-rules.md#ebnf-notation.`],
   );
   // A table cell and a list item are walked too, so a link cannot hide in one.
   assert.deepEqual(
@@ -2319,7 +2372,7 @@ test("an anchor broken by a line break says so, instead of reading as a misspell
   // gate saw `#collections-`. Named as a wrap, the failure explains itself; left as a near-miss it
   // sends the author hunting for a heading that was never wrong.
   write(
-    `${CONTRACT}/grammar.md`,
+    `${CONTRACT}/syntax-rules.md`,
     [
       "# Grammar",
       "",
@@ -2331,7 +2384,7 @@ test("an anchor broken by a line break says so, instead of reading as a misspell
   write(
     "note.md",
     [
-      `are recognized by their leading keyword (\`${CONTRACT}/grammar.md#collections-`,
+      `are recognized by their leading keyword (\`${CONTRACT}/syntax-rules.md#collections-`,
       "records-and-comprehensions`), not a lambda argument.",
     ].join("\n"),
   );
@@ -2376,7 +2429,7 @@ test("MUTATION: converting a line citation to its enclosing anchor turns the gat
   // green would prove nothing, and one that only ever showed red would be unusable — so the same
   // site is written both ways and the gate must disagree about them.
   writeGrammar();
-  const line = "// contract/grammar.md:8 defines the selector.\n";
+  const line = "// contract/syntax-rules.md:8 defines the selector.\n";
   write("site.ts", line);
   const rejected = runOverTemp();
   assert.equal(rejected.ok, false, "the line form must be rejected");
@@ -2386,7 +2439,7 @@ test("MUTATION: converting a line citation to its enclosing anchor turns the gat
   // Exactly the anchor the failure told the author to write.
   write(
     "site.ts",
-    "// contract/grammar.md#ebnf-notation defines the selector.\n",
+    "// contract/syntax-rules.md#ebnf-notation defines the selector.\n",
   );
   const accepted = runOverTemp();
   assert.equal(accepted.ok, true, "the anchor the gate suggested must pass");
@@ -2404,7 +2457,7 @@ test("MUTATION: repointing an anchor at a DIFFERENT section that still resolves 
   // granularity citations now have, and it is what the quotation check was re-pointed to catch.
   writeGrammar();
   const good =
-    '// contract/grammar.md#ebnf-notation, `selector ::= "[" key-term "]"`, is the form.\n';
+    '// contract/syntax-rules.md#ebnf-notation, `selector ::= "[" key-term "]"`, is the form.\n';
   write("site.ts", good);
   assert.equal(runOverTemp().ok, true);
 
@@ -2413,7 +2466,7 @@ test("MUTATION: repointing an anchor at a DIFFERENT section that still resolves 
   assert.equal(result.ok, false);
   assert.match(
     result.lines.join("\n"),
-    /is quoted here but is not in contract\/grammar\.md#expressions-and-calls/,
+    /is quoted here but is not in contract\/syntax-rules\.md#expressions-and-calls/,
   );
   assert.match(result.lines.join("\n"), /still points at the wrong section/);
 
@@ -2426,7 +2479,7 @@ test("MUTATION: a quotation whose wording drifts from the production fails", () 
   writeGrammar();
   write(
     "site.ts",
-    '// contract/grammar.md#ebnf-notation, `selector ::= "[" term "]"`, is the form.\n',
+    '// contract/syntax-rules.md#ebnf-notation, `selector ::= "[" term "]"`, is the form.\n',
   );
   assert.equal(runOverTemp().ok, false);
 });
@@ -2511,7 +2564,7 @@ function runCli(root = TEMP_DIR) {
 
 test("the CLI exits 0 and prints the report when every citation is an anchor", () => {
   writeGrammar();
-  write("ok.ts", "// contract/grammar.md#ebnf-notation is fine.\n");
+  write("ok.ts", "// contract/syntax-rules.md#ebnf-notation is fine.\n");
   const { status, output } = runCli();
   assert.equal(status, 0);
   assert.match(output, /spec citations: 0 line-form citation\(s\) REJECTED/);
@@ -2522,7 +2575,7 @@ test("the CLI exits 0 and prints the report when every citation is an anchor", (
 
 test("the CLI exits non-zero on a line citation, including from a narrowed root", () => {
   writeGrammar();
-  write("nested/bad.ts", "// contract/grammar.md:8 names a line.\n");
+  write("nested/bad.ts", "// contract/syntax-rules.md:8 names a line.\n");
   const whole = runCli();
   assert.equal(whole.status, 1);
   assert.match(whole.output, /FAIL/);
@@ -2534,6 +2587,6 @@ test("the CLI exits non-zero on a line citation, including from a narrowed root"
   assert.match(narrowed.output, /names a LINE/);
   assert.match(
     narrowed.output,
-    /Cite the section instead — contract\/grammar\.md#ebnf-notation/,
+    /Cite the section instead — contract\/syntax-rules\.md#ebnf-notation/,
   );
 });

@@ -233,6 +233,16 @@ jobs:
       # two broken skill links sat in the tree until this gate landed. Needs no build and runs in
       # seconds, so it shares this job.
       - run: npm run -s adr-numbering
+      # Saga #1180: the citation gate above resolves an anchor, which proves a heading EXISTS and
+      # never that it is the RIGHT one. This scans for the second case, and it is deliberately a
+      # REPORT — a finding can never fail the build, because its measured sensitivity to seeded
+      # retargeting is roughly half and its flag count is a property of the scorer rather than of
+      # the corpus. What it CAN fail is itself: a seeded mutation control outside its band, or a
+      # scan that scored nothing. Those are instrument-health checks, and an instrument nobody runs
+      # is one whose rot is invisible — this saga found eight separate checks that reported success
+      # while measuring nothing, so the tool that exists to catch that class must not join it.
+      # Runs in seconds and needs no build, so it shares this job.
+      - run: npm run -s citation-suspects
       # TODO(@devops + @testing): add integration and a11y/pedagogy gates as those
       # suites land (DoD sections 5-9); wire them here so they block merge.
 

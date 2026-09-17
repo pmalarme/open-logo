@@ -62,7 +62,7 @@ export interface TutorCommandMetadata {
  * The shared input contract for a baseline meta-command invocation
  * (`spec/educational-model.md#baseline-meta-commands`: "the parsed program, source spans, trace events,
  * diagnostics, and known command metadata"), plus the hint-stage progression state the spec
- * requires a host to track itself (`spec/execution-model.md#trace-and-event-registry` — progression state "is a
+ * requires a host to track itself (`spec/execution-model.md#tutor-output-educational-profile` — progression state "is a
  * property of the host implementation, not the wire event itself").
  */
 export interface TutorContext {

@@ -339,7 +339,7 @@ test("the coverage statement names every limit a reader would otherwise assume a
     specRoot: join(TEMP_DIR, CONTRACT),
   }).lines.join("\n");
   assert.match(summary, /RANKED REPORT, not a gate/);
-  assert.match(summary, /its silence proves nothing/);
+  assert.match(summary, /its silence proves little/);
   assert.match(summary, /property of THIS instrument/);
   assert.match(summary, /cannot tell a WRONG anchor from a LESS SPECIFIC one/);
   assert.match(summary, /never by re-pointing what the tool ranked/);
@@ -347,6 +347,20 @@ test("the coverage statement names every limit a reader would otherwise assume a
   // beside the rows listed, not on them. An abstract recall figure tells a reader nothing to do.
   assert.match(summary, /FILE ROUTER, NOT A DEFECT DETECTOR/);
   assert.match(summary, /enumerate the anchor you are LEAVING/);
+  // The detection figure must be INTERPOLATED from the live self-check, never written into prose.
+  // Two reviewers independently caught the shipped tool quoting a superseded prototype's 25% while
+  // printing its own 54.8% four lines above, so this asserts the two agree by construction.
+  const detection =
+    /self-check: \d+\/\d+ seeded mutations detected \(([0-9.]+)%/.exec(summary);
+  assert.ok(detection, "the report must print a measured detection rate");
+  assert.ok(
+    summary.includes(`control above detected ${detection[1]}%`),
+    "the prose figure must be the measured one, not a remembered constant",
+  );
+  // And the superseded framing must not come back: it is sensitivity, not recall.
+  assert.doesNotMatch(summary, /recall against seeded mutations/);
+  assert.doesNotMatch(summary, /three of four/);
+  assert.match(summary, /SENSITIVITY TO RANDOM RETARGETING/);
   assert.ok(SELF_CHECK.floor < SELF_CHECK.ceiling);
 });
 
@@ -435,8 +449,12 @@ test("over a corpus large enough to calibrate, the report exercises every check 
       "Gamma describes comprehensions, accumulators, binders, reducers and iteration.",
     ].join("\n"),
   );
-  // Many citations of Alpha whose prose is entirely about Beta's subject matter: a concentration
-  // spike toward one attractor section, which is exactly what the printed warning is for.
+  // Many citations of Alpha whose prose is entirely about Beta's subject matter. Note what this
+  // fixture actually is: forty GENUINE findings. The concentration line must therefore NOT call it
+  // an artifact — it must say the share is high and that only reading decides which it is. An
+  // earlier version of this test asserted the report labelled this "ARTIFACT, not a discovery",
+  // which is the tool passing a topical verdict on evidence that cannot support one, and the test
+  // pinning it there. Both are fixed.
   for (let index = 0; index < 40; index += 1) {
     write(
       `bulk/site-${index}.md`,
@@ -452,8 +470,8 @@ test("over a corpus large enough to calibrate, the report exercises every check 
         `in detail (${CONTRACT}/big.md#gamma-section).\n`,
     );
   }
-  // A second attractor with a much smaller share, so the artifact warning is shown to discriminate
-  // rather than to fire on whatever is first.
+  // A second section with a much smaller share, so the high-share notice is shown to discriminate
+  // rather than to fire on whatever is listed first.
   for (let index = 0; index < 4; index += 1) {
     write(
       `bulk/other-${index}.md`,
@@ -473,19 +491,27 @@ test("over a corpus large enough to calibrate, the report exercises every check 
   });
   const text = report.lines.join("\n");
   assert.match(text, /self-check: \d+\/\d+ seeded mutations detected/);
-  assert.match(text, /attractor check: /);
-  // One section absorbing most of the queue is an artifact of the scorer, and the report says so
-  // rather than presenting it as forty discoveries.
-  assert.match(text, /ARTIFACT, not a discovery/);
-  // …and the section that absorbs only a few sites is reported without that warning, so the warning
-  // discriminates rather than decorating whatever is listed first.
-  const attractors = report.lines.filter((line) =>
-    line.includes("attractor check:"),
+  assert.match(text, /concentration: /);
+  // The high-share section is flagged for AUDIT, and the notice explicitly refuses to decide.
+  assert.match(text, /AUDIT THIS BEFORE ACTING ON IT/);
+  assert.match(
+    text,
+    /It may equally be a real cluster; this line does not decide which/,
   );
-  assert.ok(attractors.length >= 2, "expected more than one attractor row");
+  // The tool must never call a finding an artifact — that is a topical judgement it cannot make.
+  assert.doesNotMatch(text, /ARTIFACT, not a discovery/);
+  // …and the section with only a few sites carries no such notice, so it discriminates rather than
+  // decorating whatever is listed first.
+  const concentrations = report.lines.filter((line) =>
+    line.includes("concentration:"),
+  );
   assert.ok(
-    attractors.some((line) => !line.includes("ARTIFACT")),
-    "a small attractor must not be labelled an artifact",
+    concentrations.length >= 2,
+    "expected more than one concentration row",
+  );
+  assert.ok(
+    concentrations.some((line) => !line.includes("AUDIT THIS")),
+    "a small share must not carry the audit notice",
   );
   assert.match(text, /RANKED /);
   // The pairs are ordered by delta, strongest first, so a reviewer reads the best evidence first.
@@ -541,10 +567,11 @@ test("the CLI exits 0 on a healthy corpus and non-zero when its own checks fail"
   assert.match(barren.stdout, /FAIL/);
 });
 
-test("a section review has already refuted is named by identity, not by its share", () => {
-  // The share-based artifact check missed this class entirely: one section drew 23 suggestions
-  // across a review batch and was rejected on all 23 while sitting below the threshold. So the
-  // report must annotate it by name, and must say plainly that a low share is not acceptance.
+test("a section previously rejected in review is named by identity, not by its share", () => {
+  // Concentration missed this class entirely: one section drew 23 suggestions across a review batch
+  // and was rejected on all 23 while sitting below the threshold. So the report must annotate it by
+  // name — and must annotate it as an OBSERVATION from one batch, never as a verdict, because the
+  // tool has no record of any reviewer's decision and so cannot claim one.
   assert.deepEqual(KNOWN_ATTRACTORS, ["#tutor-output-educational-profile"]);
   write(
     `${CONTRACT}/attract.md`,
@@ -572,10 +599,33 @@ test("a section review has already refuted is named by identity, not by its shar
     specRoot: join(TEMP_DIR, CONTRACT),
   });
   const text = report.lines.join("\n");
-  assert.match(text, /KNOWN ATTRACTOR: refuted by reading every time/);
+  assert.match(text, /PREVIOUSLY REJECTED: in one review batch/);
+  // It is scoped to what was observed, and explicitly is not a verdict either way.
+  assert.match(text, /That is one batch, not a verdict/);
+  assert.match(text, /machine-applying or machine-dismissing/);
   assert.match(text, /Concentration is a share, and a share is NOT acceptance/);
   // And the row is still printed: naming it must never become suppressing it.
   assert.match(text, /RANKED .*#tutor-output-educational-profile/);
+});
+
+test("a scoped run says so, because a narrowed report still reads as authoritative", () => {
+  // The milder half of the `--root=.` defect this saga opened with: an option that narrows what was
+  // examined while the numbers still read as the repository's. The gate stamps its scoped runs; a
+  // report that does not is the same shape with lower stakes, which is not a reason to omit it.
+  writeDoc();
+  write("cites.md", `See ${CONTRACT}/grammar.md#reduce for the empty case.\n`);
+  const scoped = reportSuspects({
+    roots: [TEMP_DIR],
+    specDirectory: CONTRACT,
+    specRoot: join(TEMP_DIR, CONTRACT),
+  }).lines.join("\n");
+  assert.match(scoped, /SCOPED RUN \(/);
+  assert.match(scoped, /did NOT use the production configuration/);
+  assert.match(scoped, /neither is this repository's queue/);
+  // And it names every override actually in force, so the banner cannot understate the narrowing.
+  assert.match(scoped, /roots=\[/);
+  assert.match(scoped, /spec-dir=/);
+  assert.match(scoped, /spec-root=/);
 });
 
 test("the CLI never fails BECAUSE OF a finding — only the tool's checks on itself can fail", () => {
