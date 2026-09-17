@@ -162,8 +162,9 @@
  *
  * This is the **one** check here pinned to a total, which makes it the one that fails for something
  * the author did not write: a merge or a rebase moves the number as readily as a new citation does.
- * The gate cannot tell those apart — no offline check can — so instead of guessing it says plainly
- * that both are possible and names the command that distinguishes them.
+ * The gate cannot tell those apart — it counts the tree, not the change, and no offline check can —
+ * so rather than guess it says so outright and names the diff that narrows the answer to the files
+ * this change actually touched.
  *
  * ## Known blind spots, stated rather than hidden
  *
@@ -1442,10 +1443,13 @@ export function loadExceptions(exceptionsPath = EXCEPTIONS_PATH) {
  * The four summed here are exactly the ones the printed coverage statement already groups as still
  * drifting when the spec is edited above them. Leaving the line fragment out would leave the ratchet
  * an escape hatch rather than a limit: `#L30` is a line claim wearing an anchor's clothing, so a
- * count that skipped it could be held flat while every new citation was written in that form.
+ * count that skipped it could be held flat while every new citation was written in that form — and a
+ * one-character edit rewriting `<file>.md:30` as `<file>.md#L30` would convert a gated citation into
+ * an ungated one. The section anchor is excluded for the mirror-image reason: it is the form the
+ * convention wants, and a conversion to it must be able to lower this number.
  *
- * The summands are named rather than read off the `citations` total they add up to, so this function
- * states the definition it enforces instead of inheriting one.
+ * The summands are named rather than read off `counts.citations`, which holds only three of them —
+ * so this function states the definition it enforces instead of inheriting a narrower one.
  */
 export function lineFormCount(counts) {
   return counts.explicit + counts.tails + counts.bare + counts.lineFragments;
@@ -1459,7 +1463,8 @@ export function lineFormCount(counts) {
  * repository, not an observation about the corpus. The value it guards is the one thing that must
  * never degrade quietly — a `null` or absent count read as "no baseline" would leave the gate green
  * while the ratchet was switched off, which is the exact shape of defect a ratchet exists to stop.
- * The only supported writer is {@link writeBaselineFile}, so a file that fails here was hand-edited.
+ * It therefore fails closed on anything {@link writeBaselineFile} would not have produced, without
+ * claiming to know why: a conflict, a partial write and a hand-edit are indistinguishable here.
  */
 export function loadBaseline(baselinePath = BASELINE_PATH) {
   const count = JSON.parse(
@@ -1476,20 +1481,18 @@ export function loadBaseline(baselinePath = BASELINE_PATH) {
 }
 
 /**
- * The baseline a scan should be held to, which is `null` for a scan nothing records a mark for.
+ * The baseline a scan is held to, which is the committed mark unless the caller names another.
  *
- * A high-water mark counts the citations of one tree, so it applies to a scan of that tree: the
- * repository's own mark when the scan is the repository's, and otherwise only the file the caller
- * names. `roots` exists so a test can point the scan at a fixture tree, where the repository total
- * describes nothing and could only ever be a guaranteed failure — but a fixture tree with a baseline
- * file of its own is ratcheted exactly like the real one, which is how the ratchet is tested end to
- * end through the CLI rather than only in-process.
+ * The rule is deliberately **not** inferred from `roots`. Inferring it read a rooted scan as "a
+ * fixture tree, which the repository's mark does not describe" — but `--root=.` is a perfectly
+ * ordinary way to scan the *repository*, and it came out green with the ratchet switched off while
+ * the report still printed a `LINE-FORM` number. That is the "instrument enumerates a narrower set
+ * than the truth" shape, and a ratchet is the last place to carry one: the skip has to be asked for,
+ * never inferred. A scan of a tree the committed mark does not describe therefore says so — a test
+ * passes `baseline: null`, and a fixture run of the CLI passes a `--baseline` of its own.
  */
-export function baselineFor(roots, baselinePath) {
-  if (baselinePath !== undefined) {
-    return loadBaseline(baselinePath);
-  }
-  return roots === undefined ? loadBaseline(BASELINE_PATH) : null;
+export function baselineFor(baselinePath) {
+  return loadBaseline(baselinePath ?? BASELINE_PATH);
 }
 
 /**
@@ -1581,7 +1584,9 @@ export function readTextFile(path) {
  * @param specRoot where those documents are read from; defaults to `specDirectory`. Split apart so a
  *   test can point the reader at a temp fixture tree without changing the token fixtures cite.
  * @param baseline the line-form high-water mark to hold the scan to — a non-negative whole number, or
- *   `null` for a scan the repository's own mark does not describe (see {@link baselineFor}).
+ *   `null` for a scan the committed mark does not describe. Defaulting it to the committed mark
+ *   rather than inferring "no baseline" from `roots` is what keeps the skip asked-for rather than
+ *   inferred (see {@link baselineFor}).
  * @param writeBaseline record the live line-form count as the new baseline instead of checking it.
  * @returns `{ ok, counts, lines, findings }` where `lines` is the printable report and `findings`
  *   lists every site the gate could not accept on its own (each either excused or failed).
@@ -1595,7 +1600,7 @@ export function runSpecCitationsGate({
   exceptions,
   baselinePath,
   writeBaseline = false,
-  baseline = writeBaseline ? null : baselineFor(roots, baselinePath),
+  baseline = writeBaseline ? null : baselineFor(baselinePath),
 } = {}) {
   const baselineFile = baselinePath ?? BASELINE_PATH;
   const lines = [];
@@ -1957,23 +1962,35 @@ export function runSpecCitationsGate({
   }
 
   const lineForm = lineFormCount(counts);
-  const regenerate = "`node scripts/check-spec-citations.mjs --write-baseline`";
+  const regenerate =
+    "`node scripts/check-spec-citations.mjs --write-baseline" +
+    `${baselinePath === undefined ? "" : ` --baseline=${toPosixPath(baselinePath)}`}\``;
+  // How the summary qualifies the LINE-FORM number: a run that checked nothing must never read like
+  // one that did, and a run that has just rewritten the mark is a third state again.
+  let held = ` (NOT ratcheted — this scan was given no baseline)`;
   if (writeBaseline) {
     writeBaselineFile(baselineFile, lineForm);
+    held = ` — just written to ${toPosixPath(baselineFile)} as the new baseline`;
     lines.push(
       `wrote ${toPosixPath(baselineFile)} — ${lineForm} line-form citation(s) is the new baseline`,
     );
-  } else if (baseline !== null && lineForm > baseline) {
+  } else if (baseline !== null) {
+    held = ` of ${baseline} baseline`;
+  }
+  if (baseline !== null && lineForm > baseline) {
     fail(
       `line-form spec citations rose to ${lineForm} against a baseline of ${baseline} (+${lineForm - baseline}) — ` +
-        "this count may fall, never rise (issue #1183). If this change wrote a citation naming a line, write a " +
-        `section anchor instead — ${specDirectory}/<file>.md#a-heading, ADR-0034. If it did not, the total moved ` +
-        "for a reason outside this change: a merge or a rebase moves it as readily as a new citation does, and " +
-        "this is the one check here pinned to a total, so it is the one that fails for a citation you did not " +
-        `write. Which it is, is decidable — \`git diff -G"${specDirectory}/[^ ]+\\.md:[0-9]" <base>...HEAD --stat\` ` +
-        `lists the files in this change that touch one. Raising ${toPosixPath(baselineFile)} is a reviewable act, ` +
-        "not a fix: the convention allows a line number only where line precision is genuinely required, and " +
-        "then with the anchor written beside it.",
+        "this count may fall, never rise (issue #1183). **This gate cannot tell you whether you wrote that " +
+        "citation or inherited it**, because it counts the tree rather than the change: a merge or a rebase " +
+        "moves the number as readily as a new citation does, and this is the one check here pinned to a total, " +
+        "so it is the one that fails for something you did not write. Answer it with " +
+        `\`git diff <the branch this change targets>...HEAD -G"${specDirectory}/[^ ]*\\.md" --stat\`, which lists ` +
+        "the files in this change that touch a citation of any form (substitute the base ref; a bare " +
+        "back-reference carries no prefix of its own, so also read the diff of any file already citing that " +
+        `document). If it is yours, write a section anchor instead — ${specDirectory}/<file>.md#a-heading, ` +
+        `ADR-0034. If it is not, raising ${toPosixPath(baselineFile)} is a reviewable act rather than a fix: ` +
+        "the convention allows a line number only where line precision is genuinely required, and then with " +
+        `the anchor written beside it. Either way ${regenerate} is what writes the number.`,
     );
   } else if (baseline !== null && lineForm < baseline) {
     fail(
@@ -1990,7 +2007,7 @@ export function runSpecCitationsGate({
       `${counts.sectionAnchors} section anchor(s), ${counts.lineFragments} line fragment(s), ` +
       `${counts.quotations} quoted production(s), ` +
       `${counts.statusClaims} status claim(s) — UNRESOLVED ${counts.excused}, ` +
-      `LINE-FORM ${lineForm}${baseline === null ? "" : ` of ${baseline} baseline`}, ${counts.failed} failed`,
+      `LINE-FORM ${lineForm}${held}, ${counts.failed} failed`,
   );
   lines.push(
     "  This gate checks that a citation RESOLVES to text, that a section anchor (<file>.md#a-heading) names " +
@@ -2020,10 +2037,20 @@ export function runSpecCitationsGate({
   );
   lines.push(
     "  LINE-FORM is every citation above that names a line — explicit, comma-appended, bare, and the line " +
-      `fragment (<file>.md#L30) — held to the baseline committed in ${toPosixPath(baselineFile)} (issue #1183). ` +
-      "It may fall, never rise, and a fall must lower the baseline in the same change so the mark cannot go " +
-      `stale: both directions fail, and ${regenerate} writes the number. The baseline is generated by this gate ` +
-      "and never hand-written — two careful manual counts of this corpus have disagreed with each other.",
+      "fragment (<file>.md#L30). The section anchor is deliberately not in it: ordinary edits above a heading " +
+      `do not move it. ${
+        writeBaseline
+          ? `This run REWROTE ${toPosixPath(baselineFile)} to that number rather than checking it; commit the ` +
+            "file, and read the count as measured rather than as held."
+          : baseline === null
+            ? "This scan was given no baseline, so the number is REPORTED AND NOT CHECKED — nothing here holds " +
+              `it to anything. A scan of the repository is held to ${toPosixPath(BASELINE_PATH)}; pass ` +
+              "--baseline=<path> to hold another tree to a mark of its own."
+            : `It is held to the baseline committed in ${toPosixPath(baselineFile)} (issue #1183): it may fall, ` +
+              "never rise, and a fall must lower the baseline in the same change so the mark cannot go stale — " +
+              `both directions fail, and ${regenerate} writes the number.`
+      } The baseline is generated by this gate and never hand-written; two careful manual counts of this ` +
+      "corpus have disagreed with each other.",
   );
   if (counts.excused > 0) {
     lines.push(

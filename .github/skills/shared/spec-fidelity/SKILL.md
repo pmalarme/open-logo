@@ -81,8 +81,9 @@ the escaping set, raw inline HTML, a numeric reference whose digit count CommonM
 renderer disagree about — is **refused** rather than answered. Read the coverage statement
 the gate prints; never read a green run as "every citation is right".
 
-**The line form is ratcheted** (#1183). The gate totals every citation that names a line — explicit,
-comma-appended, bare, and the `#L30` fragment — prints it as `LINE-FORM`, and holds it to the number
+**The line form is ratcheted** (#1183). The gate totals **every citation form that names a line** —
+explicit, comma-appended, bare, and the `#L30` fragment; the section anchor is excluded, because it
+does not move when text is inserted above it — prints it as `LINE-FORM`, and holds it to the number
 committed in `scripts/spec-citations-baseline.json`. It **may fall, never rise**, and a fall must
 lower the baseline in the same change, or the mark goes stale and stops ratcheting: both directions
 fail. Generate the number with `node scripts/check-spec-citations.mjs --write-baseline`; never write

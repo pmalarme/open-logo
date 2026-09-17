@@ -273,17 +273,19 @@ be silently retargeted. Entries are **deleted** when fixed, never re-fingerprint
 `UNRESOLVED` total prints every run; the corpus sweep that empties it is #948.
 
 **The line form is ratcheted: it may fall, never rise** (#1183). The convention above is guidance,
-and guidance did not stop the next change adding twenty fresh `spec/<file>.md` line citations where
-thousands already exist. So the gate totals every citation that names a line — explicit,
-comma-appended, bare, and GitHub's `#L30` line *fragment*, which is a line claim in anchor clothing —
-prints it as `LINE-FORM` beside `UNRESOLVED`, and holds it to the number committed in
+and guidance alone would not stop the next change adding twenty fresh `spec/<file>.md` line citations
+where thousands already exist. So the gate totals **every citation form that names a line** —
+explicit, comma-appended, bare, and GitHub's `#L30` line *fragment*, a line claim in anchor clothing;
+the section anchor is deliberately excluded, because it does not move when text is inserted above it
+— prints that total as `LINE-FORM` beside `UNRESOLVED`, and holds it to the number committed in
 `scripts/spec-citations-baseline.json`. **Both directions fail.** Above it is the growth the ratchet
 exists to stop; below it the recorded number has become a stale high-water mark that would re-admit
 as many new citations as your conversion removed, so lower it in the same change. **Never hand-write
 that number** — `node scripts/check-spec-citations.mjs --write-baseline` generates it, because two
 careful manual counts of this corpus have already disagreed with each other. This is the one check
-here pinned to a total, so it is the one that can go red for a citation you inherited rather than
-wrote; the failure says so, and names the `git diff -G` command that tells the two apart.
+here pinned to a total, so it can go red for a citation you inherited rather than wrote; the gate
+cannot tell the two apart — it counts the tree, not the change — says so, and names the diff that
+narrows it to the files you touched.
 
 `npm run adr-numbering` (issue #1042, logic in `scripts/adr-numbering-gate.mjs`) checks the surface
 that binds the decision *records* together: ADR numbers are unique, each filename agrees with its own

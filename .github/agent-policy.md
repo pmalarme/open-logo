@@ -26,7 +26,10 @@ the layers fit together: [`devops/agent-policy`](skills/devops/agent-policy/SKIL
   `@product-owner` instead.
 - **Cite `spec/` by section anchor** — `spec/<file>.md#a-heading`, not `:<line>`. A line number moves
   on the next spec edit; an anchor survives it, and breaks only on a heading rename, removal or
-  duplicate-slug collision. Never mass-convert existing citations.
+  duplicate-slug collision. Never mass-convert existing citations. The line-form count is **ratcheted**
+  (#1183) — it may fall, never rise — so converting the citations in a file you are already in means
+  regenerating `scripts/spec-citations-baseline.json` in the same change, and adding a line citation
+  means a baseline raise a reviewer will see.
   → [`shared/spec-fidelity`](skills/shared/spec-fidelity/SKILL.md),
   [ADR-0034](../docs/adr/0034-cite-the-spec-by-section-anchor.md)
 - **Never edit another agent's `.github/agents/*.agent.md`**, and never reach into another package's

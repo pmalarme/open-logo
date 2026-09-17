@@ -38,9 +38,11 @@ under `.github/workflows/`, security, labeler + label sync, releases).
   **product-owner** agent proposes changes via a PR that a human reviews and merges. Everyone
   else raises ambiguities as issues/change-requests.
 - **Cite the spec by section anchor** — `spec/<file>.md#a-heading`, not `:<line>`. A line number is
-  only for a claim that genuinely needs line precision, and then it carries its anchor too. Never
-  mass-convert existing citations. The rule and its limits:
-  [`shared/spec-fidelity`](../skills/shared/spec-fidelity/SKILL.md); the reasoning:
+  only for a claim that genuinely needs line precision, and then it carries its anchor too — and,
+  since #1183, a **reviewed baseline raise**, because the line-form count is ratcheted and may fall,
+  never rise. Never mass-convert existing citations; converting the ones in a file you are already
+  in means regenerating `scripts/spec-citations-baseline.json` in the same change. The rule and its
+  limits: [`shared/spec-fidelity`](../skills/shared/spec-fidelity/SKILL.md); the reasoning:
   [ADR-0034](../../docs/adr/0034-cite-the-spec-by-section-anchor.md).
 - Key spec files agents must read before working in their area:
   [`conformance.md`](../../spec/conformance.md) (profiles + dependency DAG + minimal path),
