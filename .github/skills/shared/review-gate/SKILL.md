@@ -251,11 +251,10 @@ If yes, the update **must be in the same PR**. A behavior change that leaves its
 
 **Re-derive, don't re-read.** Every number and every `spec/` citation the change adds or touches is
 an **unverified assertion** — nothing recomputes a number, and the gate resolves a citation, never
-the claim written beside it (see
-[`shared/definition-of-done`](../definition-of-done/SKILL.md)'s "Derived counts in prose"). A
-reviewer checks them by measuring against the current tree, not by trusting the PR body: counts,
-file lengths, and cited line ranges all drift silently, and this saga renumbered `spec/grammar.md`
-under existing citations. New citations name a section anchor
+the claim written beside it (see [`shared/definition-of-done`](../definition-of-done/SKILL.md)'s
+"Derived counts in prose"). A reviewer checks them by measuring against the current tree, not by
+trusting the PR body: counts, file lengths, and cited line ranges all drift silently, and this saga
+renumbered `spec/grammar.md` under existing citations. New citations name a section anchor
 ([`shared/spec-fidelity`](../spec-fidelity/SKILL.md)).
 
 ## Findings — every finding gets resolved, blocking or not
