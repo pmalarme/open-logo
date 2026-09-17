@@ -319,10 +319,10 @@ Three traps, each of which produced a wrong answer in that slice:
 - **Verify the mutant reached `dist/`.** `tsc -b` serves a stale build when a restored file gets an
   older mtime, and `Copy-Item -Recurse node_modules` dereferences workspace symlinks so the sandbox
   resolves a stale package. Both report "survived" while testing the *unmutated* tree.
-- **Read the result, not the diff.** A diff proves you changed the text; only the result proves you
-  changed the behaviour. `context !== "inside" && context !== "dispatch-dependent"` is just
-  `=== "outside"` — a no-op mutation reports "not detected", which is indistinguishable from a real
-  gap.
+- **Read the result, not the diff.** A diff proves the text changed, not that behaviour changed —
+  confirm the mutation with a control whose observed result differs.
+  `context !== "inside" && context !== "dispatch-dependent"` is just `=== "outside"` — a no-op
+  mutation reports "not detected", which is indistinguishable from a real gap.
 - **A clean-direction assertion is not coverage.** A test that passes both with and without the
   change measures only the rule's *silence*. Assert the reporting direction too.
 
@@ -357,10 +357,10 @@ or a pointer. Otherwise:
   example of the old class, and revalidate them. The definition site is where the change is obvious;
   the citing sites are where it is not.
 
-Unlike (g) this has no general oracle. Some prose does have one — runnable examples, the citation
-and ADR-numbering gates, format checks — but a fixture `description` has none: the harness **reads
-it and compares nothing** (`scripts/harness/index.mjs`, stated at `tests/conformance/README.md`), so
-a wrong description passes every check. That is why the pass has to be deliberate.
+Unlike (g), the oracle here is narrow. Some prose has one — runnable examples, the citation and
+ADR-numbering gates, format checks. A fixture `description` does not: the conformance harness reads
+it (`scripts/harness/index.mjs`) but does not validate whether its prose is true, as
+`tests/conformance/README.md` states. That is why the pass has to be deliberate.
 
 ## Findings — every finding gets resolved, blocking or not
 
