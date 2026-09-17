@@ -1258,21 +1258,14 @@ export function collectCitations(
       (mention) => index >= mention.index && index < mention.end,
     );
     const attributable = !inside && knownDocuments.has(bareDocument[1]);
-    // The two halves of this form are governed by different rules, so they get different guards.
-    //
-    // The LINE form is **prohibited outright** — ADR-0036 admits no carve-out — so it is enumerated
-    // wherever it appears, including inside a string literal in live code. That used to require
-    // `isProseLine`, which meant a citation written in a `test(...)` title was invisible to the very
-    // gate that bans it; disclosing the hole in the coverage statement is not the same as closing
-    // it, and two genuine citations had already been found in exactly that position.
-    //
-    // The unprefixed ANCHOR form is a different rule — it is about how a citation is *written* in
-    // prose, not about a banned construct — so it stays prose-scoped, because a fragment-looking
-    // token inside code (a URL, a selector, an expected-output string) is not a citation anybody
-    // wrote and reporting it would be an invention.
-    const prose = isProseLine(path, lines[line - 1]);
+    // Neither half carries a prose guard any longer. The LINE form is a banned construct and the
+    // ANCHOR form is a citation however it is written — a reviewer demonstrated that a test title
+    // naming a document and a heading fragment is plainly a citation, so calling it "not a citation
+    // anybody wrote" was false. What keeps both honest is the attribution rule above: the document
+    // must be one the specification publishes AND its basename must be unambiguous repo-wide, so an
+    // incidental README fragment is still left alone.
     if (attributable && bareDocument[5] !== undefined) {
-      if (!insideSpecDirectory && prose) {
+      if (!insideSpecDirectory) {
         unprefixedAnchors.push({
           specDirectory,
           file: bareDocument[1],
@@ -1336,7 +1329,15 @@ export function collectCitations(
       (mention) => index >= mention.index && index < mention.end,
     );
     const line = lineAt(index);
-    if (inside || !isProseLine(path, lines[line - 1])) {
+    // No prose guard. A bare colon-and-number is only ever enumerated when an earlier citation in
+    // the same file already named a document for it to attribute to, and that attribution is the
+    // real filter — it is what separates a citation from a ratio or a time. Requiring a prose line
+    // on top of it hid four live citations inside template strings, which is the same "documented
+    // therefore acceptable" hole the prefix-less form had. The two shapes attribution alone could
+    // not separate — a contrast ratio rendered with a trailing `${n}` then a colon and a digit, and
+    // a regex matching this gate's own diagnostic output — were reworded at their sites rather than
+    // excused here, because a rule with no exceptions file has nowhere to put an excuse.
+    if (inside) {
       bare = BARE_REFERENCE.exec(text);
       continue;
     }
@@ -2096,8 +2097,11 @@ export function runSpecCitationsGate({
       "the slug it vacated; both retarget a citation silently and both leave this gate green. A renamed " +
       "heading therefore fails loudly only when the rename leaves its slug unclaimed. A citation written " +
       "without the spec-directory prefix is now enumerated too: the LINE form anywhere, and the " +
-      "ANCHOR form outside the specification directory. The LINE form is counted ANYWHERE, " +
-      "including inside a string literal in live code; the ANCHOR form only on a prose line naming a document " +
+      "ANCHOR form outside the specification directory. BOTH are counted ANYWHERE, including " +
+      "inside a string literal in live code: there is no prose carve-out left, because what " +
+      "separates a citation from an incidental colon-and-digit is ATTRIBUTION, not where the " +
+      "characters sit. A bare colon-and-number is enumerated only when an earlier citation in the " +
+      "same file named a document for it, and a prefix-less form only when it names a document " +
       "whose basename is unique in the repository — an ambiguous one such as a README is left alone, " +
       "because attributing it to the specification would invent a citation nobody wrote. Inside the " +
       "specification directory the relative anchor is the normal way one document links to a sibling " +

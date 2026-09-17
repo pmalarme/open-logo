@@ -3189,7 +3189,7 @@ test("INJECTED DRIFT: the row's generated sentences edited away from what the de
       "does not carry the contextual words",
     ],
     [
-      "the profile sentence contradicts :31",
+      "the profile sentence contradicts spec/tooling.md#normative-token-class-model",
       "take this class while their profile is active, and `primitive` while it is not.",
       "take this class whether or not their profile is active.",
       "does not carry the required sentence verbatim",

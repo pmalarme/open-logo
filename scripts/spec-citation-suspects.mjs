@@ -15,16 +15,17 @@
  * **It is a ranked report for a human, never a gate verdict**, and that is not modesty. It is
  * measured. Two facts decide it:
  *
- * 1. **It detects only about half of the mutations it plants in itself, and even that overstates
- *    what it can do.** The seeded control repoints a citation at a random *other real section* of
- *    the same document and re-scores; the shipped scorer catches roughly 55% of those (the live
- *    figure is printed on every run and interpolated into the report, never written down here).
- *    Two things stop that number from being "recall against wrong anchors". The control's
- *    population is the citations **this same heuristic did not flag**, which is not the same as
- *    citations a human verified; and a random repoint can land on a section that supports the claim
- *    perfectly well, so some of what it "fails to detect" was never wrong. What the figure honestly
- *    measures is **sensitivity to random retargeting**. A detector that misses half of even that
- *    cannot gate anything, because its silence carries little information.
+ * 1. **It detects only about half of the mutations it plants in itself, and that figure is
+ *    unlabelled.** The seeded control repoints a citation at a random *other real section* of the
+ *    same document and re-scores; the live figure is printed on every run and interpolated into the
+ *    report, never written down here. It measures **sensitivity to random retargeting** and nothing
+ *    more. It is not recall, precision or negative predictive value: the sample is drawn from the
+ *    citations this same heuristic did not flag, so the baseline is unlabelled, and a random repoint
+ *    can land on a section that supports the claim just as well, so an unknown share of the "misses"
+ *    were never wrong. **Which direction those two effects net out to is not established** — the
+ *    honest statement is that the figure is unlabelled, not that it is optimistic or pessimistic.
+ *    What follows for a reader is only this: it cannot be converted into a claim about how much a
+ *    clean row list proves, so do not treat silence as evidence.
  * 2. **The flag rate is a property of the instrument, not of the corpus.** Two implementations
  *    written from the same prose description — differing only in tokenizer and stop-list — produced
  *    rates 2.3× apart on the same tree. So this module never publishes a rate as a measurement of
@@ -54,7 +55,7 @@
  */
 
 import { readFileSync } from "node:fs";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import {
   documentHeadings,
   listCitationFiles,
@@ -493,14 +494,13 @@ export const KNOWN_ATTRACTORS = ["#tutor-output-educational-profile"];
 /**
  * The band the seeded mutation control must land inside, and the sample size.
  *
- * **Calibrated to THIS scorer, and that is the point.** The design prototype detected ~25% of
- * seeded retargetings with a citing-line claim window; this implementation uses the enclosing prose
- * run, IDF weighting and leaf bodies, and detects ~55% on the same corpus. A band inherited from
- * the prototype would have failed every run of the shipped tool — so the band is re-measured
- * whenever the scorer changes, and the measured value is printed on every run rather than merely
- * compared. **Do not restate either figure as prose elsewhere**: the report interpolates the live
- * one, because a number written into a sentence is an assertion nothing keeps true, which is the
- * rule this whole saga exists to enforce.
+ * **Calibrated to THIS scorer, and that is the point.** The design prototype, which used a
+ * citing-line claim window, detected a far smaller share of seeded retargetings than this
+ * implementation does with the enclosing prose run, IDF weighting and leaf bodies. A band inherited
+ * from the prototype would have failed every run of the shipped tool. **No figure is written down
+ * here on purpose** — the live one is printed on every run and interpolated into the report, and a
+ * number in a comment is an assertion nothing keeps true, which is the rule this saga exists to
+ * enforce. Re-measure the band whenever the scorer changes; only the band itself is enforced.
  *
  * Both bounds carry information. Falling through the floor means the instrument has stopped
  * detecting and a green queue would mean nothing. Punching through the ceiling means it has become
@@ -609,17 +609,24 @@ export function reportSuspects(options = {}) {
     `citation suspects: ${pairs.length} ranked pair(s) over ${total} site(s), from ${scorable} ` +
       `scorable of ${scanned} anchor(s) across ${documents.length} cited document(s)`,
   );
-  // Parity with the gate's banner. A scoped run of a REPORT is milder than a scoped run of a gate,
-  // but it is the same shape: an option that narrows what was examined while the numbers above
-  // still read as the repository's. Saying so is the whole remedy.
+  // Parity with the gate's banner, including how the gate decides there IS an override: compare the
+  // EFFECTIVE value against the production default, not merely whether an option was supplied.
+  // Testing for `!== undefined` made `--spec-dir=spec` announce a narrower corpus while producing
+  // byte-identical output — a sentence asserting more than was measured, which is the genre this
+  // saga polices. Both reviewers caught it independently.
   const overrides = [];
-  if (options.roots !== undefined) {
-    overrides.push(`roots=[${[].concat(options.roots).join(", ")}]`);
+  const effectiveSpecDirectory = options.specDirectory ?? SPEC_DIRECTORY;
+  const roots = options.roots === undefined ? null : [].concat(options.roots);
+  if (roots !== null && (roots.length !== 1 || roots[0] !== ".")) {
+    overrides.push(`roots=[${roots.join(", ")}]`);
   }
-  if (options.specDirectory !== undefined) {
+  if (effectiveSpecDirectory !== SPEC_DIRECTORY) {
     overrides.push(`spec-dir=${options.specDirectory}`);
   }
-  if (options.specRoot !== undefined) {
+  if (
+    options.specRoot !== undefined &&
+    resolve(options.specRoot) !== resolve(effectiveSpecDirectory)
+  ) {
     overrides.push(`spec-root=${options.specRoot}`);
   }
   if (overrides.length > 0) {
@@ -681,13 +688,14 @@ export function reportSuspects(options = {}) {
     "  This is a RANKED REPORT, not a gate. It scores the prose around a citation against every " +
       "section of the document it cites and lists where another section matches better. It NEVER " +
       "fails on a finding, and its silence proves little. The seeded control above detected " +
-      `${(check.detection * 100).toFixed(1)}% of the mutations it planted in itself, and that ` +
-      "figure OVERSTATES what the tool can do, for two reasons it cannot correct: the control is " +
-      "drawn from the citations THIS SAME HEURISTIC did not flag, which is not the same as " +
-      "citations a human verified; and a random repoint can land on a section that supports the " +
-      "claim perfectly well, so some of what it 'missed' was never wrong. Read it as SENSITIVITY " +
-      "TO RANDOM RETARGETING, not as recall against known-wrong anchors — the honest summary is " +
-      "that a clean row list is close to no evidence at all. SO READ THIS " +
+      `${(check.detection * 100).toFixed(1)}% of the mutations it planted in itself. Read that as ` +
+      "SENSITIVITY TO RANDOM RETARGETING and nothing more. It does NOT estimate recall, precision " +
+      "or negative predictive value, because the sample is drawn from citations this same heuristic " +
+      "did not flag — an unlabelled baseline — and because a random repoint can land on a section " +
+      "that supports the claim just as well, so an unknown share of the 'misses' were never wrong. " +
+      "Those two facts leave the figure unlabelled, not merely optimistic: nothing here establishes " +
+      "which direction it errs in, and a figure whose bias direction is unknown cannot be turned " +
+      "into a statement about how much a clean row list proves. SO READ THIS " +
       "AS A FILE ROUTER, NOT A DEFECT DETECTOR. Across four review batches the defects found " +
       "without a row — 7 in one batch alone — were each beside a ranked row, in a file the queue had " +
       "already sent the reviewer to. Citations were authored in cohorts and drifted in cohorts, so a " +

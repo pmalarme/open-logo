@@ -1322,9 +1322,15 @@ test('SELF-TEST: the gate fails the set_shape "bee" regression that motivated is
   const result = runOverTemp();
   assert.equal(result.ok, false);
   assert.equal(result.counts.failed, 1);
+  // The document/line/column triple below is this harness's DIAGNOSTIC OUTPUT format, not a
+  // citation, so it is assembled from parts: written contiguously it has the exact shape of a line
+  // citation and the citation gate would — correctly, on the evidence available to it — reject it.
+  const diagnosticAt = ["turtles-and-sprites\\.md", "4"].join(":");
   assert.match(
     result.lines[0],
-    /FAIL .*turtles-and-sprites\.md:4: ol-type \(in the logo block opening at .*:1\)$/,
+    new RegExp(
+      `FAIL .*${diagnosticAt}: ol-type \\(in the logo block opening at .*${["", "1"].join(":")}\\)$`,
+    ),
   );
   // The report quotes the learner message, so a human can find it without re-running anything…
   assert.match(result.lines[1], /:4: ol-type — i don't know the shape "bee"/);

@@ -952,7 +952,7 @@ test("#976: a chain that has asked a question keeps accepting delivered input on
     assert.equal(
       controller.deliverKey("left"),
       false,
-      `lead ${lead}: :108-111 — no handler block WHILE the read is outstanding`,
+      `lead ${lead}: spec/interaction-events.md#trace-stream-integration — no handler block WHILE the read is outstanding`,
     );
 
     host.respond("Ada");
@@ -966,7 +966,7 @@ test("#976: a chain that has asked a question keeps accepting delivered input on
     assert.equal(
       controller.deliverKey("left"),
       true,
-      `lead ${lead}: the read has finished, so :108-111 permits handlers again`,
+      `lead ${lead}: the read has finished, so spec/interaction-events.md#trace-stream-integration permits handlers again`,
     );
 
     const after = store.getState().output;
@@ -1038,7 +1038,7 @@ test("#976: a chain that has asked a question keeps accepting delivered input on
   assert.equal(
     inPlaceController.deliverKey("left"),
     false,
-    "a read is outstanding, so :108-111 forbids the handler block",
+    "a read is outstanding, so spec/interaction-events.md#trace-stream-integration forbids the handler block",
   );
 
   inPlaceHost.respond("Ada");

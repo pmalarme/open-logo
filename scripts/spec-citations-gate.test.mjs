@@ -243,7 +243,12 @@ test("a line spec two documents both cite is ambiguous, so it falls back to cont
   assert.equal(last.file, "other.md");
 });
 
-test("a bare reference in live code is not a citation, and one before any mention is reported", () => {
+test("a bare reference is enumerated in live code, and one before any mention is reported", () => {
+  // The prose guard is gone: ATTRIBUTION is what separates a citation from an incidental colon and
+  // digit, not where the characters sit. A ratio rendered `…:1` therefore surfaces here as an
+  // UNATTRIBUTED reference rather than being silently dropped — which is the honest outcome, and is
+  // why the one real site of that shape in this repository was reworded at the site instead of
+  // being excused in the enumerator. There is no exceptions file to put an excuse in.
   const text = [
     "const label = formatRatio(value) + ':1 contrast';",
     "// :77 appears before this file names any document",
@@ -254,7 +259,10 @@ test("a bare reference in live code is not a citation, and one before any mentio
     citations.map((citation) => citation.start),
     [4],
   );
-  assert.deepEqual(unattributed, [{ line: 2, text: ":77" }]);
+  assert.deepEqual(unattributed, [
+    { line: 1, text: ":1" },
+    { line: 2, text: ":77" },
+  ]);
 });
 
 test("collectCitations returns nothing for a file that names no document", () => {
@@ -506,12 +514,13 @@ test("a tree of anchor citations passes, and the report states what it does not 
   // And the bound is stated in both directions: a citation inside a string literal in live code is
   // the one shape the rule deliberately does not reach, so a green run must not be read as "no line
   // citation exists anywhere in the tree". That hole is now closed for the prefix-less LINE form.
-  // The line form is now reached in code as well as prose, so the statement must claim exhaustive
+  // Both halves are now reached in code as well as prose, so the statement must claim exhaustive
   // coverage over the spellings it can name — and must not go on advertising a hole that is closed.
   assert.match(
     summary,
-    /The LINE form is counted ANYWHERE,\s+including inside a string literal in live code/,
+    /BOTH are counted ANYWHERE, including\s+inside a string literal in live code/,
   );
+  assert.match(summary, /there is no prose carve-out left/);
   assert.match(
     summary,
     /exhaustive over every spelling this gate can name, in prose\s+and in code alike/,
@@ -2049,21 +2058,22 @@ test("the prefix-less rule is structural, and the LINE form has no code carve-ou
   assert.match(runOverTemp().lines.join("\n"), /omits the contract\/ prefix/);
 });
 
-test("the unprefixed ANCHOR form stays prose-scoped, because it is a different rule", () => {
-  // The line form is a banned construct, so it is hunted everywhere. An unprefixed anchor is a
-  // rule about how a citation is WRITTEN in prose, so a fragment-looking token inside code — a URL,
-  // a selector, an expected-output string — must not be reported: nobody wrote it as a citation,
-  // and inventing one would be the mirror image of missing one.
+test("the unprefixed ANCHOR form is rejected in code as well as prose", () => {
+  // An earlier round kept a prose guard here, arguing an anchor-shaped token in code "is not a
+  // citation anybody wrote". A reviewer refuted that with a test title naming a document and a
+  // heading — plainly a citation. What actually separates a citation from an incidental token is
+  // ATTRIBUTION: the document must be one the specification publishes and its basename must be
+  // unambiguous repo-wide. That rule does the work, in code and in prose alike.
   writeGrammar();
   write("code.mjs", 'expect(link).toBe("syntax-rules.md#ebnf-notation");\n');
   assert.equal(
     runOverTemp().ok,
-    true,
-    "an anchor-shaped token in code is not a citation anybody wrote",
+    false,
+    "an anchor naming a published document is a citation wherever it is written",
   );
-  // In prose the same token IS reported, which is what makes this a scope and not an exemption.
-  write("prose.md", "See syntax-rules.md#ebnf-notation for the production.\n");
-  assert.equal(runOverTemp().ok, false);
+  // An AMBIGUOUS basename is still left alone, which is what keeps this a rule and not a dragnet.
+  write("code.mjs", 'expect(link).toBe("README.md#overview");\n');
+  assert.equal(runOverTemp().ok, true);
 });
 
 test("a prefix-less reference carries its own document, so it never consumes a bare attribution", () => {

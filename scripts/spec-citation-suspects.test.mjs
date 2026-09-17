@@ -239,7 +239,7 @@ test("the claim is the enclosing PROSE RUN, not the citing line", () => {
     CONTRACT,
   );
   assert.equal(live.length, 1);
-  assert.ok(live[0].prose.includes("grammar.md#reduce"));
+  assert.ok(live[0].prose.includes(`${CONTRACT}/grammar.md#reduce`));
 });
 
 test("scoreClaim returns null for a slug the document does not publish", () => {
@@ -626,6 +626,25 @@ test("a scoped run says so, because a narrowed report still reads as authoritati
   assert.match(scoped, /roots=\[/);
   assert.match(scoped, /spec-dir=/);
   assert.match(scoped, /spec-root=/);
+});
+
+test("the banner fires on a real override, not on a value that equals the default", () => {
+  // Two reviewers independently found that testing "was an option supplied?" made a run with the
+  // PRODUCTION values announce a narrower corpus while producing byte-identical output. A banner
+  // that asserts more than was measured is the same genre of defect as the claims it guards against,
+  // even though it errs toward over-disclosure.
+  writeDoc();
+  write("cites.md", `See ${CONTRACT}/grammar.md#reduce for the empty case.\n`);
+  const passthrough = reportSuspects({
+    roots: ["."],
+    specDirectory: "spec",
+    specRoot: "spec",
+  }).lines.join("\n");
+  assert.doesNotMatch(
+    passthrough,
+    /SCOPED RUN/,
+    "options equal to the defaults are not a scope",
+  );
 });
 
 test("the CLI never fails BECAUSE OF a finding — only the tool's checks on itself can fail", () => {

@@ -2696,7 +2696,7 @@ function evaluateLogical(
 
 // --- Comparisons: equality (`== !=`), ordering (`< > <= >=`), and chains --------------------
 //
-// spec/execution-model.md#equality-and-ordering, spec/execution-model.md#equality-and-ordering. `==`/`!=` compare any two values to a boolean and never
+// spec/execution-model.md#equality-and-ordering. `==`/`!=` compare any two values to a boolean and never
 // raise; ordering is defined only for two numbers or two words and raises `ol-type` otherwise.
 
 /**
@@ -3070,7 +3070,7 @@ export function snapshotValue(
 }
 
 /**
- * Normative `==` for OpenLogo's value types (`spec/execution-model.md#equality-and-ordering, spec/execution-model.md#equality-and-ordering` matrix): numeric
+ * Normative `==` for OpenLogo's value types (`spec/execution-model.md#equality-and-ordering` matrix): numeric
  * equality for two numbers; number↔word by canonical printed form; case-sensitive word equality;
  * boolean identity; structural list equality; structural dict equality (same key set, pairwise
  * `==`, order-independent — issue #322); every other cross-type pair is `false`. List/dict

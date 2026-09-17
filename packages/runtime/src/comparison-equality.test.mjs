@@ -1,5 +1,5 @@
 // Unit tests for comparison operators, chained comparisons, and equality (issue #96) —
-// spec/execution-model.md#three-syntactic-layers, spec/execution-model.md#precedence-and-evaluation-order (precedence/chaining) and spec/execution-model.md#equality-and-ordering, spec/execution-model.md#equality-and-ordering (equality matrix, ordering,
+// spec/execution-model.md#three-syntactic-layers, spec/execution-model.md#precedence-and-evaluation-order (precedence/chaining) and spec/execution-model.md#equality-and-ordering (equality matrix, ordering,
 // cycle-safe structural equality). Most cases parse real `print <expr>` source through
 // @openlogo/parser and evaluate the resulting AST node exactly as execute() does. Two properties
 // are not yet expressible through Core source (variable reads land with #94, list mutation with
