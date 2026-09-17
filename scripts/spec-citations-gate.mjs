@@ -19,7 +19,9 @@
  * detectable without understanding the prose:
  *
  * 1. **It does not resolve** — the file is missing, the line is past end-of-file, the range is
- *    inverted, or the cited region holds no text at all. **COVERED** ({@link resolveCitation}).
+ *    inverted, or the cited region holds no text at all. **COVERED** ({@link resolveCitation}); a
+ *    section anchor is covered by {@link resolveAnchor}, which is the same claim in the heading
+ *    dimension: the heading it names must exist.
  * 2. **It resolves, but points at the wrong passage, and the prose paraphrases rather than quotes.**
  *    **NOT COVERED**, except in the one shape that is mechanically checkable: a citing site that
  *    **quotes an EBNF production** must cite a region containing it ({@link collectQuotations}).
@@ -45,15 +47,15 @@
  * {@link collectCitations} instead enumerates **every** bare `:N` in a citing file and accounts for
  * each one in exactly three buckets:
  *
- * - a **back-reference**, when the same line spec appears earlier in the file as a full anchor;
+ * - a **back-reference**, when the same line spec appears earlier in the file as an explicit citation;
  * - a **context reference**, attributed to the nearest preceding spec-file mention (which need not
  *   carry a line number of its own);
  * - **unattributed**, when no spec file is named before it — reported, never silently dropped.
  *
  * The back-reference rule comes first because nearest-preceding attribution demonstrably gets it
  * wrong: `packages/parser/src/keywords.ts` refers back to a line-408 ruling four lines after
- * mentioning a *different* spec document, and only the earlier full anchor says which document that
- * bare reference belongs to.
+ * mentioning a *different* spec document, and only the earlier explicit citation says which document
+ * that bare reference belongs to.
  *
  * In JavaScript and TypeScript sources a bare `:N` counts only inside a comment line. That is a
  * structural rule, not a tolerance: a formatted contrast ratio, whose template literal ends with a
@@ -81,12 +83,72 @@
  * different issue. No gate can decide whether a rationale is *true*; this one guarantees it cannot
  * drift away from the text it describes unnoticed.
  *
+ * ## Section anchors, and the slug rule written down
+ *
+ * A **section anchor** (`<file>.md#a-heading`) names a heading rather than a line, so ordinary edits
+ * above it do not move it — which is why saga #1180 makes it the preferred form. It was previously
+ * enumerated as a mention and never resolved, so a renamed or misspelled heading passed unseen; an
+ * unchecked *preferred* form is worse than the fragile one it replaces, so issue #1181 resolves it:
+ * {@link resolveAnchor} requires some heading in the cited file to slugify to the fragment, and there
+ * is **no automatic tolerance** — a near miss is reported as a did-you-mean suggestion and **still
+ * fails**, because a suggestion the gate acted on would be the same indistinguishable-from-the-defect
+ * tolerance #893's reviewers deleted.
+ *
+ * **Preferred is not invariant, and the difference matters.** Resolving an anchor proves that *some*
+ * heading claims that slug — never that the section the citation meant still claims it. Duplicates
+ * are numbered **positionally**, which gives that gap two shapes, both silent and both green:
+ *
+ * - **Demotion.** A new heading with the same text inserted *ahead* of the cited one takes the bare
+ *   slug, pushing the original to `-1`.
+ * - **Promotion.** An earlier duplicate renamed or removed *vacates* its slug, and the next one
+ *   inherits it.
+ *
+ * So a rename fails **loudly** only when it leaves the slug unclaimed; when something else claims it,
+ * the citation quietly points somewhere new. This is the anchor form's version of the wrong-passage
+ * class, not an escape from it — and it is **inherent to slugs, not to any reader**, so replacing the
+ * reader with a parser did not touch it. `spec/commands.md` is where the positional numbering is live
+ * rather than theoretical: its operator headings are punctuation only, so they collide on the empty
+ * slug and are reached positionally — the first of them slugs to the empty string, which is not a
+ * citable fragment at all. For that block the anchor form cannot express a stable citation.
+ *
+ * **Headings come from a real GFM parse, and the slug from `github-slugger`** ({@link
+ * documentHeadings}, ADR-0035). The gate previously reimplemented both, and nine review rounds
+ * established that it could not: a line-by-line reader was defeated in turn by HTML blocks, `_`
+ * emphasis, `²`, code-span contents, container markers inside fences, and finally by a fence opened
+ * on a list-item continuation line — the shape `spec/execution-model.md` actually uses. Every fix was
+ * correct and every one left another door open, because the missing information was **structural**:
+ * which lines a fenced block covers is inherited block state, not a property of the line.
+ *
+ * The parse buys two things, and one without the other would not have been worth a dependency.
+ * **Block structure** — fences inside containers, HTML blocks, indented code, setext headings, and
+ * headings nested in blockquotes and list items, which GitHub publishes. And **rendered text** —
+ * `github-slugger` expects what a reader *sees*, so `## [Text](target)` publishes `#text` rather than
+ * `#texttarget`, `## A &amp; B` publishes `#a--b`, and `` ## ` foo ` `` publishes `#foo` because a
+ * code span is trimmed. Slugging the markdown *source* gets all three wrong, and no amount of block
+ * parsing would have touched them.
+ *
+ * What the parse obsoleted is **deleted**, not kept in reserve: the hand-rolled slug rule, the
+ * character permit-lists over headings and code-span contents, the fence and container scanners, the
+ * refusals for HTML blocks, setext rules, nested headings and container fences, and the tag-stripping
+ * pattern that a `>` inside an attribute value defeated. A dependency that only adds has not paid for
+ * itself. What survives in {@link unsupportedConstructs} is four **conservative refusals** — an
+ * entity reference this reader does not decode, raw inline HTML, an emoji shortcode shape, and a
+ * numeric reference whose digit count CommonMark and GitHub's renderer disagree about — and the
+ * live-corpus test keeps the cited documents' freedom from all four measured rather than asserted.
+ *
+ * A fragment of the form `#L30` or `#L28-L84` is GitHub's **line fragment**, not a heading: it names
+ * lines, so it is resolved against the file's length by {@link resolveCitation} like any other line
+ * claim, and it inherits exactly the drift #1180 exists to remove. A heading slug is lowercased at
+ * step 1 and so can never begin with an uppercase `L`, which is what makes the two forms
+ * distinguishable without guessing.
+ *
  * ## Known blind spots, stated rather than hidden
  *
- * A **section anchor** (`<file>.md#a-heading`) carries no line number, so it is enumerated as a
- * mention but never resolved: a renamed or misspelled heading passes unseen. That form is the one
- * issue #934 *recommends* adopting precisely because it cannot drift when lines shift, so checking it
- * is the obvious next increment. The printed coverage statement says so on every run.
+ * Every citation — line form and anchor alike — is found by the literal `<spec-dir>/` prefix, so a
+ * **relatively-written** reference is invisible to this gate. `docs/adr/0029-…md` already records
+ * that for the line form; the anchor form inherits it, which matters more now that #1180 makes the
+ * anchor *preferred*. Such anchors exist today, nearly all of them inside `spec/` itself, and nothing
+ * checks any of them. Write the prefix.
  *
  * The scanned set is the **tracked** set ({@link listCitationFiles} shells out to `git ls-files`), and
  * that has a consequence worth stating as a general rule, because it is not specific to this gate:
@@ -102,6 +164,8 @@ import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join, sep } from "node:path";
+import GithubSlugger from "github-slugger";
+import { marked } from "marked";
 
 /** Directory holding the normative specification, relative to the repository root. */
 export const SPEC_DIRECTORY = "spec";
@@ -183,6 +247,8 @@ export const STATUS_CLAIM_PHRASES = Object.freeze([
 export const EXCEPTION_KINDS = Object.freeze({
   /** The citation does not resolve: missing file, past EOF, inverted, or a region with no text. */
   "stale-citation": "resolution",
+  /** A section anchor names a heading (or a file) that does not exist. */
+  "missing-anchor": "heading",
   /** The citing site quotes an EBNF production the cited region does not contain. */
   "misquoted-production": "quotation",
   /** A bare `:N` no spec-file mention precedes, which is therefore not attributable. */
@@ -292,12 +358,551 @@ export function isProseLine(path, line) {
   return true;
 }
 
-/** Build the regex matching `<specDirectory>/<file>.md` with an optional line spec. */
+/**
+ * One character a heading slug may contain — exported so a test can sweep it against the slugger.
+ *
+ * `-` is last so it is a literal rather than a range. `\p{Pc}` already contains `_`.
+ */
+export const SLUG_CHARACTER = "[\\p{L}\\p{N}\\p{M}\\p{Pc}\\p{So}-]";
+
+/**
+ * Build the regex matching `<specDirectory>/<file>.md` with an optional line spec and an optional
+ * `#fragment`.
+ *
+ * The fragment is captured as group 5 — appended rather than inserted — so the line-spec groups keep
+ * the numbers they had before issue #1181 and every existing reader of this pattern is unaffected.
+ *
+ * The fragment class matches what a slug can **contain**, and that set is not obvious: besides letters,
+ * digits and `-`, `github-slugger` preserves **combining marks** (`\p{M}`), **connector punctuation**
+ * (`\p{Pc}`, which is where `_` itself lives) and **other symbols** (`\p{So}` — circled letters,
+ * emoji). Leaving any of them out does not merely narrow the gate, it **manufactures failures**: a
+ * decomposed `## Café` publishes a slug ending in U+0301, and GitHub really does publish anchors
+ * containing U+203F, so the citation to one truncated mid-slug and was reported malformed — a defect
+ * invented by the tokenizer rather than found in the document. The class is an exhaustively verified
+ * **superset**: a test sweeps every Unicode code point through the shipped slugger and asserts that
+ * none it preserves falls outside, which is an oracle the library owns rather than a rule restated
+ * here. Being a superset is safe in the direction that matters: resolution compares the whole fragment
+ * against a real slug, so a symbol the slugger would have dropped simply fails to match — loudly, as
+ * everything here does. It is not free, though, and the cost is worth naming: a `\p{So}` character
+ * **abutting** a citation in prose is absorbed into the fragment rather than terminating it, so
+ * `…#a-heading© 2026` yields `a-heading©` and fails. That is a manufactured failure of the same kind,
+ * arriving from the opposite side — accepted deliberately, because it is loud, no instance exists in
+ * the corpus, and every ordinary delimiter (whitespace, `.` `,` `;` `:` `)` `]` `"` `'` `|` `—` `…`
+ * `/` `%`) is outside the class and still ends a fragment.
+ *
+ * It is `*` rather than `+` on purpose: a `#` with nothing after it is enumerated as an **empty**
+ * fragment and fails, instead of falling through as a plain file mention. That shape is a real defect
+ * — an anchor hard-wrapped immediately after its `#` — and matching `+` made the one live instance in
+ * this tree invisible to the very check meant to catch it.
+ */
 function mentionPattern(specDirectory) {
   return new RegExp(
-    `${specDirectory.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\/([A-Za-z0-9._-]+\\.md)(?::(\\d+)(?:-(\\d+))?((?:,\\d+(?:-\\d+)?)+)?)?`,
-    "g",
+    `${specDirectory.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\/([A-Za-z0-9._-]+\\.md)(?::(\\d+)(?:-(\\d+))?((?:,\\d+(?:-\\d+)?)+)?)?(?:#(${SLUG_CHARACTER}*))?`,
+    "gu",
   );
+}
+
+/**
+ * What may legally follow a `#fragment`.
+ *
+ * This is the boundary check that keeps the fragment class from **truncating** a malformed anchor
+ * into a valid prefix: without it `#a-heading.extra`, `#a-heading%2Dtypo` and `#a-heading/typo` all
+ * collect as `a-heading` and **pass**, which is tolerance smuggled in through the tokenizer rather
+ * than through a near-miss rule.
+ *
+ * There are exactly two ways a fragment may end, and the asymmetry between them is the whole rule:
+ *
+ * - a **delimiter** closes the token directly — whitespace, end of input, a quote, or a bracket;
+ * - **trailing punctuation** (a sentence full stop, a comma, a closing `**`) counts only when
+ *   whitespace or end-of-line follows it.
+ *
+ * Punctuation followed by anything else is part of a fragment this gate cannot resolve. That single
+ * asymmetry is what makes `[bad](x.md#a-heading.)` fail — the `.` sits inside a link destination
+ * where `)` closes the URL, so it belongs to the fragment — **without parsing link destinations at
+ * all**. Two reviewers defeated a destination-parsing version of this rule in two different ways (a
+ * space after `](`, then a balanced `(foo)` inside the destination); the asymmetric rule has no
+ * destination to get wrong, which is why it replaced it.
+ *
+ * One stated limit: `_` is a legal slug character, so `_x.md#a-heading_` cannot be told from a
+ * fragment genuinely ending in `_`. Underscore emphasis around a citation therefore fails — loudly,
+ * and this corpus emphasises with `*`. The cited side has no such ambiguity any more: the parser
+ * resolves emphasis before the slug is computed, so `## _Text_` correctly publishes `#text`.
+ */
+const FRAGMENT_BOUNDARY = /^(?:[\s`'"“”‘’)\]}>|]|$)|^[.,:;!?*~+=…—–]+(?:\s|$)/u;
+
+/**
+ * GitHub's **line fragment** (`#L30`, `#L28-L84`), which names lines rather than a heading.
+ *
+ * A heading slug is lowercased by `github-slugger`, so it can never begin with an uppercase
+ * `L` followed by digits. That is what lets the two fragment forms be told apart structurally instead
+ * of guessed at, and it is why this pattern is anchored and case-sensitive.
+ */
+const LINE_FRAGMENT = /^L(\d+)(?:-L(\d+))?$/;
+
+/**
+ * Every heading a markdown document publishes, in order, with the fragment each is reachable at.
+ *
+ * **This is a real GFM parse, and that is the whole point.** Nine review rounds established that a
+ * line-by-line reader cannot decide which lines a heading occupies: which lines a fenced block covers
+ * is inherited block state, not a property of the line, and the hand-rolled version was defeated in
+ * turn by HTML blocks, `_` emphasis, `²`, code-span contents, container markers inside fences, and
+ * finally by a fence opened on a list-item continuation line — the shape `spec/` actually uses. Each
+ * fix was correct and each left another door open, because the missing information was structural.
+ * `marked` supplies the block structure; `github-slugger` is what GitHub's anchors are built from.
+ *
+ * Two things had to come from the parser, and a parse that bought only one would not have been worth
+ * the dependency:
+ *
+ * 1. **Block structure** — fences (including inside containers), HTML blocks, indented code, setext
+ *    headings, and headings nested in blockquotes and list items, which GitHub publishes and a flat
+ *    reader cannot see.
+ * 2. **Rendered text** — `github-slugger` expects a heading's *rendered* text, not its markdown
+ *    source. `## [Text](target)` publishes `#text`, not `#texttarget`; `## A &amp; B` publishes
+ *    `#a--b`; `` ## ` foo ` `` publishes `#foo`, because a code span is trimmed. Slugging the source
+ *    gets all three wrong, and no amount of block parsing would have touched them.
+ *
+ * Duplicate suffixing comes from `github-slugger`'s own occupancy tracking, one instance per
+ * document — which is how GitHub numbers them, and why the retargeting bound in the module note
+ * survives this change unaltered: a promoted or demoted duplicate still silently moves a resolving
+ * anchor to a different section.
+ *
+ * `line` is best-effort: the parser reports structure, not offsets, so each heading is located by
+ * scanning forward for the line its source came from, tolerating container prefixes. It is used for
+ * reporting only — resolution keys on `slug` alone.
+ */
+export function documentHeadings(lines) {
+  const slugger = new GithubSlugger();
+  const found = [];
+  let cursor = 0;
+  const locate = (raw) => {
+    const needle = raw.split("\n")[0].trim();
+    // `findIndex` returns -1 when the source line cannot be recovered, and `Math.max` folds that
+    // into "wherever we had got to" without a branch — the reader must never fail over a line
+    // number, which is reporting detail; resolution keys on `slug` alone.
+    const at = lines.findIndex(
+      (line, index) =>
+        index >= cursor &&
+        line
+          .replace(/\r$/, "")
+          .replace(/^[ \t]*(?:>[ \t]?|[-*+][ \t]+|\d+[.)][ \t]+)*/, "")
+          .trim() === needle,
+    );
+    cursor = Math.max(at + 1, cursor + 1);
+    return cursor;
+  };
+  const walk = (tokens) => {
+    for (const token of tokens) {
+      if (token.type === "heading") {
+        const heading = renderedText(token.tokens);
+        found.push({
+          line: locate(token.raw),
+          heading,
+          slug: slugger.slug(heading),
+          hazards: headingHazards(token.tokens),
+        });
+        continue;
+      }
+      // Blockquotes and list items publish the headings inside them, so the walk descends. Fenced
+      // and indented code, and HTML blocks, are leaf tokens with no `tokens` to descend into, which
+      // is exactly why their contents can no longer be mistaken for headings.
+      if (token.type === "list") {
+        walk(token.items);
+        continue;
+      }
+      if (token.type === "blockquote" || token.type === "list_item") {
+        walk(token.tokens);
+      }
+    }
+  };
+  walk(marked.lexer(lines.join("\n"), { gfm: true }));
+  return found;
+}
+
+/**
+ * A heading's **rendered** text — what `github-slugger` expects, and what GitHub slugs.
+ *
+ * It walks the **lexer's own inline token tree**, not the heading's raw source. That distinction is
+ * load-bearing rather than stylistic: the tree is the only place a *reference* link has been resolved
+ * against the document's link definitions. Re-parsing `[Text][ref]` in isolation produces `textref`,
+ * an anchor GitHub never publishes, while its token carries the child text `Text`.
+ *
+ * Walking the tree also means there is no HTML to strip, so the tag-stripping pattern this used to
+ * need — defeated by a `>` inside an attribute value or a comment — is gone rather than hardened.
+ * Raw inline HTML is a leaf token, and {@link headingHazards} refuses the document outright.
+ *
+ * Internal: it is exercised through {@link documentHeadings}, which is the only thing a slug may be
+ * computed from. Exporting it would invite a caller to slug a heading the hazard check never saw.
+ */
+function renderedText(tokens) {
+  let text = "";
+  for (const token of tokens) {
+    if (token.type === "codespan") {
+      // Already the trimmed literal: `` ` foo ` `` arrives as `foo`, and its contents are never
+      // inline markup, so nothing inside it is decoded or descended into.
+      text += token.text;
+      continue;
+    }
+    if (token.type === "image") {
+      // An `<img>` carries its alt text in an ATTRIBUTE, so it contributes nothing to the heading's
+      // text content and nothing to the anchor. GitHub publishes an EMPTY anchor for
+      // `## ![Mou icon](x.gif)`, and `#-headphones` for `## ![Headphones Logo](x.png) Headphones` —
+      // note the leading hyphen, from the space the image leaves behind. Descending into the alt
+      // tokens produced `mou-icon` and `headphones-logo-headphones`: anchors that resolve here and
+      // 404 on GitHub, which is the silent direction.
+      continue;
+    }
+    if (Array.isArray(token.tokens)) {
+      // A link, emphasis or strikethrough renders as its own content. Descending is what makes a
+      // REFERENCE link work: the lexer resolved `[Text][ref]` against the document's link
+      // definitions, so its child token is `Text`. Re-parsing the heading's raw source instead —
+      // which this used to do — has no definitions in scope and yields `textref`, an anchor GitHub
+      // never publishes.
+      text += renderedText(token.tokens);
+      continue;
+    }
+    if (token.type === "br" || token.type === "html") {
+      // Neither contributes text content. A `<br>` is reachable — a SETEXT heading spans lines, so
+      // `Title··\nmore\n=====` lexes as text/br/text — and GitHub slugs a heading's rendered text
+      // content, in which a `<br>` element contributes nothing: `titlemore`, not `title-more`.
+      // `github-slugger` agrees by a second route, deleting the newline of `"Title\nmore"` to reach
+      // the same slug; emitting a space was the only variant that disagreed with both. Raw HTML is
+      // likewise a leaf with no recoverable text, and its document is refused by
+      // {@link headingHazards} regardless, so its slug never resolves anything.
+      continue;
+    }
+    // Entities are decoded PER TOKEN rather than over the joined string, which is the more faithful
+    // order: `## A \&amp; B` lexes as an escape (`&`) followed by the text `amp; B`, so nothing
+    // re-decodes what the author escaped, and GitHub's literal `&amp;` is preserved.
+    text += decodeEntities(token.text);
+  }
+  return text;
+}
+
+/** The named entities markdown rendering can emit, plus numeric forms. */
+const NAMED_ENTITIES = Object.freeze({
+  amp: "&",
+  lt: "<",
+  gt: ">",
+  quot: '"',
+  apos: "'",
+  nbsp: "\u00A0",
+});
+
+/**
+ * The two numeric-reference grammars, kept apart and **bounded**.
+ *
+ * Writing them as one `#[xX]?[0-9a-fA-F]+` makes the `x` optional over a hex digit class, so a
+ * malformed *decimal* reference carrying `A`-`F` is accepted as a number: `&#12A;` decoded as 12 and
+ * slugged `a--b` where GitHub renders it literally and publishes `a-12a-b`, and `&#AB;` reached
+ * `String.fromCodePoint(NaN)` and **crashed the gate**.
+ *
+ * Length is part of the grammar too, and leaving it unbounded was the same defect one step further
+ * out: CommonMark admits **1-7 decimal digits** or **1-6 hexadecimal digits**, so
+ * `&#0000000000000065;` is not a reference at all. Decoding it to `A` published `a-a-b` where GitHub
+ * publishes `a-0000000000000065-b`. That bound is CommonMark's, and both reference implementations
+ * follow it — but **GitHub's renderer does not**, which is what {@link DISPUTED_REFERENCE} exists for.
+ *
+ * They are built from one place because the grammar is used three times and drift between the copies
+ * is what makes that kind of hole reappear. This is a **source string**, not a shared `RegExp`, so no
+ * call site can inherit another's `lastIndex`.
+ */
+const NUMERIC_REFERENCE = "#(?:[0-9]{1,7}|[xX][0-9a-fA-F]{1,6})";
+
+/**
+ * Numeric references whose length falls where this reader's oracles **disagree**, so it refuses.
+ *
+ * CommonMark 0.31.2 states 1-7 decimal or 1-6 hexadecimal digits, and both reference implementations
+ * agree: `marked` escapes a longer run, and the `commonmark` package leaves it literal. But GitHub's
+ * own Markdown API — measured independently by two reviewers on 2026-09-16 — decodes up to **8**
+ * digits in *both* forms, rendering 9 or more literally. GitHub's renderer is what publishes the
+ * anchor this gate has to predict, so the two answers differ on exactly two spans: **8 decimal
+ * digits**, and **7 or 8 hexadecimal digits**. Nine or more is literal under every oracle.
+ *
+ * A gate cannot be right about a slug its oracles disagree on, so it declines to answer, exactly as
+ * it does for the other three divergences. That keeps the alternative — silently publishing one
+ * oracle's slug and 404ing under the other — off the table. No heading in the corpus contains one.
+ * Issue #1193 tracks establishing the bound from cmark-gfm's own digit cap: the date above is on a
+ * live service, so it records what was observed rather than what is guaranteed.
+ */
+const DISPUTED_REFERENCE = /&#(?:[0-9]{8}|[xX][0-9a-fA-F]{7,8});/;
+
+/** A named entity reference, whatever it names. */
+const NAMED_REFERENCE = "[a-zA-Z][a-zA-Z0-9]*";
+
+/**
+ * Decode the HTML entities a renderer emits, so the slug sees the character a reader sees.
+ *
+ * Numeric references follow CommonMark's replacement rule, which is what GitHub's renderer applies:
+ * a null, a lone surrogate, or a value past the last code point has **no character to produce**, and
+ * is replaced by U+FFFD rather than left as written. Getting this wrong is silent, not loud —
+ * `&#xD800;` slugged as a bare surrogate and `&#x110000;` as the literal text `x110000`, both of
+ * them anchors GitHub does not publish, and neither was refused.
+ *
+ * Anything that is not one of the two grammars is left exactly as written. GitHub agrees for most of
+ * it, but **not for {@link DISPUTED_REFERENCE}** — the digit lengths it decodes and CommonMark does
+ * not. Those never reach a slug that could be trusted: {@link headingHazards} refuses the document
+ * first, which is the only reason this function may leave them alone without being wrong.
+ */
+export function decodeEntities(text) {
+  return text.replace(
+    new RegExp(`&(${NUMERIC_REFERENCE}|${NAMED_REFERENCE});`, "g"),
+    (whole, body) => {
+      if (body[0] !== "#") {
+        return NAMED_ENTITIES[body.toLowerCase()] ?? whole;
+      }
+      const hex = body[1] === "x" || body[1] === "X";
+      const code = Number.parseInt(
+        hex ? body.slice(2) : body.slice(1),
+        hex ? 16 : 10,
+      );
+      const unrepresentable =
+        code === 0 || code > 0x10ffff || (code >= 0xd800 && code <= 0xdfff);
+      return unrepresentable ? "\uFFFD" : String.fromCodePoint(code);
+    },
+  );
+}
+
+/** The entities {@link decodeEntities} can resolve: what a renderer emits when escaping, plus numeric. */
+const DECODABLE_ENTITY = new RegExp(
+  `^&(?:amp|lt|gt|quot|apos|nbsp|${NUMERIC_REFERENCE});$`,
+);
+
+/** Any entity reference a heading's source may contain. */
+const ANY_ENTITY = new RegExp(
+  `&(?:${NAMED_REFERENCE}|${NUMERIC_REFERENCE});`,
+  "g",
+);
+
+/** A GFM emoji shortcode **shape**, which GitHub replaces whenever it names a known emoji. */
+const EMOJI_SHORTCODE = /:[a-z0-9+_-]+:/;
+
+/**
+ * The constructs in a heading's **inline** tokens that this reader cannot reproduce.
+ *
+ * It walks the parser's own inline tree rather than the heading's raw source, which is what makes it
+ * precise enough to be narrow: a `codespan` is literal text and is skipped entirely, so the live
+ * `` ### `<place> = <value>` `` heading is not mistaken for inline HTML. An `image` is skipped for
+ * the same reason {@link renderedText} skips it — its alt text is an attribute and reaches no
+ * anchor — so a shortcode or entity appearing only there cannot refuse a document it does not affect.
+ *
+ * Four things survive the parse. All four are **conservative refusals**, and the distinction
+ * matters: two of them are recognised by *shape*, so a heading whose `&notanentity;` or
+ * `:not_an_emoji:` GitHub would publish literally is refused as well. That errs loudly — a refused
+ * document names the construct and the remedy — rather than inventing a slug, which is the only
+ * direction this gate is allowed to be wrong in. Telling the real ones apart would need exactly the
+ * hand-maintained tables the parse was adopted to end.
+ *
+ * - **An entity reference this reader does not decode.** CommonMark resolves every valid HTML5
+ *   entity and GitHub slugs the character; `marked` leaves them in the token text, so `## A &copy; B`
+ *   would slug `a-copy-b` here against GitHub's `a--b`. {@link decodeEntities} handles what a
+ *   renderer *emits* when escaping — six names and the numeric forms — and deliberately does not grow
+ *   a hand-maintained table of the other two thousand.
+ * - **Raw inline HTML.** It is a leaf token with no text to recover, and recovering it by pattern is
+ *   what broke on a `>` inside a comment or an attribute value.
+ * - **An emoji shortcode shape**, which GitHub replaces whenever it names a known emoji and which
+ *   `marked` does not implement at all.
+ * - **A numeric reference of disputed length** — see {@link DISPUTED_REFERENCE}. CommonMark and both
+ *   reference implementations say 8 decimal or 7-8 hexadecimal digits is not a reference; GitHub's
+ *   own renderer decodes it. Refusing is the only answer that is not one oracle's guess.
+ *
+ * All four are refused rather than guessed at, which keeps ADR-0035's claim true: where `marked` and
+ * GitHub can differ, the gate declines to answer. The cited corpus contains no instance of any.
+ */
+function headingHazards(tokens) {
+  const hazards = [];
+  const walk = (inline) => {
+    for (const token of inline) {
+      if (token.type === "codespan" || token.type === "image") {
+        continue;
+      }
+      if (token.type === "html") {
+        hazards.push(
+          "raw inline HTML in a heading, whose text this reader cannot recover",
+        );
+        continue;
+      }
+      if (Array.isArray(token.tokens)) {
+        walk(token.tokens);
+        continue;
+      }
+      // Every inline token `marked` emits carries `raw` — measured across all 1,235 headings in the
+      // tracked corpus plus each hazard shape below. There is deliberately no fallback: if a future
+      // version emits one without it, this throws and the gate goes loud, rather than silently
+      // skipping the token and reporting a heading it never actually read.
+      const source = token.raw;
+      for (const entity of source.match(ANY_ENTITY) ?? []) {
+        if (!DECODABLE_ENTITY.test(entity)) {
+          hazards.push(
+            `the entity reference ${entity} in a heading, which this reader does not decode and ` +
+              "GitHub resolves whenever it names a valid HTML5 entity",
+          );
+        }
+      }
+      if (EMOJI_SHORTCODE.test(source)) {
+        hazards.push(
+          "an emoji shortcode shape in a heading, which this reader does not resolve and GitHub " +
+            "replaces whenever it names a known emoji",
+        );
+      }
+      if (DISPUTED_REFERENCE.test(source)) {
+        hazards.push(
+          "a numeric character reference in a heading whose digit count CommonMark and GitHub's " +
+            "renderer disagree about, so no slug this reader computes would be right under both",
+        );
+      }
+    }
+  };
+  walk(tokens);
+  // Deduplicated per heading: two raw-HTML tokens in one heading are one hazard of that kind, not
+  // two findings. Distinct strings survive, so `## A &copy; B &mdash; C` still names both entities.
+  return [...new Set(hazards)];
+}
+
+/**
+ * The heading slug in `headings` closest to `fragment`, with its edit distance — for a did-you-mean.
+ *
+ * This is reported and **never acted on**. The gate fails on a near miss exactly as it fails on a
+ * wild one; a suggestion is help for the author, not evidence for the gate.
+ */
+export function closestHeadingSlug(fragment, headings) {
+  let best = null;
+  for (const { slug } of headings) {
+    const distance = editDistance(fragment, slug);
+    if (best === null || distance < best.distance) {
+      best = { slug, distance };
+    }
+  }
+  return best;
+}
+
+/** Levenshtein distance between two short strings, over a single rolling row. */
+export function editDistance(left, right) {
+  let previous = Array.from({ length: right.length + 1 }, (_, index) => index);
+  for (let row = 1; row <= left.length; row += 1) {
+    const current = [row];
+    for (let column = 1; column <= right.length; column += 1) {
+      const substitution =
+        previous[column - 1] + (left[row - 1] === right[column - 1] ? 0 : 1);
+      current.push(
+        Math.min(substitution, previous[column] + 1, current[column - 1] + 1),
+      );
+    }
+    previous = current;
+  }
+  return previous[right.length];
+}
+
+/**
+ * How far a candidate may sit from the fragment and still be offered as a did-you-mean: two edits,
+ * or a third of the fragment's length for a long one.
+ *
+ * The threshold governs the **wording of a failure only** — every non-exact fragment fails either
+ * way, so no value here can turn a miss into a pass. It exists because the nearest slug in a document
+ * is always *some* string: naming it unconditionally dresses an unrelated heading up as the fix, and
+ * an author who takes that advice writes a citation that resolves and is wrong — the wrong-passage
+ * mode, manufactured by the tool meant to catch it. `#collections-` reads as nearest to
+ * `#ebnf-notation`, eleven edits away, which is not what its author meant by any reading. Both sides
+ * of the boundary are pinned by tests.
+ */
+export function suggestionDistance(fragment) {
+  return Math.max(2, Math.floor(fragment.length / 3));
+}
+
+/**
+ * Markdown in a document that this reader still cannot reproduce — what remains of the **canary**.
+ *
+ * It used to carry the whole weight of the gate's honesty: permit-lists over heading characters and
+ * code-span contents, refusals for HTML blocks, setext rules, nested headings and container fences.
+ * **The parser obsoleted all of it**, and it is deleted rather than kept "just in case" — a
+ * dependency that only adds has not paid for itself.
+ *
+ * What survives is {@link headingHazards}: the constructs where `marked` and GitHub genuinely differ
+ * rather than where this reader merely approximated. A cited document containing one is refused, so
+ * the gate declines to answer instead of inventing a slug. `spec/` has none, and the live-corpus
+ * test keeps that measured rather than asserted.
+ */
+export function unsupportedConstructs(lines) {
+  return documentHeadings(lines).flatMap(({ line, hazards }) =>
+    hazards.map((construct) => ({ line, construct })),
+  );
+}
+/**
+ * Resolve one section anchor against the headings of the document it names.
+ *
+ * @returns `null` when some heading slugs to the fragment, or `{ status, detail }` describing how it
+ *   does not. As everywhere else in this gate there is no third outcome: a near miss is described,
+ *   not accepted.
+ */
+export function resolveAnchor(anchor, headings) {
+  if (headings === null) {
+    return {
+      status: "missing-file",
+      detail: `${anchor.specDirectory}/${anchor.file} does not exist`,
+    };
+  }
+  // A bare `#` names no section. It is reported as its own state rather than looked up, because a
+  // document CAN hold a heading whose slug is empty — `spec/commands.md`'s operator headings are
+  // punctuation only — and resolving `#` against one would accept a citation no reader can follow.
+  if (anchor.fragment === "") {
+    return {
+      status: "empty-fragment",
+      detail: 'the "#" names no heading, so this citation points at nothing',
+    };
+  }
+  if (anchor.malformed === true) {
+    return {
+      status: "malformed-fragment",
+      detail:
+        "the fragment continues with a character no heading slug can contain, so what is written " +
+        `here is not "#${anchor.fragment}" and cannot be resolved`,
+    };
+  }
+  if (headings.some(({ slug }) => slug === anchor.fragment)) {
+    return null;
+  }
+  const closest = closestHeadingSlug(anchor.fragment, headings);
+  const near =
+    closest !== null && closest.distance <= suggestionDistance(anchor.fragment);
+  return {
+    status: "missing-heading",
+    detail:
+      `no heading in ${anchor.file} slugs to "${anchor.fragment}"` +
+      (closest === null
+        ? " — it has no headings at all"
+        : near
+          ? ` — did you mean "#${closest.slug}"?`
+          : ` — and none of its ${headings.length} headings is close enough to guess at`),
+  };
+}
+
+/** Render an anchor back into the canonical `<spec-dir>/<file>.md#<fragment>` form. */
+export function formatAnchor(anchor) {
+  return `${anchor.specDirectory}/${anchor.file}#${anchor.fragment}`;
+}
+
+/**
+ * The fragment `nextLine` completes, when `fragment` is one slug **hard-wrapped across a line break**
+ * and the two halves joined back up name a real heading — otherwise `null`.
+ *
+ * This is diagnosis, never tolerance: the caller has already failed the anchor and only uses this to
+ * say *why* in a way the author can act on. A wrap is a hazard the anchor form brings with it, and it
+ * does not look like one from the failure alone — the live instance, in a design note citing
+ * `grammar.md`'s comprehension section, reads as `#collections-` and is indistinguishable from a
+ * misspelling until you see the next line. The suggestion is only offered when the rejoined fragment
+ * matches a heading **exactly**, so it is a finding rather than a guess.
+ */
+export function rejoinedFragment(fragment, nextLine, headings) {
+  if (nextLine === undefined) {
+    return null;
+  }
+  const continuation = /^(?:\/\/+|\*+|#+)?[ \t]*([\p{L}\p{N}_-]+)/u.exec(
+    nextLine.trim(),
+  );
+  if (continuation === null) {
+    return null;
+  }
+  const joined = `${fragment}${continuation[1]}`;
+  return headings.some(({ slug }) => slug === joined) ? joined : null;
 }
 
 /**
@@ -313,8 +918,9 @@ const BARE_REFERENCE =
 /**
  * The extra line specs in a comma-appended tail such as the `,139` of `grammar.md:119-129,139`.
  *
- * This form is neither an anchor nor a bare `:N`, and a sweep built from either pattern alone misses
- * it silently — 118 components in this corpus. It is exactly the kind of shape that makes a
+ * This form is neither an explicit citation nor a bare `:N`, and a sweep built from either pattern
+ * alone misses it silently — the summary's `comma-appended` counter is how many there are, rather
+ * than a number restated here that nothing keeps true. It is exactly the kind of shape that makes a
  * separator regex a bad completeness argument, so it is enumerated explicitly.
  */
 export function expandCommaTail(tail) {
@@ -335,7 +941,7 @@ export function expandCommaTail(tail) {
 
 /** Which summary counter each {@link collectCitations} form increments. */
 const CITATION_FORM_COUNTS = Object.freeze({
-  anchor: "anchors",
+  explicit: "explicit",
   "comma-tail": "tails",
   "back-reference": "bare",
   "context-reference": "bare",
@@ -348,18 +954,23 @@ export function formatCitation(citation) {
 }
 
 /**
- * Enumerate every citation in one file's `text`, plus every bare `:N` that could not be attributed.
+ * Enumerate every citation in one file's `text`, every section anchor, plus every bare `:N` that
+ * could not be attributed.
  *
- * Anchors (`<spec-dir>/<file>.md:<line>`) are unambiguous. A bare `:<line>` is attributed by the two
- * rules the module note explains — back-reference first, then nearest preceding mention — and, when
- * neither applies, reported so that nothing is dropped without a trace.
+ * An **explicit** citation (`<spec-dir>/<file>.md:<line>`) is unambiguous. A bare `:<line>` is
+ * attributed by the two rules the module note explains — back-reference first, then nearest preceding
+ * mention — and, when neither applies, reported so that nothing is dropped without a trace.
  *
- * @returns `{ citations, unattributed }`.
+ * A `#fragment` is collected from the same single pass over mentions rather than by a second sweep,
+ * so the two forms can never disagree about what the file says.
+ *
+ * @returns `{ citations, anchors, unattributed }`.
  */
 export function collectCitations(path, text, specDirectory = SPEC_DIRECTORY) {
   const lines = splitLines(text);
   const lineAt = lineLookup(lines);
   const citations = [];
+  const anchors = [];
   const unattributed = [];
 
   const mentions = [];
@@ -374,15 +985,28 @@ export function collectCitations(path, text, specDirectory = SPEC_DIRECTORY) {
       stop: match[3] === undefined ? undefined : Number(match[3]),
     };
     mentions.push(mention);
+    const line = lineAt(mention.index);
+    if (match[5] !== undefined) {
+      anchors.push({
+        specDirectory,
+        file: mention.file,
+        fragment: match[5],
+        line,
+        // Whether the fragment class stopped short of where the written token actually ends. The
+        // anchor is still collected — dropping it would be the silent tolerance this gate forbids —
+        // and carries the flag so {@link resolveAnchor} fails it as unresolvable rather than
+        // resolving the prefix that happened to survive truncation.
+        malformed: !FRAGMENT_BOUNDARY.test(text.slice(mention.end)),
+      });
+    }
     if (mention.start !== undefined) {
-      const line = lineAt(mention.index);
       citations.push({
         specDirectory,
         file: mention.file,
         start: mention.start,
         end: mention.stop,
         line,
-        form: "anchor",
+        form: "explicit",
       });
       for (const extra of expandCommaTail(match[4])) {
         citations.push({
@@ -398,16 +1022,17 @@ export function collectCitations(path, text, specDirectory = SPEC_DIRECTORY) {
     match = pattern.exec(text);
   }
   if (mentions.length === 0) {
-    return { citations, unattributed };
+    return { citations, anchors, unattributed };
   }
 
-  // Which file an earlier full anchor gave each exact line spec, so a bare back-reference sitting
-  // four lines below a mention of a *different* document still resolves to the one that introduced it.
+  // Which file an earlier explicit citation gave each exact line spec, so a bare back-reference
+  // sitting four lines below a mention of a *different* document still resolves to the one that
+  // introduced it.
   const backReferences = new Map();
   for (const citation of citations) {
     const key = `${citation.start}-${citation.end ?? ""}`;
     const known = backReferences.get(key);
-    // Two documents anchored at the same line spec make a later bare reference genuinely ambiguous;
+    // Two documents cited at the same line spec make a later bare reference genuinely ambiguous;
     // `null` records that so it falls through to nearest-preceding attribution rather than guessing.
     backReferences.set(
       key,
@@ -465,7 +1090,7 @@ export function collectCitations(path, text, specDirectory = SPEC_DIRECTORY) {
     bare = BARE_REFERENCE.exec(text);
   }
   citations.sort((left, right) => left.line - right.line);
-  return { citations, unattributed };
+  return { citations, anchors, unattributed };
 }
 
 /**
@@ -871,9 +1496,11 @@ export function runSpecCitationsGate({
   const counts = {
     files: 0,
     citations: 0,
-    anchors: 0,
+    explicit: 0,
     tails: 0,
     bare: 0,
+    sectionAnchors: 0,
+    lineFragments: 0,
     excused: 0,
     quotations: 0,
     statusClaims: 0,
@@ -981,6 +1608,44 @@ export function runSpecCitationsGate({
     return specCache.get(file);
   };
 
+  const headingCache = new Map();
+  const specHeadingsFor = (file) => {
+    if (!headingCache.has(file)) {
+      const specLines = specLinesFor(file);
+      headingCache.set(
+        file,
+        specLines === null ? null : documentHeadings(specLines),
+      );
+    }
+    return headingCache.get(file);
+  };
+
+  // The canary fires once per cited document, not once per anchor: a construct this reader cannot
+  // follow is a property of the document, and repeating it for every citation of one section would
+  // bury the one fact a maintainer needs. It is a bare failure rather than an excusable finding on
+  // purpose — an exception entry is fingerprinted over the CITING line, so it could only ever excuse
+  // one of many identical exposures, and folding an instrument-capability failure into UNRESOLVED
+  // would make that audit count mean two different things.
+  const canaried = new Set();
+  const canaryFor = (file) => {
+    if (canaried.has(file)) {
+      return;
+    }
+    canaried.add(file);
+    const specLines = specLinesFor(file);
+    if (specLines === null) {
+      return;
+    }
+    for (const { line, construct } of unsupportedConstructs(specLines)) {
+      fail(
+        `${specDirectory}/${file}:${line}: this document contains ${construct} — so an anchor into ` +
+          "it could name a heading GitHub never publishes, or miss one it does. Remove the construct, " +
+          "or cite this document by line instead. (The line here is located by scanning and may be " +
+          "approximate; the construct is what the parser found.)",
+      );
+    }
+  };
+
   const excluded = new Set(exclusions.map(toPosixPath));
   for (const file of listCitationFiles(roots)) {
     if (excluded.has(file)) {
@@ -1013,15 +1678,79 @@ export function runSpecCitationsGate({
     if (!text.includes(`${specDirectory}/`)) {
       continue;
     }
-    const { citations, unattributed } = collectCitations(
+    const { citations, anchors, unattributed } = collectCitations(
       file,
       text,
       specDirectory,
     );
-    if (citations.length === 0 && unattributed.length === 0) {
+    if (
+      citations.length === 0 &&
+      anchors.length === 0 &&
+      unattributed.length === 0
+    ) {
       continue;
     }
     counts.files += 1;
+
+    for (const anchor of anchors) {
+      const subject = formatAnchor(anchor);
+      const context = fileLines[anchor.line - 1];
+      // A fragment that is empty, or truncated by a character no slug can hold, is neither a heading
+      // nor a line claim: it is unresolvable as written, and is reported that way rather than being
+      // matched on the prefix that survived.
+      const wellFormed = anchor.fragment !== "" && anchor.malformed !== true;
+      const fragment = wellFormed ? LINE_FRAGMENT.exec(anchor.fragment) : null;
+      if (fragment !== null) {
+        // A line fragment names lines, so it is checked as the line claim it is rather than hunted
+        // for among the headings, where it could only ever be reported as a heading that does not
+        // exist.
+        counts.lineFragments += 1;
+        const failure = resolveCitation(
+          {
+            specDirectory,
+            file: anchor.file,
+            start: Number(fragment[1]),
+            end: fragment[2] === undefined ? undefined : Number(fragment[2]),
+          },
+          specLinesFor(anchor.file),
+        );
+        if (failure !== null) {
+          excuse({
+            file,
+            context,
+            subject,
+            observed: failure.status,
+            kind: "stale-citation",
+            describe: `${file}:${anchor.line}: ${subject} does not resolve — ${failure.detail}`,
+          });
+        }
+        continue;
+      }
+      counts.sectionAnchors += 1;
+      canaryFor(anchor.file);
+      const headings = specHeadingsFor(anchor.file);
+      const failure = resolveAnchor(anchor, headings);
+      if (failure === null) {
+        continue;
+      }
+      const wrapped =
+        headings === null
+          ? null
+          : rejoinedFragment(anchor.fragment, fileLines[anchor.line], headings);
+      excuse({
+        file,
+        context,
+        subject,
+        observed: failure.status,
+        kind: "missing-anchor",
+        describe:
+          `${file}:${anchor.line}: ${subject} does not resolve — ${failure.detail}` +
+          (wrapped === null
+            ? ""
+            : ". It continues on the next line: this anchor is one slug hard-wrapped across a line " +
+              `break, and joined back up it reads "#${wrapped}" — keep an anchor on one line`),
+      });
+    }
 
     for (const reference of unattributed) {
       excuse({
@@ -1121,18 +1850,37 @@ export function runSpecCitationsGate({
   }
 
   lines.push(
-    `spec citations: ${counts.citations} checked across ${counts.files} file(s) ` +
-      `(${counts.anchors} anchored, ${counts.tails} comma-appended, ${counts.bare} bare), ` +
+    `spec citations: ${counts.citations} checked across ${counts.files} citing file(s) ` +
+      `(${counts.explicit} explicit, ${counts.tails} comma-appended, ${counts.bare} bare), ` +
+      `${counts.sectionAnchors} section anchor(s), ${counts.lineFragments} line fragment(s), ` +
       `${counts.quotations} quoted production(s), ` +
       `${counts.statusClaims} status claim(s) — UNRESOLVED ${counts.excused}, ${counts.failed} failed`,
   );
   lines.push(
-    "  This gate checks that a citation RESOLVES to text, that a quoted EBNF production is in the range " +
-      "cited, and that a forward-looking status claim names a tracking issue. It does NOT check that a " +
-      "resolving citation supports the claim beside it when that claim paraphrases, nor that prose beside " +
-      "a correct line describes it correctly — the wrong-passage and misstating-prose modes of issue #934. " +
-      "A section anchor (<file>.md#a-heading) carries no line, so it is not checked either: a renamed or " +
-      "misspelled heading passes unseen. Do not read a green run as 'every citation is right'.",
+    "  This gate checks that a citation RESOLVES to text, that a section anchor (<file>.md#a-heading) names " +
+      "a heading that exists in the file it cites, that a quoted EBNF production is in the range cited, and " +
+      "that a forward-looking status claim names a tracking issue. Resolving an anchor proves A HEADING " +
+      "EXISTS and nothing further: it does NOT prove the section supports the claim written beside it. The " +
+      "wrong-passage and misstating-prose modes of issue #934 survive an anchor exactly as they survive a " +
+      "line number — a citation that resolves may still paraphrase a passage that does not support it, and " +
+      "prose beside a correct heading may still misstate what that section says. The explicit, " +
+      "comma-appended and bare counts above, and the line fragment (<file>.md#L30), all name lines and " +
+      "so still drift whenever the spec is edited above them. Ordinary non-heading edits above a " +
+      "section anchor do not move it — but resolving one proves only that SOME heading claims that " +
+      "slug, never that the section the citation meant still claims it. Duplicate headings are " +
+      "numbered positionally, so inserting a colliding heading promotes it into the bare slug and " +
+      "demotes the original, and removing or renaming an earlier duplicate promotes a later one into " +
+      "the slug it vacated; both retarget a citation silently and both leave this gate green. A " +
+      "renamed heading therefore fails loudly only when the rename leaves its slug unclaimed. A " +
+      "citation written without the spec-directory prefix is not seen at all. Headings come from a " +
+      "GFM parse and slugs from github-slugger (ADR-0035), so block structure and rendered text are " +
+      "no longer approximated; where GitHub can still resolve something this reader does not — an " +
+      "entity reference outside the escaping set, raw inline HTML, an emoji shortcode shape, or a " +
+      "numeric reference whose digit count CommonMark and GitHub's renderer disagree about — the " +
+      "cited document is refused rather than answered on a slug computed differently from GitHub's. " +
+      "Two of those four are recognised by shape, so a construct GitHub would publish literally is " +
+      "refused too: this gate errs toward refusing loudly, never toward inventing a slug. Do not read " +
+      "a green run as 'every citation is right'.",
   );
   if (counts.excused > 0) {
     lines.push(

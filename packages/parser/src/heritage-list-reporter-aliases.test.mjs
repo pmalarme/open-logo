@@ -1,11 +1,12 @@
 // Unit tests for the Heritage list-reporter aliases — `bf`/`bl`/`se` — slice H4 (issue #669) of the
-// Heritage epic. Heritage is "alternate spellings only, no new semantics" (spec/conformance.md#
-// heritage), so these three aliases are the Core list reporters `butfirst`/`butlast`/`sentence`
-// under a shorter name (spec/commands.md's per-command **Aliases** rows: `bf`→`butfirst`,
-// `bl`→`butlast`, `se`→`sentence`). Unlike H3's ten *command* aliases these are REPORTERS — they
-// return a value and appear in EXPRESSION position (as arguments, as an assignment RHS, composed
-// with one another) — so they exercise the reader's expression-call path, not just a leading
-// statement. Three concerns are proven here, mirroring the H3 alias tests:
+// Heritage epic. Heritage is "alternate spellings only, no new semantics"
+// (spec/conformance.md#heritage), so these three aliases are the Core list reporters
+// `butfirst`/`butlast`/`sentence` under a shorter name (spec/commands.md's per-command
+// **Aliases** rows: `bf`→`butfirst`, `bl`→`butlast`, `se`→`sentence`). Unlike H3's ten *command*
+// aliases these are REPORTERS — they return a value and appear in EXPRESSION position (as
+// arguments, as an assignment RHS, composed with one another) — so they exercise the reader's
+// expression-call path, not just a leading statement. Three concerns are proven here, mirroring
+// the H3 alias tests:
 //
 //   1. READER CANONICALIZATION — a reporter-alias call lowers to the same `Call`/`ParenCall` node
 //      any Core reporter uses, additionally carrying `canonical` = the Core name it spells. Its

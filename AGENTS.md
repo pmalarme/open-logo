@@ -163,7 +163,7 @@ npm run coverage     # node:test 100% line/branch/function gate — verify on No
 npm run conformance  # stack-neutral fixtures (placeholder until issue #6)
 npm run examples     # two gates: every spec/examples/*.logo file, then every ```logo block fenced in spec/ + docs/ markdown
 npm run built-in-names # spec/built-in-names.json vs the parser's registries, both directions + the prose lists
-npm run spec-citations # citations resolve, quoted productions match, status claims name an issue; section anchors pending #1181
+npm run spec-citations # citations resolve, section anchors name a real heading, quoted productions match, status claims name an issue
 npm run adr-numbering  # ADR numbers unique, filename↔heading agreement, every ADR reference resolves
 ```
 
@@ -245,9 +245,9 @@ nothing checked a single one — so one `spec/` edit silently shifted 113 of the
 **Cite the spec by section anchor — `spec/<file>.md#a-heading` — not by line.** A heading does not
 move when text is inserted above it. Use a line number only where line precision is genuinely
 required, and write the anchor beside it; never mass-convert existing citations — a file converts
-when you are in it for other work. Slice #1181 adds anchor resolution to the gate; until it lands an
-anchor is enumerated but never resolved, and once it lands it proves the heading exists and nothing
-more. The rule, its limits and the evidence live in
+when you are in it for other work. The gate **resolves** anchors (#1181): a fragment naming no
+heading in the file it cites fails, with a did-you-mean that is reported and never acted on. It
+proves the heading exists and nothing more. The rule, its limits and the evidence live in
 [`shared/spec-fidelity`](.github/skills/shared/spec-fidelity/SKILL.md) and
 [ADR-0034](docs/adr/0034-cite-the-spec-by-section-anchor.md).
 
