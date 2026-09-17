@@ -720,7 +720,7 @@ wait 300
 ### The pointer, and its accessible equivalent
 
 `on_click` fires when the surface "is clicked **or activated by an equivalent accessible action**"
-(`spec/interaction-events.md#on_key-key-word-block`). `src/canvas-interaction.ts` wires both, and neither is a fallback for the other:
+(`spec/interaction-events.md#on_click-block`). `src/canvas-interaction.ts` wires both, and neither is a fallback for the other:
 
 - the canvas's own pointer `click`;
 - `#canvas-activate-button`, a real, labelled, tab-reachable button the browser natively operates

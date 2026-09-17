@@ -1,10 +1,11 @@
 /**
  * The deterministic, offline, template-based `explain`/`why` baseline meta-commands
  * (`spec/educational-model.md#explain`, `spec/educational-model.md#why`), the Educational
- * profile's M3 slice A3 (issue #336). Pure functions over the shared {@link TutorContext}
- * contract from A0 (#324) — no parsing, no runtime dispatch, no AI: same input always produces
- * byte-identical output, and neither ever prints a complete ready-to-run solution
- * (`spec/conformance.md#educational`).
+ * profile's M3 slice A3 (issue #336). "Baseline means **no AI is required**. These commands are
+ * deterministic and template-based" (`spec/educational-model.md#baseline-meta-commands`). Pure
+ * functions over the shared {@link TutorContext} contract from A0 (#324) — no parsing, no runtime
+ * dispatch, no AI: same input always produces byte-identical output, and neither ever prints a
+ * complete ready-to-run solution (`spec/conformance.md#educational`).
  */
 
 import {
@@ -452,10 +453,12 @@ function findInstructionAtSpan(
 }
 
 /**
- * The two `kind`s the runtime pushes as bookkeeping *before* their effect
- * (`spec/execution-model.md#equality-and-ordering`, `packages/core/src/events.ts`'s `OL_EVENT_KINDS`): every
- * statement — including the `why`/`explain` meta-command's own — gets an `instruction` start
- * event, and every procedure call gets a `procedure-enter` start event before its body runs.
+ * The two `kind`s the runtime pushes as bookkeeping *before* their effect — the two timing classes
+ * of `spec/execution-model.md#trace-and-event-registry` ("**Start events** are emitted before their
+ * effect: `instruction` and `procedure-enter`"), mirrored by `packages/core/src/events.ts`'s
+ * `OL_EVENT_KINDS`: every statement — including the `why`/`explain` meta-command's own — gets an
+ * `instruction` start event, and every procedure call gets a `procedure-enter` start event before
+ * its body runs.
  * Neither describes anything that actually happened yet, so `findRelevantEvent` must never
  * select one as "the effect" to explain (issue #435).
  */
