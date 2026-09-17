@@ -925,7 +925,7 @@ export function heritageWordedFormHeads(): readonly string[] {
  * A spelling here is a WORD, which is why {@link HERITAGE_WORDED_FORMS} contributes its head
  * rather than its phrase: a leak is a string sitting in a param, and the guards match whole words
  * against rendered param values. The three tables together cover every spelling
- * `spec/conformance.md#data, spec/conformance.md#heritage`'s Heritage inventory writes in code formatting (issue #755) — an
+ * `spec/conformance.md#heritage`'s Heritage inventory writes in code formatting (issue #755) — an
  * agreement the parser guard asserts against the spec file itself, rather than by restating it
  * here. Before #755 these were the single-word tables only, and this comment nevertheless claimed a
  * completeness the worded reader disproved.

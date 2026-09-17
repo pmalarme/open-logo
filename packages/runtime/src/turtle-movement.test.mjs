@@ -1,5 +1,5 @@
 // Unit tests for `forward`/`back` (issue #200, spec/commands.md's Turtle movement table,
-// spec/execution-model.md#equality-and-ordering's movement math, spec/rendering.md's "Line segments" section).
+// spec/execution-model.md#turtle-and-canvas-state's movement math, spec/rendering.md's "Line segments" section).
 // The turtle starts at `(0,0)`, heading `0`, pen down, color `"black"`, width `1`
 // (spec/rendering.md#coordinate-mapping-and-viewport) — this slice implements no way to change heading/pen/color/width yet
 // (issues #201/#206/#208/#209), so every case here necessarily starts and stays at heading `0`.

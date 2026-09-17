@@ -298,7 +298,7 @@ test("an exactly-right call stays clean in either form, for every profile the fi
 test("a Heritage alias is arity-checked as the canonical command it spells", () => {
   // `fd` resolves to `forward`, whose arity lives in the Turtle & Rendering table — so the check
   // needs BOTH profiles, and the finding's identity is the canonical name, never the alias
-  // (`spec/conformance.md#data`, `spec/error-model.md#localization-boundary`).
+  // (`spec/conformance.md#heritage`, `spec/error-model.md#localization-boundary`).
   const [finding, ...rest] = checkCodes("(fd 1 2)", [
     "core-language",
     "turtle-rendering",

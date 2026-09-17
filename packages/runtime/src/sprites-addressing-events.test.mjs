@@ -63,7 +63,7 @@ test("tell publishes the whole addressed set and the current turtle", () => {
 });
 
 test("an addressing event is never stamped with an envelope turtle_id (it describes a set)", () => {
-  // spec/execution-model.md#execution-safety — `turtle-id` is "present only when the event is turtle-specific".
+  // spec/execution-model.md#trace-and-event-registry — `turtle-id` is "present only when the event is turtle-specific".
   // An addressing event concerns the whole addressed set, so stamping it with one turtle's id would
   // make a spec-violating envelope binding on every implementation that reads this corpus.
   const result = execute(

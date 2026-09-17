@@ -9,7 +9,7 @@
  *
  * Every stage is built only from data already on the context (the learner's level and, when
  * known, the target callee's metadata) — never from the learner's actual challenge parameters —
- * so the guardrail in `spec/execution-model.md#tutor-output-educational-profile, spec/execution-model.md#execution-safety` holds unconditionally: no stage, not even
+ * so the guardrail in `spec/execution-model.md#tutor-output-educational-profile` holds unconditionally: no stage, not even
  * `"last-resort"`, can ever assemble into a complete, ready-to-run OpenLogo program. Stage 3
  * ("partial") and stage 4 ("last-resort") each surface a worked *skeleton* for the learner's
  * current level's concept, but every skeleton uses `‹placeholder›` markers (guillemets are not

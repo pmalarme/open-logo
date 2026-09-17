@@ -2106,7 +2106,7 @@ function evaluateCollectionTarget(
 }
 
 /**
- * Execute `clear target` (`spec/data-structures.md#mutating-list-operations, spec/data-structures.md#dictionary-reads`): remove every element/entry from the
+ * Execute `clear target` (`spec/data-structures.md#mutating-list-operations, spec/data-structures.md#dictionary-operations`): remove every element/entry from the
  * list or dict `target`, in place. A target that is neither raises `ol-type`; an unsupported
  * target expression is a deferred no-op (matching {@link executeAdd}).
  */

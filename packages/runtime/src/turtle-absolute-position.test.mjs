@@ -5,7 +5,7 @@
 // issue #200) followed by `turn` (like `left`/`right`, issue #201); `set_xy` only emits
 // `move`/`draw-segment` (heading untouched); `set_heading` only emits `turn` (position untouched).
 // `setxy`/`seth` are Turtle & Rendering-profile aliases of `set_xy`/`set_heading` (not Heritage —
-// spec/conformance.md#data's closed Heritage short-alias list does not include them) and behave
+// spec/conformance.md#heritage's closed Heritage short-alias list does not include them) and behave
 // identically; see the alias-specific tests below.
 
 import assert from "node:assert/strict";
