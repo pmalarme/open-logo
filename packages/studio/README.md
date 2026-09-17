@@ -720,7 +720,7 @@ wait 300
 ### The pointer, and its accessible equivalent
 
 `on_click` fires when the surface "is clicked **or activated by an equivalent accessible action**"
-(`spec/interaction-events.md#on_key-key-word-block`). `src/canvas-interaction.ts` wires both, and neither is a fallback for the other:
+(`spec/interaction-events.md#on_click-block`). `src/canvas-interaction.ts` wires both, and neither is a fallback for the other:
 
 - the canvas's own pointer `click`;
 - `#canvas-activate-button`, a real, labelled, tab-reachable button the browser natively operates
@@ -730,7 +730,7 @@ wait 300
 It is a **separate control** rather than Enter/Space on the focused canvas because the canvas is also
 the keyboard surface: `"enter"` and `"space"` are key words in their own right, so a learner writing
 `on_key "space"` must receive a space press, not an activation. Carrying no click *position* is not a
-shortcut either — OpenLogo v0.1 "does not standardize click coordinate reporters" (`spec/interaction-events.md#on_key-key-word-block`), which
+shortcut either — OpenLogo v0.1 "does not standardize click coordinate reporters" (`spec/interaction-events.md#on_click-block`), which
 is precisely what makes a keyboard activation an *equal* click rather than a degraded one.
 
 Arrows, space, and the paging keys have their browser default suppressed — but **only on synchronous
