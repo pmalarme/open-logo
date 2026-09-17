@@ -139,6 +139,7 @@ import { defaultTutorTemplate } from "./tutor-templates.js";
 import type { TutorLearnerLevel } from "./tutor-context.js";
 import { normalizeHeading } from "./turtle-math.js";
 import { MAIN_TURTLE_ID, TurtleWorld } from "./turtle-world.js";
+import { messageUnderTheShell } from "./under-the-shell.js";
 import type {
   AddressingPrimitiveName,
   AddressingScopeSnapshot,
@@ -160,6 +161,21 @@ function isPrintCall(
   return (
     (statement.kind === "Call" || statement.kind === "ParenCall") &&
     statement.callee.name.toLowerCase() === "print"
+  );
+}
+
+/**
+ * Is `statement` the hidden `print_under_the_shell` incantation? Checked here, immediately beside
+ * {@link isPrintCall}, because that is what it is: a `print` that already knows what to say.
+ *
+ * It is matched on the word alone, at any arity — a spell is the word, not its arguments. It is in
+ * no registry and no spec file, so the semantic checker reports `ol-unknown-command` for it and
+ * `execute()` (which never runs the checker) prints it anyway. See `under-the-shell.ts`.
+ */
+function isUnderTheShellCall(statement: StatementNode): boolean {
+  return (
+    (statement.kind === "Call" || statement.kind === "ParenCall") &&
+    statement.callee.name.toLowerCase() === "print_under_the_shell"
   );
 }
 
@@ -3914,6 +3930,28 @@ function executePrintCall(
 }
 
 /**
+ * Executes the hidden `print_under_the_shell` incantation once {@link executeStatements} has
+ * confirmed it via {@link isUnderTheShellCall}. Emits one `print` event per line of
+ * {@link messageUnderTheShell}, so the message lands in whatever console the host already uses for
+ * `print` — the studio run log, a conformance trace, a terminal — with nothing new to wire up.
+ *
+ * Never halts: an easter egg that could fail a learner's run would not be a gift.
+ */
+function executeUnderTheShellCall(
+  statement: CallNode | ParenCallNode,
+  environment: Environment,
+): void {
+  for (const line of messageUnderTheShell()) {
+    environment.events.push({
+      seq: environment.events.length,
+      kind: "print",
+      source_span: statement.source_span,
+      payload: { values: [line] } satisfies PrintPayload,
+    });
+  }
+}
+
+/**
  * Executes a `show value` statement (issue #234, `spec/commands.md`'s `show`) once
  * {@link executeStatements} has confirmed it via {@link isShowCall}. Extracted into its own
  * function for the same reason {@link executeTurtleMoveCall}'s canonical frame-width note gives:
@@ -4990,6 +5028,14 @@ function executeStatements(
       if (signal.kind === "halt") {
         return signal;
       }
+      continue;
+    }
+
+    if (isUnderTheShellCall(statement)) {
+      executeUnderTheShellCall(
+        statement as CallNode | ParenCallNode,
+        environment,
+      );
       continue;
     }
 
