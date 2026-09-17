@@ -6,7 +6,9 @@
   decision #1142 asked for
 - Related: sits beside [ADR-0022](0022-documentation-example-gate.md) (a prose surface is only as
   true as the gate under it) and [ADR-0030](0030-adr-numbering-is-gated.md) (references between our
-  own documents, and the same "one tree" trap that applies to this record's own number)
+  own documents, and the same "one tree" trap that applies to this record's own number); refined by
+  [ADR-0035](0035-parse-markdown-to-resolve-spec-anchors.md), which lands the anchor resolution this
+  record describes as pending (#1186)
 
 ## Context
 

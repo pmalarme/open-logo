@@ -120,10 +120,9 @@ The rule, in priority order:
 3. **Treat `docs/adr/` and `docs/design-notes/` as the highest-cost place for a number.** Those
    records are **immutable once Accepted**, so a wrong count there can never be corrected in place,
    only superseded by a new record. Prefer a pointer there, always.
-4. **Spec citations are the same defect wearing a different hat.** Verify every one against the
-   *current* file: a renumbering elsewhere in the saga invalidates a line number, and a colliding
-   heading retargets a section anchor — both silently, in citations nobody touched. Write new ones
-   as section anchors; the form and its limits are in
+4. **Spec citations are the same defect wearing a different hat.** Verify every one the change
+   touches against the *current* tree — a stale citation goes wrong silently, in files nobody
+   edited. Write new ones as section anchors; the form and its limits belong to
    [`shared/spec-fidelity`](../spec-fidelity/SKILL.md).
 
 Two measurement traps produce a *plausible wrong number* rather than an error, so re-derive with a
