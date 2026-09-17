@@ -249,12 +249,13 @@ Ask: does this change require updating any of —
 If yes, the update **must be in the same PR**. A behavior change that leaves its guidance stale is a
 **block**, even when code and tests are green.
 
-**Re-derive, don't re-read.** Every number and every `file:line` citation the change adds or touches
-is an **unverified assertion** — nothing recomputes it (see
-[`shared/definition-of-done`](../definition-of-done/SKILL.md)'s "Derived counts in prose"). A
-reviewer checks them by measuring against the current tree, not by trusting the PR body: counts,
-file lengths, and `spec/*.md:<line>` ranges all drift silently, and this saga renumbered
-`spec/grammar.md` under existing citations.
+**Re-derive, don't re-read.** Every number and every `spec/` citation the change adds or touches is
+an **unverified assertion** — nothing recomputes a number, and the gate resolves a citation, never
+the claim written beside it (see [`shared/definition-of-done`](../definition-of-done/SKILL.md)'s
+"Derived counts in prose"). A reviewer checks them by measuring against the current tree, not by
+trusting the PR body: counts, file lengths, and cited line ranges all drift silently, and this saga
+renumbered `spec/grammar.md` under existing citations. New citations name a section anchor
+([`shared/spec-fidelity`](../spec-fidelity/SKILL.md)).
 
 ## Findings — every finding gets resolved, blocking or not
 
@@ -335,7 +336,7 @@ ground out.
 - [ ] Conformance fixtures present, green, and extended.
 - [ ] Runnable `spec/examples/*.logo` and doc snippets parse/run.
 - [ ] A11y / pedagogy checked where applicable.
-- [ ] Instructions / skills / docs / spec drift checked (in-PR if needed); every count and `file:line` citation the change touches was **re-derived**, not trusted.
+- [ ] Instructions / skills / docs / spec drift checked (in-PR if needed); every count and `spec/` citation the change touches was **re-derived**, not trusted.
 - [ ] **Every finding resolved — blocking *and* non-blocking**: each one fixed, or declined with a one-line rationale (+ follow-up issue number when it is real work outside the write-set).
 - [ ] Converged within the **10-round cap** (otherwise: not opened — escalated to `@orchestrator`/maintainer with the open findings and per-round SHAs).
 - [ ] All verdicts `pass` on the **same final HEAD** (SHA-stamped) and attached; any later commit re-ran every reviewer; no self-merge.
