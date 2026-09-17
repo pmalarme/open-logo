@@ -1724,7 +1724,7 @@ function writePlaceSegmentValue(
 
 /**
  * `thing "name"` — the reporter form of a variable read; `:name` is sugar for this
- * (`spec/execution-model.md#special-form-delimiter-rules`). The argument must evaluate to a word (`ol-type`
+ * (`spec/execution-model.md#variables-scoping-and-procedures`). The argument must evaluate to a word (`ol-type`
  * otherwise); an unbound name raises `ol-undefined-var`, same as a `:name` read.
  */
 function evaluateThing(
@@ -2136,7 +2136,7 @@ export function executeClear(
 }
 
 /**
- * Execute `remove key key from target` (issue #322, `spec/data-structures.md#dictionary-reads`): drop the
+ * Execute `remove key key from target` (issue #322, `spec/data-structures.md#dictionary-operations`): drop the
  * entry keyed `key` from the dict `target`, in place. If `target` has no such key, it is left
  * unchanged and no diagnostic is raised (matching {@link executeRemove}'s "no match, no error"
  * convention). `key` then `target` are evaluated left to right; either being an expression kind
@@ -5280,13 +5280,13 @@ function comprehensionDuplicateBinder(
 
 /**
  * Evaluate a `map`/`filter`/`reduce` comprehension (`spec/execution-model.md#comprehensions-map-filter-and-reduce`, worked
- * examples `spec/execution-model.md#trace-and-event-registry, spec/execution-model.md#tutor-output-educational-profile`): binder-duplicate check first ({@link comprehensionDuplicateBinder}), then
+ * examples `spec/execution-model.md#worked-traces`): binder-duplicate check first ({@link comprehensionDuplicateBinder}), then
  * the iterable (must be a list — `ol-type` otherwise, mirroring `ForIn`'s own `forInNotList`),
  * then one {@link runComprehensionBody} pass per element (each in its own fresh body-local frame,
  * {@link pushLoopFrame}) — collecting every body value for `map`, keeping elements whose boolean
  * body value is `true` for `filter` (`ol-not-boolean` for a non-boolean body value), or folding
  * into an accumulator seeded by `initial` for `reduce` (returned unchanged when `elements` is
- * empty, `spec/execution-model.md#control-forms`).
+ * empty, `spec/execution-model.md#comprehensions-map-filter-and-reduce`).
  */
 /**
  * Run the main line's statement-boundary hook at a comprehension iteration and report a halting

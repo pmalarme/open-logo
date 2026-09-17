@@ -57,7 +57,7 @@ export const OL_EVENT_KINDS = [
 export type EventKind = (typeof OL_EVENT_KINDS)[number];
 
 /**
- * The registered kinds whose envelope **may carry** a `turtle_id`. `spec/execution-model.md#execution-safety` is
+ * The registered kinds whose envelope **may carry** a `turtle_id`. `spec/execution-model.md#trace-and-event-registry` is
  * explicit: "`turtle-id` | Turtle identity; present only when the event is turtle-specific,
  * otherwise absent", and `spec/turtles-and-sprites.md#per-turtle-state-and-turtle-commands` scopes the identity requirement to
  * explaining "which turtle moved or changed".
@@ -593,7 +593,7 @@ export type PrimitiveName = string;
  * restoring the previous set on the way out all reduce through one rule.
  *
  * The set lives in the payload rather than the envelope's `turtle_id`, which is normatively
- * "present only when the event is turtle-specific" (`spec/execution-model.md#execution-safety`): addressing
+ * "present only when the event is turtle-specific" (`spec/execution-model.md#trace-and-event-registry`): addressing
  * concerns a *set* of turtles, so an addressing event is never turtle-specific and MUST NOT be
  * stamped with one turtle's id.
  */

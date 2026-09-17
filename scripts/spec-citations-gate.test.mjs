@@ -29,7 +29,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { afterEach, beforeEach, test } from "node:test";
 import {
   SPEC_DIRECTORY,
@@ -720,6 +720,7 @@ test("a bare reference nothing attributes fails, asking for the full citation", 
 });
 
 test("an untracked forward-looking claim fails; naming its issue is enough", () => {
+  writeGrammar();
   write("claim.md", "This is not yet implemented.\n");
   assert.equal(runOverTemp().ok, false);
   assert.match(
@@ -946,14 +947,20 @@ test("the default run is the authoritative one, and carries no scope banner", ()
   );
   assert.match(authoritative.lines[0], /^spec citations: /);
   // A spec-dir override alone is enough to scope a run — it is the narrowing with no filesystem
-  // trace, and the easiest to invoke by accident.
+  // trace, and the easiest to invoke by accident. It also empties the document oracle, which is now
+  // a FAILURE rather than a quiet green: the banner says the run was scoped, and the failure says
+  // the prefix-less rule could not fire at all.
   const narrowed = runSpecCitationsGate({ specDirectory: "no-such-directory" });
   assert.equal(narrowed.counts.files, 0);
-  assert.equal(narrowed.ok, true);
+  assert.equal(narrowed.ok, false);
+  assert.match(
+    narrowed.lines.join("\n"),
+    /the rule was switched off, not that the tree is clean/,
+  );
   const banner = narrowed.lines.find((line) => line.includes("SCOPED RUN"));
   assert.ok(
     banner !== undefined,
-    "a green run that looked at nothing must say what it looked at",
+    "a run that looked at nothing must say what it looked at",
   );
   assert.match(banner, /spec-dir=no-such-directory/);
 });
@@ -2061,25 +2068,49 @@ test("a fragment may be closed by punctuation before a QUOTE, but not before a b
   assert.equal(malformedIn(`[bad](${CONTRACT}/d.md#real-heading.)`), true);
   assert.equal(malformedIn(`[bad](${CONTRACT}/d.md#real-heading.]`), true);
 
-  // THE MEASURED LIMIT of that trade, pinned so it is visible rather than discovered. A markdown
-  // link may carry a TITLE after its destination, which puts a quote exactly where the rule now
-  // accepts one — so these read as `#real-heading` although a markdown parser would not agree.
-  // Refusing every quote would reintroduce the JSON false positive this admits, and parsing link
-  // destinations is what two earlier reviewers removed for being defeatable. No instance of the
-  // title form exists in this corpus.
+  // THE TITLE SHAPE, now rejected rather than accepted as a stated limit. A markdown link title
+  // puts a quote where a closing string quote would sit, so the rule looks one character further:
+  // the quote must itself be followed by end-of-input, whitespace, or a token closer. A letter
+  // after it means the quote opened something rather than closing it.
   assert.equal(
     malformedIn(`[t](${CONTRACT}/d.md#real-heading."Title")`),
-    false,
-    "the title form is accepted — a known and accepted limit",
+    true,
+    "a link title must not read as a closing string quote",
   );
   assert.equal(
     malformedIn(`[t](${CONTRACT}/d.md#real-heading. "Title")`),
     false,
-    "and its spaced spelling likewise",
+    "the SPACED title spelling is accepted — it is indistinguishable from the cite-then-quote idiom",
+  );
+  // Which is the reason: that shape is live, correct prose in this corpus, and failing it would be
+  // a false positive — fatal in a gate with no tolerance.
+  assert.equal(
+    malformedIn(
+      `see ${CONTRACT}/d.md#real-heading: "OpenLogo never exposes NaN or Infinity"`,
+    ),
+    false,
+  );
+  assert.equal(
+    malformedIn(
+      `see ${CONTRACT}/d.md#real-heading, "alternate spellings only"`,
+    ),
+    false,
+  );
+  // And the JSON shapes the widening exists to admit still pass, in every terminator.
+  assert.equal(
+    malformedIn(`{"d": "see ${CONTRACT}/d.md#real-heading.",`),
+    false,
+  );
+  assert.equal(malformedIn(`see ${CONTRACT}/d.md#real-heading."`), false);
+  // A BACKTICK opens a code span, never a link title, so ordinary prose that follows a citation with
+  // one stays accepted.
+  assert.equal(
+    malformedIn("see " + CONTRACT + "/d.md#real-heading: `#` starts a comment"),
+    false,
   );
 });
 
-test("specDocuments reads the directory, and an EMPTY oracle fails the gate loudly", () => {
+test("specDocuments reads the directory, and an EMPTY oracle FAILS the gate", () => {
   // Shared with the converter rather than written twice: the two modules keep their deliberately
   // different site-finding, but disagreeing about which documents EXIST would let one enumerate a
   // citation the other could not see.
@@ -2096,37 +2127,31 @@ test("specDocuments reads the directory, and an EMPTY oracle fails the gate loud
   // directory — so the loudness lives where the consequence does.
   assert.deepEqual([...specDocuments(join(TEMP_DIR, "absent"))], []);
 
-  // An empty oracle silently disables the prefix-less rule, so a mistyped --spec-root would leave a
-  // report asserting a rule that cannot fire. It is DISCLOSED rather than failed, because failing
-  // would misdescribe the cause: a run whose specification directory is missing cannot go green
-  // anyway — every anchor into it reports the document does not exist, as the second half here
-  // shows. What was wrong was never the exit code, but a report overstating its own coverage.
-  writeSections();
-  write(
-    "cites.md",
-    `See ${CONTRACT}/conformance.md#heritage and grammar.md:8.\n`,
-  );
+  // An empty oracle disables the prefix-less rule AND the file-skip test then hides every file that
+  // carries no prefixed mention — so a misconfigured run reports zero line citations over a corpus
+  // full of them. Disclosure was not enough: a report can be read past, an exit code cannot.
   const misconfigured = runSpecCitationsGate({
     roots: [TEMP_DIR],
     specDirectory: CONTRACT,
     specRoot: join(TEMP_DIR, "absent"),
   });
+  assert.equal(misconfigured.ok, false);
   assert.match(
     misconfigured.lines.join("\n"),
-    /RULE INACTIVE:.*prefix-less line form cannot be recognised at all/s,
+    /a green run here would mean the rule was switched off, not that the tree is clean/,
   );
-  assert.equal(
-    misconfigured.ok,
-    false,
-    "a missing specification directory cannot produce a green run",
-  );
-  assert.match(
-    misconfigured.lines.join("\n"),
-    /conformance\.md does not exist/,
-  );
-  // And the disclosure is absent exactly when the oracle is populated, or it would be noise.
+
+  // And an ABSOLUTE spec root must not defeat the uniqueness oracle. Comparing an absolute root
+  // against git's repository-relative paths made every document look like a collision, emptying the
+  // oracle under a perfectly valid configuration.
+  const absolute = runSpecCitationsGate({
+    roots: [TEMP_DIR],
+    specDirectory: CONTRACT,
+    specRoot: resolve(join(TEMP_DIR, CONTRACT)),
+  });
   assert.ok(
-    !runOverTemp().lines.some((line) => line.includes("RULE INACTIVE")),
+    !absolute.lines.join("\n").includes("publishes no .md document"),
+    "an absolute spec root must still populate the oracle",
   );
 });
 

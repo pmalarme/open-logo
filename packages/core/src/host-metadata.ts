@@ -5,7 +5,7 @@
  * integrations, other tools) query {@link getHostMetadata} to learn, at runtime, the exact
  * spec version this build targets, which profiles it currently and correctly supports, which
  * vendor-namespaced extensions it adds, and which rendering targets it exposes when Turtle &
- * Rendering is claimed. There is no Core language primitive for this (spec/conformance.md#profile-dependency-dag
+ * Rendering is claimed. There is no Core language primitive for this (spec/conformance.md#extensions-and-feature-detection
  * — feature detection is a host API, never a required Core program construct).
  *
  * Profile identifiers match the ids already used across the toolchain (`scripts/harness/index.mjs`
@@ -91,7 +91,7 @@ export const SUPPORTED_PROFILES = [
 
 /**
  * Vendor-namespaced extension feature names this implementation adds
- * (`spec/conformance.md#feature-to-profile-table`, `<vendor>.<feature>`). Empty: this implementation adds no
+ * (`spec/conformance.md#extensions-and-feature-detection`, `<vendor>.<feature>`). Empty: this implementation adds no
  * extensions yet.
  */
 export const SUPPORTED_EXTENSIONS = [] as const;
@@ -99,11 +99,11 @@ export const SUPPORTED_EXTENSIONS = [] as const;
 /**
  * Rendering targets exposed by `@openlogo/turtle` (Canvas live rendering, deterministic SVG and
  * PNG export), reported because `turtle-rendering` is claimed
- * (`spec/conformance.md#feature-to-profile-table, spec/conformance.md#profile-dependency-dag`, "rendering targets when Turtle & Rendering is claimed").
+ * (`spec/conformance.md#extensions-and-feature-detection`, "rendering targets when Turtle & Rendering is claimed").
  */
 export const SUPPORTED_RENDERING_TARGETS = ["canvas", "svg", "png"] as const;
 
-/** The feature-detection metadata shape a host queries, per `spec/conformance.md#feature-to-profile-table, spec/conformance.md#profile-dependency-dag`. */
+/** The feature-detection metadata shape a host queries, per `spec/conformance.md#extensions-and-feature-detection`. */
 export interface HostMetadata {
   readonly openlogo: {
     readonly version: string;

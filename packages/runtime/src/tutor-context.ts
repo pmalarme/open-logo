@@ -73,7 +73,7 @@ export interface TutorContext {
   /**
    * The selected instruction or statement-range the command's output should describe, when one
    * is selected (`explain`/`why`/`debug` MAY concern the whole program instead, per
-   * `spec/execution-model.md#turtle-and-canvas-state`'s `target-source-span` rule).
+   * `spec/execution-model.md#tutor-output-educational-profile`'s `target-source-span` rule).
    */
   readonly target?: AnyNode;
   /** The trace/event stream produced by execution so far, in increasing `seq` order. */

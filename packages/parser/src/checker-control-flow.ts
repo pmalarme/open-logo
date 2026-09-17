@@ -8,7 +8,7 @@
  *   (`spec/error-model.md#normative-code-registry`, `spec/tooling.md#layer-2-semantic-checking` — *point at the control word*).
  * - `ol-stop-outside-proc` — `stop` used outside any procedure body (`spec/error-model.md#normative-code-registry`).
  * - `ol-return-in-comprehension` — a `return`/`stop` anywhere inside a `map`/`filter`/`reduce`
- *   body. The spec (`spec/execution-model.md#control-forms`, `spec/error-model.md#normative-code-registry`) says a
+ *   body. The spec (`spec/execution-model.md#comprehensions-map-filter-and-reduce`, `spec/error-model.md#normative-code-registry`) says a
  *   comprehension body "cannot contain `return`/`output`/`op`" and reports by its last expression;
  *   this code is *preferred over the outside-proc codes* whenever the offending escape is inside a
  *   comprehension body, even one nested in a procedure — a comprehension is a value context, not a
@@ -16,7 +16,7 @@
  *   a `stop` inside a comprehension (which the outside-proc code cannot describe once the
  *   comprehension is itself inside a procedure) is routed here too, carried by the `keyword` param.
  * - `ol-no-value` — a `map`/`filter`/`reduce` body that statically cannot end in a value-producing
- *   expression (`spec/error-model.md#normative-code-registry`, `spec/execution-model.md#control-forms`). Reproduces the spec's
+ *   expression (`spec/error-model.md#normative-code-registry`, `spec/execution-model.md#comprehensions-map-filter-and-reduce`). Reproduces the spec's
  *   worked example `map num in :nums [ print :num ]` → `ol-no-value { form: "map" }`
  *   (`spec/tooling.md#layer-2-semantic-checking`). A `return`/`stop` final statement is *not* double-reported here —
  *   it is already the more specific `ol-return-in-comprehension`.

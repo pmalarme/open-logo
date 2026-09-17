@@ -228,7 +228,7 @@ function isTurtleMoveCall(statement: StatementNode): boolean {
  * but leaves no trail (issue #206, `pen_up`/`pen_down`). `distance` is negative for `back`
  * (`back n` == `forward -n`, `spec/commands.md#back`), positive for `forward`.
  *
- * Movement math is `spec/execution-model.md#equality-and-ordering`'s `(x + d·sin h, y + d·cos h)`: heading `0`
+ * Movement math is `spec/execution-model.md#turtle-and-canvas-state`'s `(x + d·sin h, y + d·cos h)`: heading `0`
  * points up (`+y`), and `right` turns clockwise, so increasing heading rotates the direction of
  * travel clockwise from up — exactly what `Math.sin`/`Math.cos` of a heading measured clockwise
  * from the `+y` axis produce once converted from degrees to radians.
@@ -4503,7 +4503,7 @@ type ProcedureOutcome =
  * callee frame exists. The callee then runs in a FRESH frame stacked only on the shared root
  * frame (`environment.frames[environment.frames.length - 1]`, never the caller's own local frame(s)) — lexical
  * scoping: the callee cannot see the caller's parameters or locals unless passed as an argument
- * (`spec/execution-model.md#special-form-delimiter-rules`). Its own `repeatTurns` starts empty: `repcount` is tied to
+ * (`spec/execution-model.md#variables-scoping-and-procedures`). Its own `repeatTurns` starts empty: `repcount` is tied to
  * the lexical nesting of `repeat` within the currently-running body, and a callee begins a new
  * body, so it starts with no active `repeat` turn of its own (an assumption called out in this
  * issue's PR, since the spec does not spell out `repcount` across a call boundary explicitly).

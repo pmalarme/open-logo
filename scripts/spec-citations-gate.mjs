@@ -173,7 +173,7 @@
 
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync, readdirSync } from "node:fs";
-import { join, sep } from "node:path";
+import { join, resolve, sep } from "node:path";
 import GithubSlugger from "github-slugger";
 import { marked } from "marked";
 
@@ -309,14 +309,19 @@ export function specDocuments(root) {
 export function unambiguousSpecDocuments(root, trackedFiles) {
   const published = specDocuments(root);
   const elsewhere = new Set();
-  const specPrefix = `${toPosixPath(root)}/`;
+  // Compared as RESOLVED absolute paths. `root` may be absolute (a `--spec-root` override) while
+  // `git ls-files` always reports repository-relative paths, and comparing the two as strings made
+  // every specification document look like a collision — which emptied the oracle and silently
+  // disabled the whole prefix-less rule under a perfectly valid configuration.
+  const specRootPath = resolve(root);
   for (const file of trackedFiles) {
     const path = toPosixPath(file);
-    if (path.startsWith(specPrefix)) {
+    const basename = path.slice(path.lastIndexOf("/") + 1);
+    if (!published.has(basename)) {
       continue;
     }
-    const basename = path.slice(path.lastIndexOf("/") + 1);
-    if (published.has(basename)) {
+    const directory = toPosixPath(resolve(file).slice(0, -basename.length - 1));
+    if (directory !== toPosixPath(specRootPath)) {
       elsewhere.add(basename);
     }
   }
@@ -532,23 +537,27 @@ function mentionPattern(specDirectory) {
  * and this corpus emphasises with `*`. The cited side has no such ambiguity any more: the parser
  * resolves emphasis before the slug is computed, so `## _Text_` correctly publishes `#text`.
  *
- * Punctuation may also be closed by a **quote**, which is the one delimiter that cannot be part of a
- * bare URL: `"… see <dir>/<file>.md#a-heading."` is a sentence inside a JSON string, and the `.` is
- * prose. A closing **bracket** is deliberately NOT admitted there, because a markdown link
- * destination runs to its `)` and the `.` really does belong to the fragment — which is the
- * asymmetry that makes `[bad](x.md#a-heading.)` fail without this module ever parsing a link
- * destination.
+ * Punctuation may also be closed by a **quote**, but only where the quote genuinely ends a string:
+ * `"… see <dir>/<file>.md#a-heading."` is a sentence inside a JSON string, and the `.` is prose. A
+ * markdown link **title** puts a quote in the same position without ending anything —
+ * `[t](x.md#frag."Title")` — so the rule looks one character further: the quote must itself be
+ * followed by end-of-input, whitespace, or a token closer. `."}`, `.",` and `."` at end of line are
+ * accepted; `."Title")` is not, because a letter follows the quote.
  *
- * One measured limit of that asymmetry, stated rather than hidden. A markdown link may carry a
- * **title** after its destination, so `[t](x.md#frag."Title")` and `[t](x.md#frag. "Title")` put a
- * quote where this rule now accepts one — and both are then read as the fragment `#frag`, which
- * `marked` would not agree with. Refusing every quote would reintroduce the JSON false positive
- * this admits, and parsing link destinations is what two reviewers already removed for being
- * defeatable. No instance of the title form exists in this corpus; the shape is pinned in the tests
- * so the trade is visible rather than discovered.
+ * The **spaced** title spelling `[t](x.md#frag. "Title")` is NOT rejected, and that is a measured
+ * decision rather than an oversight. Punctuation, a space and then a quote is also the corpus's
+ * ordinary cite-then-quote idiom — `…#numbers-and-math: "OpenLogo never exposes NaN…"` — which
+ * occurs in live prose and is perfectly correct. Rejecting the spelling would fail those sites, and
+ * a false positive is fatal in a gate with no tolerance, so the rarer malformed shape is the one
+ * left through. Telling them apart needs to know whether the citation sits in a link destination,
+ * which is the destination parsing two reviewers deleted after defeating it twice.
+ *
+ * A closing **bracket** is never admitted after punctuation, because a markdown link destination
+ * runs to its `)` and the `.` really does belong to the fragment; that is the asymmetry which makes
+ * `[bad](x.md#a-heading.)` fail without this module ever parsing a link destination.
  */
 const FRAGMENT_BOUNDARY =
-  /^(?:[\s`'"“”‘’)\]}>|]|$)|^[.,:;!?*~+=…—–]+(?:\s|["'`]|$)/u;
+  /^(?:[\s`'"“”‘’)\]}>|]|$)|^[.,:;!?*~+=…—–]+(?:\s|["'](?:[\s)\]},;]|$)|$)/u;
 
 /**
  * GitHub's **line fragment** (`#L30`, `#L28-L84`), which names lines rather than a heading.
@@ -1954,16 +1963,15 @@ export function runSpecCitationsGate({
     specDirectory === SPEC_DIRECTORY ? null : `spec-dir=${specDirectory}`,
     specRoot === undefined ? null : `spec-root=${specRoot}`,
   ].filter((part) => part !== null);
-  // An empty document oracle silently disables the prefix-less rule: a mistyped `--spec-root`
-  // produced a green run over a tree full of line citations while the banner still asserted the
-  // rule was unchanged. It is DISCLOSED rather than failed, because failing would be redundant and
-  // would misdescribe the cause — a run whose specification directory is missing cannot go green
-  // anyway, since every anchor into it reports that the document does not exist. What was wrong was
-  // never the exit code; it was a report claiming a rule is in force when it cannot fire.
+  // An empty document oracle disables the prefix-less rule entirely, and the file-skip test above
+  // then hides every file that carries no prefixed mention — so a misconfigured run reports zero
+  // line citations over a corpus full of them. Disclosure alone was not enough: a report can be read
+  // past, an exit code cannot. This FAILS.
   if (knownDocuments.size === 0) {
-    lines.push(
-      `  RULE INACTIVE: ${specRoot ?? specDirectory} publishes no .md document, so no document is ` +
-        "known and the prefix-less line form cannot be recognised at all.",
+    fail(
+      `${specRoot ?? specDirectory} publishes no .md document whose name is unique in the scanned ` +
+        "set, so no document is known and the prefix-less line form cannot be recognised at all — " +
+        "a green run here would mean the rule was switched off, not that the tree is clean",
     );
   }
   if (overrides.length > 0) {
