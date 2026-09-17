@@ -23,7 +23,7 @@ With it, saga #572's four M5 profiles are all claimed and no example in the corp
   `responses`, a FIFO consumed in order by each `input` call — and the read adds **no new event
   kind**: it emits the ordinary catch-all `primitive` named `input` after the read finishes, so
   `spec/execution-model.md`'s trace/event registry is unchanged. `input-number-answer` and
-  `input-word-answer` pin the two branches of the number-vs-word rule (`spec/execution-model.md#precedence-and-evaluation-order`) against one
+  `input-word-answer` pin the two branches of the number-vs-word rule (`spec/interaction-events.md#input-prompt-word`) against one
   another by asking the same `is a "number"` question and recording opposite answers, and by
   recording the raw printed value (the JSON number `42` versus a string). Note that **arithmetic
   would not discriminate them** — OpenLogo's `+` coerces a numeric word, so `:answer + 1` reports
@@ -31,7 +31,7 @@ With it, saga #572's four M5 profiles are all claimed and no example in the corp
   convincing while being inert against an implementation that never reports numbers at all.
   `input-responses-consumed-in-order` proves the queue is consumed in order with each answer
   classified independently; `input-unanswered-cancels` takes the read's *other* spec-sanctioned
-  ending (`spec/execution-model.md#three-syntactic-layers` — "until the read finishes or the program is cancelled") through the profile's
+  ending (`spec/interaction-events.md#trace-stream-integration` — "until the read finishes or the program is cancelled") through the profile's
   ordinary cancellation diagnostic rather than inventing an answer or a lookalike code; and the
   `check`-mode pair `input-visible-under-profile`/`input-rejected-core-only` proves the name is
   gated on the profile, as `spec/conformance.md#interaction--events` and `spec/interaction-events.md#interaction-events`

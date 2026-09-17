@@ -48,7 +48,7 @@ Concretely:
   means `power 2 (3 * 4)`, not `(power 2 3) * 4`.
 - Commas never appear as syntax anywhere in the grammar — not in call arguments, not in list
   literals (`[1 2 3]`), not in dict literals (entries separated by whitespace or newlines,
-  `spec/grammar.md#expressions-and-calls`, `spec/grammar.md#blocks-and-bracket-roles`).
+  `spec/grammar.md#expressions-and-calls`, `spec/grammar.md#collections-records-and-comprehensions`).
 
 Validated against the runtime (`@openlogo/parser` + `@openlogo/runtime`, checked out at this
 commit):
