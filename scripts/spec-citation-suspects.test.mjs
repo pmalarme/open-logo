@@ -28,6 +28,7 @@ import {
   contentWords,
   DEFAULT_THRESHOLDS,
   inverseDocumentFrequency,
+  KNOWN_ATTRACTORS,
   relationOf,
   reportSuspects,
   scanSuspects,
@@ -534,6 +535,43 @@ test("the CLI exits 0 on a healthy corpus and non-zero when its own checks fail"
   });
   assert.equal(barren.status, 1);
   assert.match(barren.stdout, /FAIL/);
+});
+
+test("a section review has already refuted is named by identity, not by its share", () => {
+  // The share-based artifact check missed this class entirely: one section drew 23 suggestions
+  // across a review batch and was rejected on all 23 while sitting below the threshold. So the
+  // report must annotate it by name, and must say plainly that a low share is not acceptance.
+  assert.deepEqual(KNOWN_ATTRACTORS, ["#tutor-output-educational-profile"]);
+  write(
+    `${CONTRACT}/attract.md`,
+    [
+      "# Attract",
+      "",
+      "## Plain section",
+      "",
+      "Plain mentions turtles and headings and degrees.",
+      "",
+      "## Tutor output educational profile",
+      "",
+      "Comprehensions bind an item, reduce an accumulator, and raise a duplicate-binder",
+      "diagnostic when two binders share a name.",
+    ].join("\n"),
+  );
+  write(
+    "site.md",
+    "A comprehension body binds an item and reduces an accumulator, and duplicate " +
+      `binder names raise a duplicate-binder diagnostic (${CONTRACT}/attract.md#plain-section).\n`,
+  );
+  const report = reportSuspects({
+    roots: [TEMP_DIR],
+    specDirectory: CONTRACT,
+    specRoot: join(TEMP_DIR, CONTRACT),
+  });
+  const text = report.lines.join("\n");
+  assert.match(text, /KNOWN ATTRACTOR: refuted by reading every time/);
+  assert.match(text, /Concentration is a share, and a share is NOT acceptance/);
+  // And the row is still printed: naming it must never become suppressing it.
+  assert.match(text, /RANKED .*#tutor-output-educational-profile/);
 });
 
 test("the CLI never fails BECAUSE OF a finding — only the tool's checks on itself can fail", () => {

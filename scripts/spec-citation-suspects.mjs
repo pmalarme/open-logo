@@ -457,6 +457,30 @@ export function seededRandom(seed) {
 }
 
 /**
+ * Sections that review has refuted **every time** this tool proposed them.
+ *
+ * This is not a tuning constant and it is not an exclusion: rows suggesting these sections are still
+ * ranked and still printed, because suppressing them would be the tool judging a citation, which is
+ * the one thing it must never do. The list exists because concentration turned out to be the wrong
+ * detector for this class. `#tutor-output-educational-profile` drew 23 suggestions across 8 rows in
+ * one review batch and was rejected on all 23, while sitting **below** the artifact threshold the
+ * whole time — so a reader watching only the share had no warning at all.
+ *
+ * The signal that would genuinely catch it is "a section never accepted across a review", and this
+ * tool cannot compute that: it sees citations, never decisions. Naming the sections review has
+ * already refuted is the honest substitute, and it carries its own expiry — an entry here is a
+ * record of what reviewers found, so it must be re-earned rather than trusted indefinitely.
+ *
+ * **Only a section with that evidence belongs here.** `#normative-code-registry` and
+ * `#keywords-primitives-and-built-in-names` also dominate this tool's output, but what is known
+ * about them is weaker and different — they are large enumerations that win on vocabulary, which the
+ * share-based artifact check already reports. Listing them beside a measured refutation rate would
+ * state something nobody measured, and a sentence written to explain an instrument acquires a false
+ * claim exactly that easily.
+ */
+export const KNOWN_ATTRACTORS = ["#tutor-output-educational-profile"];
+
+/**
  * The band the seeded mutation control must land inside, and the sample size.
  *
  * **Calibrated to THIS scorer, and that is the point.** The design prototype measured ~25% recall
@@ -598,9 +622,18 @@ export function reportSuspects(options = {}) {
     const share = count / total;
     lines.push(
       `  attractor check: ${section} absorbs ${count} site(s) (${(share * 100).toFixed(0)}%)` +
-        `${share > 0.25 ? " — ARTIFACT, not a discovery: a large enumeration wins on vocabulary alone" : ""}`,
+        `${share > 0.25 ? " — ARTIFACT, not a discovery: a large enumeration wins on vocabulary alone" : ""}` +
+        `${KNOWN_ATTRACTORS.some((known) => section.endsWith(known)) ? " — KNOWN ATTRACTOR: refuted by reading every time it has been reviewed; do not machine-apply" : ""}`,
     );
   }
+  lines.push(
+    "  Concentration is a share, and a share is NOT acceptance. A section can sit far below the " +
+      "artifact threshold and still be wrong every single time it is suggested — that is exactly " +
+      `what happened to ${KNOWN_ATTRACTORS.join(", ")}, named above by identity rather than by ` +
+      "share. The signal that would actually catch this class is a section never " +
+      "accepted across a review, which this tool cannot see: it has no record of what a reviewer " +
+      "decided. Until it does, a low share is not evidence a suggestion is sound.",
+  );
 
   for (const pair of pairs) {
     lines.push(
@@ -614,10 +647,18 @@ export function reportSuspects(options = {}) {
     "  This is a RANKED REPORT, not a gate. It scores the prose around a citation against every " +
       "section of the document it cites and lists where another section matches better. It NEVER " +
       "fails on a finding, and its silence proves nothing: measured recall against seeded mutations " +
-      "is roughly a quarter, so three of four deliberately broken anchors score clean. The flag " +
+      "is roughly a quarter, so three of four deliberately broken anchors score clean. WHAT TO DO " +
+      "ABOUT THAT, concretely: read the surrounding PARAGRAPH, not just the line a row names. A " +
+      "genuinely wrong citation in packages/studio's README was found that way — same paragraph as " +
+      "a ranked row, same defect, and this tool did not rank it at all. An abstract recall figure " +
+      "tells a reader nothing; that working method is the actionable form of it. The flag " +
       "count is a property of THIS instrument — two implementations written from the same " +
       "description differed by 2.3x on the same tree — so it is a queue to read, never a measurement " +
-      "of how many citations are wrong. It cannot tell a WRONG anchor from a LESS SPECIFIC one, " +
+      "of how many citations are wrong. The mechanism, seen in the field: a reviewer changed 1 of " +
+      "11 sites in one pair and 3 of 7 in another, keeping the rest as correct, and BOTH pairs then " +
+      "vanished from this report entirely. The count moved for reasons unrelated to whether the " +
+      "surviving citations are right, which is why a falling number here is not progress and a " +
+      "rising one is not regression. It cannot tell a WRONG anchor from a LESS SPECIFIC one, " +
       "which is why each row reports whether the suggestion is a sibling of the cited section: " +
       "sibling rows are usually imprecision, distant rows more often error. A row is resolved by " +
       "reading the claim and the section and deciding — never by re-pointing what the tool ranked. " +

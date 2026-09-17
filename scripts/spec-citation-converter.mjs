@@ -33,6 +33,23 @@
  * points at the wrong section afterwards — at coarser granularity, and no longer silently rotting,
  * but no more correct than it was. This module moves citations; it does not audit them.
  *
+ * Conversion also preserves a citation's **adjacency**, and that is a second, sharper limit. This
+ * module substitutes at the citation's own extent, which is correct for the citation and can be
+ * wrong for the sentence around it. Two shapes in the swept tree show it, both with a correct anchor
+ * and a green gate:
+ *
+ * - A citation whose readable phrasing already named the document, hard-wrapped so the name sat on
+ *   the previous line, becomes the document named twice — `(<file>.md <spec-dir>/<file>.md#a-heading)`.
+ * - A bare citation written flush against an inline code span becomes the citation glued to that
+ *   span with no separator — ``` `forward`<spec-dir>/commands.md#forward ``` — which renders as
+ *   mangled prose.
+ *
+ * Neither is detectable by resolution or by counting, because neither is a defect in the citation:
+ * both are defects in the prose the citation was embedded in. They are named here because a reader
+ * auditing this module will otherwise assume adjacency was considered. It was not, and the sweep is
+ * complete, so the remedy is to read the surrounding sentence at the sites where it matters rather
+ * than to add a rule to a converter that has no corpus left to convert.
+ *
  * ## Attribution is borrowed, deliberately
  *
  * Deciding *which document* a bare `:<line>` means is the one judgement this module does **not**
