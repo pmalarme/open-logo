@@ -792,6 +792,40 @@ test("a production quoted beside a section that does not contain it FAILS", () =
   );
 });
 
+test("a section STOPS at its sibling, end to end — the shape the `depth` regression let through", () => {
+  // The direction the other quotation mutations cannot reach. They cite the LATER section and quote
+  // from an earlier one, which fails either way: when `depth` went missing every section ran to
+  // end-of-file, and an end-of-file extension only ever admits text BELOW the cited heading.
+  //
+  // So this cites the EARLIER section and quotes a production that lives only in its sibling below.
+  // Under the regression `#ebnf-notation` covered lines 3-15 and this passed; with `depth` restored
+  // it covers 3-10 and this is red. A unit test on `sectionRange` alone would not have caught a
+  // caller that went on using the whole suffix.
+  writeGrammar();
+  write(
+    "below.ts",
+    "// contract/grammar.md#ebnf-notation gives `comparison ::= additive { compare-op additive }`.\n",
+  );
+  const result = runOverTemp();
+  assert.equal(
+    result.ok,
+    false,
+    "a section must not reach into the sibling below it",
+  );
+  assert.match(
+    result.lines.join("\n"),
+    /is quoted here but is not in contract\/grammar\.md#ebnf-notation/,
+  );
+
+  // And the control: cited correctly, the same production passes, so the failure above is the
+  // boundary being enforced rather than the quotation never matching anything.
+  write(
+    "below.ts",
+    "// contract/grammar.md#expressions-and-calls gives `comparison ::= additive { compare-op additive }`.\n",
+  );
+  assert.equal(runOverTemp().ok, true);
+});
+
 test("a section spans its subsections, so quoting from one is inside the parent", () => {
   writeGrammar();
   write(
