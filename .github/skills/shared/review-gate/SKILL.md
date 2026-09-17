@@ -9,7 +9,7 @@ description: >-
   each dispatch, the dispatched SHA tagged, and the branch frozen once every verdict stamps one SHA.
   The orchestrator then does a final verification and merges.
 created: 2026-07-17T00:00
-updated: 2026-08-25T00:00
+updated: 2026-09-17T00:00
 ---
 
 ## Purpose
@@ -226,7 +226,7 @@ defect the rule exists to prevent.
 ## The checklist
 
 The **logic/spec reviewer** (`rubber-duck`, or a named fallback) owns logic, design, and
-spec-fidelity; the **QA** sub-agent(s) re-prove items (a)–(f) below from a clean tree. Every
+spec-fidelity; the **QA** sub-agent(s) re-prove items (a)–(h) below from a clean tree. Every
 dispatched reviewer must clear every item before the PR is opened.
 
 ### (a) Clean-tree Definition-of-Done re-run
@@ -291,6 +291,69 @@ is an **unverified assertion** — nothing recomputes it (see
 reviewer checks them by measuring against the current tree, not by trusting the PR body: counts,
 file lengths, and `spec/*.md:<line>` ranges all drift silently, and this saga renumbered
 `spec/grammar.md` under existing citations.
+
+### (g) Mutation — break your own code and confirm something fails
+
+A passing suite means one of two things: the code is right, or **nothing is watching it**. Those are
+indistinguishable from the outside, so establish which one you have.
+
+For each behaviour the change introduces, make a small edit that **changes** that behaviour, rebuild,
+and confirm a named test or fixture goes red. If nothing fails, that behaviour is unasserted —
+however many tests pass elsewhere.
+
+Measured in issue #1155: this one-character edit is behaviour-changing — it lets a program begin
+running and fail partway instead of being refused before any effect —
+
+```diff
+- { node: node.value, rootIsRead: true }
++ { node: node.value, rootIsRead: false }
+```
+
+— and it survived **25 unit tests and 1018 conformance fixtures**. Five such gaps were found in that
+one slice; **all five by mutation, none by reading**, and every one sat beside a passing test.
+
+Three traps, each of which produced a wrong answer in that slice:
+
+- **Verify the mutant reached `dist/`.** `tsc -b` serves a stale build when a restored file gets an
+  older mtime, and `Copy-Item -Recurse node_modules` dereferences workspace symlinks so the sandbox
+  resolves a stale package. Both report "survived" while testing the *unmutated* tree.
+- **Read the result, not the diff.** A diff proves you changed the text; only the result proves you
+  changed the behaviour. `context !== "inside" && context !== "dispatch-dependent"` is just
+  `=== "outside"` — a no-op mutation reports "not detected", which is byte-identical to a real gap.
+- **A clean-direction assertion is not coverage.** A test that passes both with and without the
+  change measures only the rule's *silence*. Assert the reporting direction too.
+
+Coverage percentage does not substitute for this: a line can be executed by a test that asserts
+nothing about it.
+
+### (h) Prose — audit it as prose, in its own pass
+
+Comments, fixture `description`s, and PR bodies are read *beside* the code they describe, so a false
+sentence next to correct code and a green fixture looks right. Three consecutive review rounds in
+issue #1155 read the same defective sentences and passed them.
+
+So make a pass over **only the sentences this change adds or edits**, with the code out of view, and
+ask of each: **what measurement would falsify this, and did I run it?**
+
+The failure is not evenly distributed. Of three sentences written in one commit by one author, the
+**two that quantified** were both false; the one saying *"every other fixture in the corpus"* was
+true, because it cannot rot. So:
+
+- **Delete rather than rewrite.** A sentence you cannot verify is removed, not hedged — deleted text
+  cannot be wrong. Keep only a measurement with its scope, a rationale that asserts no universal, or
+  a pointer (`see file.ts:NN`).
+- **Remove a derived number, don't update it.** An updated count is a defect with a longer fuse.
+- **No unenumerated absolutes** — *no*, *only*, *every*, *never*, *the one* — unless the universe is
+  finite, enumerable, and you enumerated it.
+- **Replace a trap with a pointer, not a story.** Where deleting would invite a maintainer into the
+  trap, cite the mechanism's source; a pointer cannot be wrong about causation because it asserts
+  none. Three false claims in one commit came from *reconstructing* a cause from a real measurement.
+- **When you change what class something belongs to**, every sentence citing it as an example of that
+  class becomes false, and nothing links a class to its examples. Sweep the citing sites, not just
+  the definition.
+
+Unlike (g) this cannot be mechanised: mutating a description changes nothing, because nothing reads
+it. Behaviour has an oracle; prose does not. That is precisely why it needs a deliberate pass.
 
 ## Findings — every finding gets resolved, blocking or not
 
