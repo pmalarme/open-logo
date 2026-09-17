@@ -1,6 +1,6 @@
 // Unit tests for issue #341: executing the Geometry profile's renderer-backed overlay primitives
 // `grid`/`axes`/`measure` — each Kind C, arity 0, emitting exactly one `overlay` trace event and
-// never mutating turtle state (`spec/geometry-module.md:268-308`).
+// never mutating turtle state (`spec/geometry-module.md#grid, spec/geometry-module.md#measure`).
 
 import assert from "node:assert/strict";
 import { test } from "node:test";

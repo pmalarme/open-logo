@@ -199,7 +199,7 @@ test("the checker and the editor agree about a profile word under the shared def
   // reports only the name nothing knows. Before this slice the editor gave `ask` the plain
   // `primitive` fallback — a command its own checker was happy to accept.
   //
-  // Deliberately framed as *availability*, not reservation: `spec/grammar.md:408` makes profile
+  // Deliberately framed as *availability*, not reservation: `spec/grammar.md#keywords-primitives-and-built-in-names` makes profile
   // words built-in names unconditionally — "what a profile decides is whether a name works, never
   // whether a program may declare it" — so `ol-reserved-word` is not a profile-conditional
   // judgement and must not be asserted as one here.
@@ -221,7 +221,7 @@ test("the checker and the editor agree about a profile word under the shared def
 test("under Core Language alone the same program reads as unavailable and uncolored", () => {
   // The other direction of the same contradiction, so neither half above is vacuous: with Sprites
   // and Turtle & Rendering inactive the checker does not know `new_turtle`/`ask`/`right`, and the
-  // editor stops painting `ask` as a keyword — `spec/tooling.md:31`'s "a profile word whose profile
+  // editor stops painting `ask` as a keyword — `spec/tooling.md#normative-token-class-model`'s "a profile word whose profile
   // is inactive" is `primitive`.
   const source = ":t = new_turtle\nask :t [ right 90 ]\nflibbertigibbet";
   const state = createStudioState();

@@ -12,7 +12,7 @@
 # `packages/parser/src/value-of-key-newline.test.mjs`.
 #
 # `execute()` runs `parse()` and never `check()`, so the runtime holds its own copy of these rules.
-# The reader operates on a dict, so Heritage also needs Data (`spec/conformance.md:305`).
+# The reader operates on a dict, so Heritage also needs Data (`spec/conformance.md#profile-dependency-dag`).
 :d = { a: 7 b: "a" }
 :k = "a"
 
@@ -73,7 +73,7 @@ key :k }
 print { a: value of :d for key :k }
 
 # Case is the third axis of the cross-product: keywords are case-insensitive
-# (`spec/grammar.md:13`), so an UPPERCASE tail must continue across a newline and mean exactly what
+# (`spec/grammar.md#lexical-form-and-encoding`), so an UPPERCASE tail must continue across a newline and mean exactly what
 # the lowercase one means. `style` is a check-only flag that `execute()` never reads, so it has no
 # bearing here either way; the tail words `of`/`for`/`key` are not linted at all in any case.
 print value of :d

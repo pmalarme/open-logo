@@ -7,10 +7,10 @@
 //   * every lexical class reachable without symbol discovery: keyword, primitive, number,
 //     word/string, :variable, comment, bracket, brace, paren, operator, index/dot, dict-key;
 //   * all 5 bracket delimiter roles: list, instruction-block, selector, pattern, field-list;
-//   * contextual reserved words in/out of `is`-predicate position (spec/tooling.md:96-99); `of`'s
+//   * contextual reserved words in/out of `is`-predicate position (spec/tooling.md#reserved-words-for-tooling); `of`'s
 //     second reader-recognized position, the Heritage `value of … for key` reader
-//     (spec/grammar.md:380), is proven in `heritage-tooling.test.mjs` (issue #785);
-//   * comment/string atomicity (spec/tooling.md:25-26);
+//     (spec/grammar.md#keywords-primitives-and-built-in-names), is proven in `heritage-tooling.test.mjs` (issue #785);
+//   * comment/string atomicity (spec/tooling.md#normative-token-class-model);
 //   * negative-literal-as-number merging vs. genuine binary subtraction; and
 //   * the semantic bucket (#120): procedure-name (declaration + resolved calls), type-name
 //     (struct declaration + constructor calls), and field-name (field-list declaration + known
@@ -22,7 +22,7 @@
 // The final section pins the `profiles` option's BLAST RADIUS (issues #832, #840): the per-profile
 // suites assert that the six profile block-heads plus the Sprites mode-switch command `tell`
 // (which takes no block — `spec/turtles-and-sprites.md` keeps that distinction, and
-// `spec/tooling.md:30` moves "a profile's block-heads and its mode-switch commands" alike) move,
+// `spec/tooling.md#normative-token-class-model` moves "a profile's block-heads and its mode-switch commands" alike) move,
 // while this file asserts that a representative corpus of non-profile sources does not.
 
 import assert from "node:assert/strict";
@@ -241,7 +241,7 @@ test("dict-key: a dict-literal's number key stays number, not dict-key", () => {
 // `variable`-kind token (the same ambiguity `parser.ts`'s `splitGluedColonToken` resolves for
 // parsing). `highlight()` never re-lexes its own copy or shares the parser's internal token
 // array, so it must independently split that one raw token back into an `operator` `:` plus
-// the value's own class (spec/tooling.md:39,41) rather than emitting a single `:variable` token.
+// the value's own class (spec/tooling.md#normative-token-class-model) rather than emitting a single `:variable` token.
 
 test("dict-key: a glued dict-entry colon splits into operator `:` plus the value's own class", () => {
   assert.deepEqual(classes("print { a:foo }"), [
@@ -361,7 +361,7 @@ test("dict-key: multiple glued dict entries each split their own colon independe
   ]);
 });
 
-// --- Bracket delimiter roles (spec/tooling.md:71-81) --------------------------------------
+// --- Bracket delimiter roles (spec/tooling.md#delimiter-roles) --------------------------------------
 
 test("role list: a list literal in value position after `=`", () => {
   const tokens = OL.highlight(":xs = [1 2 3]", doc);
@@ -506,7 +506,7 @@ test("role field-list vs role list: `struct` is not special-cased when the brack
   );
 });
 
-// --- Contextual reserved words (spec/tooling.md:96-99; `of` also spec/grammar.md:380) --------
+// --- Contextual reserved words (spec/tooling.md#reserved-words-for-tooling; `of` also spec/grammar.md#keywords-primitives-and-built-in-names) --------
 
 test("contextual: empty/member/a are keyword only immediately after is, and so is `of` there", () => {
   assert.equal(
@@ -601,7 +601,7 @@ test("contextual: a PARENTHESISED or multiline operand still reaches the is-pred
   // past `node.operand.source_span.end` to find `is`, but the operand's span is the INNER
   // expression's — a parenthesised operand leaves its `)` in between, and a multiline one leaves
   // newlines too. The scan landed on whichever came first, marked nothing, and painted the
-  // predicate's own word `primitive` in a position `spec/tooling.md:30` gives `keyword`.
+  // predicate's own word `primitive` in a position `spec/tooling.md#normative-token-class-model` gives `keyword`.
   //
   // Every is-predicate form is covered, in both the single-line and the multiline shape, because
   // the defect was in the shared scan rather than in any one form.
@@ -675,9 +675,9 @@ test("contextual: a PARENTHESISED or multiline operand still reaches the is-pred
 test("contextual: empty/member/of/a in a plain call position are ordinary names, not is-predicate keywords", () => {
   // `of` has a SECOND reader-recognized position — the Heritage `value of … for key` reader, where
   // it is `keyword` (issue #785, proven in `heritage-tooling.test.mjs`). These four bare calls are
-  // in no such position, so each falls through to the bare-name class. (`spec/tooling.md:31` makes
+  // in no such position, so each falls through to the bare-name class. (`spec/tooling.md#normative-token-class-model` makes
   // that fall-through class `primitive` normatively; what remains of defect #831 is only that
-  // `semanticTokens` then adds `defaultLibrary`, which `:31` forbids inferring. This test pins the
+  // `semanticTokens` then adds `defaultLibrary`, which `spec/tooling.md#normative-token-class-model` forbids inferring. This test pins the
   // contextual-word behaviour either way.)
   assert.equal(OL.highlight("print empty", doc).at(-1).class, "primitive");
   assert.equal(OL.highlight("print member", doc).at(-1).class, "primitive");
@@ -700,8 +700,8 @@ test("contextual: is, between, and strictly are globally reserved keywords every
   );
 });
 
-test("contextual: `to` is a keyword everywhere it is used (heritage opener, set...to, for...to) per spec/tooling.md:96", () => {
-  // spec/tooling.md:96 documents `to` as playing two grammatical roles (the heritage procedure
+test("contextual: `to` is a keyword everywhere it is used (heritage opener, set...to, for...to) per spec/tooling.md#reserved-words-for-tooling", () => {
+  // spec/tooling.md#reserved-words-for-tooling documents `to` as playing two grammatical roles (the heritage procedure
   // opener and the `set .../for ...` slot word) but — unlike empty/member/of/a — never carves out
   // an "ordinary name elsewhere" exception for it; `to` stays in the Core reserved-word list
   // (keywords.ts) in every position, so the highlighter classifies it as keyword uniformly.
@@ -721,7 +721,7 @@ test("contextual: `to` is a keyword everywhere it is used (heritage opener, set.
   );
 });
 
-// --- Atomicity (spec/tooling.md:25-26) ----------------------------------------------------
+// --- Atomicity (spec/tooling.md#normative-token-class-model) ----------------------------------------------------
 
 test("atomicity: keyword/operator/bracket-shaped text inside a comment stays inside one comment token", () => {
   const tokens = OL.highlight("print 1 # repeat [ :x ] and or\nprint 2", doc);
@@ -996,16 +996,16 @@ test("tokens are returned in source order and cover the whole meaningful input",
 
 // --- The `profiles` option's blast radius (issues #832, #840) ---------------------------------
 
-// `spec/tooling.md:30` puts the profile block-heads — Sprites' `ask`/`each` plus its mode-switch
+// `spec/tooling.md#normative-token-class-model` puts the profile block-heads — Sprites' `ask`/`each` plus its mode-switch
 // command `tell`, and Interaction's `when`/`every`/`on_key`/`on_click` — in the `keyword` class
-// "while their profile is active", and `:31` puts "a profile word whose profile is inactive" in
+// "while their profile is active", and `spec/tooling.md#normative-token-class-model` puts "a profile word whose profile is inactive" in
 // `primitive`. `highlight()` has honoured BOTH halves since issue #740 gave it an active-profile
 // set, and the per-profile suites (`sprites-tooling.test.mjs`, `interaction-tooling.test.mjs`)
 // already assert each of the seven names in both directions.
 //
 // What nothing pinned before this block is the rule's other side: which words the option must
-// leave ALONE. `spec/tooling.md:30` names `local end`, `for end from 1 to 3`, `export end`, and
-// `:p.end` as positions where `end` is `keyword` anyway, and `:31` names `empty` as `primitive` —
+// leave ALONE. `spec/tooling.md#normative-token-class-model` names `local end`, `for end from 1 to 3`, `export end`, and
+// `:p.end` as positions where `end` is `keyword` anyway, and `spec/tooling.md#normative-token-class-model` names `empty` as `primitive` —
 // none of them a profile word, so no profile set may move any of them. That invariant lived only
 // in prose, and two slices turned on it. Issue #840 (closed `NOT_PLANNED`) proposed reclassifying
 // **any** built-in name in a binding position — its own table lists `local if`, `set count to 5`,
@@ -1087,7 +1087,7 @@ function profileClasses(source, profiles) {
  * a claim of coverage here cannot quietly decay into error recovery — a corpus of malformed
  * sources still compares equal to itself under two profile sets while exercising none of the
  * grammar it names. `export end` is the single deliberate exception: it is one of
- * `spec/tooling.md:30`'s own four normative examples, and the reader currently enters recovery on
+ * `spec/tooling.md#normative-token-class-model`'s own four normative examples, and the reader currently enters recovery on
  * it, so its diagnostics are listed rather than hidden.
  */
 const PROFILE_WORD_FREE_CORPUS = [
@@ -1118,7 +1118,7 @@ const PROFILE_WORD_FREE_CORPUS = [
 
 /**
  * Parse diagnostics each corpus entry and named control is expected to raise, keyed by source.
- * Absent = must parse clean. Only `export end` appears, and only because `spec/tooling.md:30`
+ * Absent = must parse clean. Only `export end` appears, and only because `spec/tooling.md#normative-token-class-model`
  * requires the example and the reader currently enters recovery on it.
  */
 const DECLARED_PARSE_DIAGNOSTICS = new Map([
@@ -1189,7 +1189,7 @@ const BUILT_IN_NAMES = JSON.parse(
  * Position-dependence is this block's declared threat model, so the templates cover the contexts
  * it names rather than only the convenient ones. #840's AC1 table is entirely **binding**
  * positions, and its three forms — `local if`, `set count to 5`, `for fd in [1 2]` — are the last
- * three templates, the `for` row in its `from` spelling, which is `spec/tooling.md:30`'s own
+ * three templates, the `for` row in its `from` spelling, which is `spec/tooling.md#normative-token-class-model`'s own
  * example. Every one of the seven is load-bearing: removing any one lets a mutant through that the
  * others miss, which is why none is dropped as redundant. The per-template evidence is recorded on
  * #832 rather than restated here, since nothing in the tree recomputes it — and on the issue
@@ -1247,7 +1247,7 @@ test("profiles: no built-in-names.json entry outside OL_PROFILE_KEYWORDS changes
 });
 
 /**
- * `spec/tooling.md:30`'s four ordinary-name positions for `end`, `:31`'s `empty`, and two Core
+ * `spec/tooling.md#normative-token-class-model`'s four ordinary-name positions for `end`'s `empty`, and two Core
  * block-heads as positive controls. The expected class is a one-element array, so a filter that
  * silently matched nothing — or matched twice — fails rather than passing vacuously.
  */
@@ -1351,7 +1351,7 @@ test("profiles: every OL_PROFILE_KEYWORDS word moves in both directions", () => 
 
 /**
  * Interaction's `when` is `keyword` while its profile is active and `primitive` while it is not
- * (`spec/tooling.md:30-31` — `:30` states the active half, `:31` the inactive one).
+ * (`spec/tooling.md#normative-token-class-model` —  states the active half the inactive one).
  */
 const PROFILE_HEAD_SOURCE = 'when "start" [ print 1 ]\n';
 

@@ -10,7 +10,7 @@
  * contracts below (source spans, `ol-*` diagnostics, and the trace/event registry) are the
  * seams every other package builds against. See `docs/adr/0006-cross-cutting-contracts.md`.
  * `getHostMetadata` exposes feature-detection metadata (spec version, supported profiles,
- * extensions, rendering targets) per `spec/conformance.md:266-291`.
+ * extensions, rendering targets) per `spec/conformance.md#feature-to-profile-table, spec/conformance.md#profile-dependency-dag`.
  */
 export { OPENLOGO_VERSION } from "./version.js";
 

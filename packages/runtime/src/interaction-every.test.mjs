@@ -221,7 +221,7 @@ test("every with a negative count raises ol-range", () => {
 });
 
 test("a WORD that reads as a non-positive number still raises ol-range, with the coerced value", () => {
-  // The RANGE arm reached through a word. `spec/execution-model.md:33-34` accepts a word that
+  // The RANGE arm reached through a word. `spec/execution-model.md#value-and-type-model` accepts a word that
   // parses as a number wherever a number is expected, so `every "0"` must reach the same `ol-range`
   // the literal `0` does. Nothing exercised that composition: every range case passed a number
   // literal, so an implementation that guarded the range only when the argument was literally a
@@ -262,7 +262,7 @@ test("every with a non-number count raises ol-type", () => {
 
 test("a word that reads as a non-whole number reports the WORD, not a coerced number", () => {
   // The third arm of the tick-count type check, and the one that pins WHICH value the diagnostic
-  // names. `spec/execution-model.md:33-34` coerces a numeric word far enough to be judged
+  // names. `spec/execution-model.md#value-and-type-model` coerces a numeric word far enough to be judged
   // non-whole, but the learner wrote a word, so `actual`/`value` must say so. An implementation
   // that pre-coerced the word before the wholeness check would report `number`/`2.5` and still
   // satisfy the other two arms — a number literal was never a word, and `"loud"` never coerces at
@@ -434,7 +434,7 @@ test("a re-entrant wait inside an every handler does not deliver a second OVERLA
   // The handler for `every 2` runs a nested `wait 2`. While that inner wait advances the clock past
   // another due tick for the SAME handler, the handler is already `running`, so the arriving
   // occurrence is QUEUED rather than re-entered — no invocation ever overlaps itself, which is what
-  // "at most one pending invocation" buys (`spec/interaction-events.md:189-196`). The queued
+  // "at most one pending invocation" buys (`spec/interaction-events.md#every-n-block`). The queued
   // occurrence is not lost: it is drained once the body returns, so the run prints twice. What is
   // pinned here is the absence of OVERLAP, not the absence of a second run — the second `print`
   // provably follows the first rather than interleaving with it.
@@ -636,7 +636,7 @@ test("an EMPTY `each` body still offers a main-line boundary each iteration", ()
   // body, so it is main-line progress exactly as a loop iteration is — but the boundary it relied on
   // fires per STATEMENT, so an empty per-turtle body had none.
   //
-  // `new_turtle` is a REPORTER (`spec/turtles-and-sprites.md:21`), so its value must be bound for a
+  // `new_turtle` is a REPORTER (`spec/turtles-and-sprites.md#canonical-forms`), so its value must be bound for a
   // turtle to exist: two bindings plus the implicit default turtle give three addressed turtles and
   // therefore three iterations. The comparand shares the whole prelude — `tell turtles` included —
   // and matches that iteration count, so the three forms differ only in the body under test.
@@ -690,8 +690,8 @@ test("a queued occurrence still RUNS when the main line has statements left", ()
 
 test("under an explicit forever, an overrunning handler runs back to back until the budget stops it", () => {
   // The counterpart: a learner who wants the timer to keep firing says so, and then
-  // `spec/interaction-events.md:189-196`'s "degrades to running back to back" applies, bounded by
-  // the ordinary instruction budget exactly as any non-terminating program is (`:79`). This is what
+  // `spec/interaction-events.md#every-n-block`'s "degrades to running back to back" applies, bounded by
+  // the ordinary instruction budget exactly as any non-terminating program is (`spec/interaction-events.md#time-ticks-and-handlers`). This is what
   // keeps the discard rule honest — without it, "discarded when the run closes" could be satisfied
   // by never draining at all.
   const result = execute(
@@ -728,7 +728,7 @@ test("further intervals arriving while one is already queued coalesce: the queue
 });
 
 test("the interval clock is FIXED RATE: a late invocation does not re-measure the period", () => {
-  // Maintainer ruling #984, `spec/interaction-events.md:183-187`. A one-time block separates the two
+  // Maintainer ruling #984, `spec/interaction-events.md#every-n-block`. A one-time block separates the two
   // readings: a key press at tick 4 holds the thread for six ticks while the `every 4` handler is
   // claimed, so the handler is delayed but its clock is not — intervals stand at ticks 4, 8 and 12,
   // the original grid, and the run prints four times. Under fixed DELAY the period would restart

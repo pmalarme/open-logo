@@ -1,13 +1,13 @@
 // Unit tests for the Sprites **addressing trace events** (issue #766), driven end to end through
-// `execute()`. `spec/rendering.md:193` is normative — "Implementations with multiple turtles MUST
+// `execute()`. `spec/rendering.md#non-visual-state-descriptions` is normative — "Implementations with multiple turtles MUST
 // identify the active turtle or addressed turtle set" — but before this slice a consumer of the
 // trace stream could not: `tell`/`ask`/`each` changed the addressed set silently, and the only
 // turtle identity in the stream was the *acting* turtle's `turtle_id` on each per-turtle effect,
-// which after an `ask`/`each` block restores (spec/turtles-and-sprites.md:58) is neither the active
+// which after an `ask`/`each` block restores (spec/turtles-and-sprites.md#addressing-model) is neither the active
 // turtle nor the addressed set.
 //
 // So every change of the addressed set now emits a `primitive` event (the registered generic
-// catch-all for a primitive without a more specific kind, spec/execution-model.md:703 — no new event
+// catch-all for a primitive without a more specific kind, spec/execution-model.md#trace-and-event-registry — no new event
 // kind, see packages/runtime/src/addressing.ts) carrying an absolute snapshot:
 // `{ addressed_turtle_ids, current_turtle_id }`. `foldAddressing` below is the whole consumer
 // algorithm — assign, never infer — and these tests assert what a renderer or the studio's
@@ -63,7 +63,7 @@ test("tell publishes the whole addressed set and the current turtle", () => {
 });
 
 test("an addressing event is never stamped with an envelope turtle_id (it describes a set)", () => {
-  // spec/execution-model.md:638 — `turtle-id` is "present only when the event is turtle-specific".
+  // spec/execution-model.md#execution-safety — `turtle-id` is "present only when the event is turtle-specific".
   // An addressing event concerns the whole addressed set, so stamping it with one turtle's id would
   // make a spec-violating envelope binding on every implementation that reads this corpus.
   const result = execute(
@@ -118,7 +118,7 @@ test("an addressing form reached from a per-turtle command's ARGUMENT is still n
 });
 
 test("a scene-only clean reached from a per-turtle command's argument is never stamped", () => {
-  // No `clear` carries a `turtle_id` in any mode (spec/turtles-and-sprites.md:113), and `clean`
+  // No `clear` carries a `turtle_id` in any mode (spec/turtles-and-sprites.md#per-turtle-state-and-turtle-commands), and `clean`
   // additionally concerns no turtle at all — it only wipes the shared drawing surface. Since
   // argument evaluation runs inside the per-turtle stamping window, a `clean` in a reporter's body
   // would otherwise be labelled with each acting turtle in turn (turtles 1 and 2 here).
@@ -146,11 +146,11 @@ test("a scene-only clean reached from a per-turtle command's argument is never s
 });
 
 test("clear_screen's homing move/turn carry the homed turtle's id under explicit addressing", () => {
-  // Issue #847 + spec/turtles-and-sprites.md:113: the homing is observable, so the events that
+  // Issue #847 + spec/turtles-and-sprites.md#per-turtle-state-and-turtle-commands: the homing is observable, so the events that
   // describe it must name the turtle they homed — otherwise a per-turtle reducer would home the
   // main turtle. The addressed set here is the single turtle 2, so the homing pair names it and
   // turtle 1 is left where `forward 10` put it. The `clear` names nobody: it describes the shared
-  // surface (:113), so the identity lives on the movement events alone.
+  // surface (spec/turtles-and-sprites.md#per-turtle-state-and-turtle-commands), so the identity lives on the movement events alone.
   const result = execute(
     [
       ":a = new_turtle",
@@ -180,8 +180,8 @@ test("clear_screen's homing move/turn carry the homed turtle's id under explicit
 
 test("clear_screen under tell homes every addressed turtle but clears the surface once", () => {
   // The issue #738 ruling: there is ONE shared drawing surface, so it is cleared once however many
-  // turtles are addressed (spec/turtles-and-sprites.md:111), while the homing is ordinary per-turtle
-  // movement and applies once for each addressed turtle (:113). So two turtles produce two homing
+  // turtles are addressed (spec/turtles-and-sprites.md#per-turtle-state-and-turtle-commands), while the homing is ordinary per-turtle
+  // movement and applies once for each addressed turtle (spec/turtles-and-sprites.md#per-turtle-state-and-turtle-commands). So two turtles produce two homing
   // pairs and exactly one `clear`.
   const result = execute(
     [
@@ -209,7 +209,7 @@ test("clear_screen under tell homes every addressed turtle but clears the surfac
 
 test("clear_screen homes the same turtles whichever order tell listed them in", () => {
   // The wart the ruling removes (issue #738): "current" used to be the FIRST member of the addressed
-  // set, so `tell [ :a :b ]` homed :a and `tell [ :b :a ]` homed :b. spec/turtles-and-sprites.md:113
+  // set, so `tell [ :a :b ]` homed :a and `tell [ :b :a ]` homed :b. spec/turtles-and-sprites.md#per-turtle-state-and-turtle-commands
   // now states the result "never depends on the order the turtles were listed in". Asserted on the
   // homed SET rather than the event order, since the events do follow the addressed set's order.
   const homedTurtles = (order) => {
@@ -295,7 +295,7 @@ test("a clear_screen reached from a per-turtle command's argument homes the addr
   // homing case. Argument evaluation runs inside the per-turtle window, so the reporter's body runs
   // once per addressed turtle — but the per-turtle loop only re-points the CURRENT turtle, it does
   // not narrow the addressed set, so each run of `clear_screen` homes the whole `tell [ :a :b ]` set
-  // (spec/turtles-and-sprites.md:113). Two runs, two homing pairs each, one `clear` each — and none
+  // (spec/turtles-and-sprites.md#per-turtle-state-and-turtle-commands). Two runs, two homing pairs each, one `clear` each — and none
   // of the clears is stamped even though it was emitted inside the stamping window.
   const result = execute(
     [
@@ -335,7 +335,7 @@ test("clear_screen under ask homes the asked turtle, leaving the rest untouched"
   // reaches only that turtle. Pinned so it stays that way: :b is homed and named by its own
   // `move`/`turn`, while :a keeps the position/heading `forward`/`right` gave it. The `clear`
   // carries no identity even here, where exactly one turtle is addressed
-  // (spec/turtles-and-sprites.md:113).
+  // (spec/turtles-and-sprites.md#per-turtle-state-and-turtle-commands).
   const result = execute(
     [
       ":a = new_turtle",
@@ -617,7 +617,7 @@ test("a Core/Turtle & Rendering program emits no addressing event at all", () =>
 });
 
 test("each addressing event reports its own set: a later tell does not rewrite an earlier event", () => {
-  // spec/execution-model.md:652-661 — an effect payload is a point-in-time snapshot, not a live
+  // spec/execution-model.md#trace-and-event-registry — an effect payload is a point-in-time snapshot, not a live
   // reference. Re-addressing must leave the first event reporting the set it was emitted for. (The
   // payload's defensive copy of the ids is not *distinguishable* here, because the runtime replaces
   // the ids array rather than mutating it in place; the copy keeps the payload sealed if that ever

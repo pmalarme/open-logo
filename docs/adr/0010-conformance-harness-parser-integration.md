@@ -30,7 +30,7 @@ Replace the placeholder `produce()` with a real parser integration for M1.
    which the parser uses in every diagnostic's `source_span.document` field. Events remain empty
    until the runtime lands.
 
-2. **Validate actual diagnostics against the spec shape.** Per `spec/error-model.md:28-38`, every
+2. **Validate actual diagnostics against the spec shape.** Per `spec/error-model.md#diagnostic-shape`, every
    diagnostic must have a `message` field. `produce()` validates this requirement by calling
    `validateDiagnostics(diagnostics)` after parsing, which throws if any diagnostic is missing the
    field. This enforces the wire contract without coupling fixtures to English prose — fixtures omit

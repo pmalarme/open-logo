@@ -1,7 +1,7 @@
 // Unit tests for `forward`/`back` (issue #200, spec/commands.md's Turtle movement table,
-// spec/execution-model.md:545-546's movement math, spec/rendering.md's "Line segments" section).
+// spec/execution-model.md#equality-and-ordering's movement math, spec/rendering.md's "Line segments" section).
 // The turtle starts at `(0,0)`, heading `0`, pen down, color `"black"`, width `1`
-// (spec/rendering.md:78) — this slice implements no way to change heading/pen/color/width yet
+// (spec/rendering.md#coordinate-mapping-and-viewport) — this slice implements no way to change heading/pen/color/width yet
 // (issues #201/#206/#208/#209), so every case here necessarily starts and stays at heading `0`.
 // That still exercises every line this slice adds: the `sin`/`cos` movement formula runs
 // identically regardless of the (here always `0`) heading value, and `back`'s sign flip is
@@ -150,7 +150,7 @@ test("execute raises ol-range for a forward distance that overflows to Infinity,
   // `power 10 1000` overflows IEEE 754 double precision to `Infinity` (a legitimately reachable
   // `number` OLValue elsewhere in this codebase — see `comparison-equality.test.mjs`), but
   // `moveTurtle`'s `d·sin h`/`d·cos h` turns `Infinity * sin(0)` (`0`) into `NaN` — a defect this
-  // guard prevents by halting instead of emitting a corrupted event (spec/execution-model.md:517:
+  // guard prevents by halting instead of emitting a corrupted event (spec/execution-model.md#collections-and-uniform-access:
   // "OpenLogo never exposes NaN or Infinity as learner-facing results").
   const result = execute("forward power 10 1000", "main.logo");
   assert.equal(result.events.length, 1);
@@ -162,7 +162,7 @@ test("execute raises ol-range for a forward distance that overflows to Infinity,
     value: "Infinity",
   });
   // `params` is a diagnostic-identity payload and must survive a JSON round-trip
-  // (spec/error-model.md:34) — a raw `Infinity` number would silently become `null`.
+  // (spec/error-model.md#diagnostic-shape) — a raw `Infinity` number would silently become `null`.
   assert.deepEqual(
     JSON.parse(JSON.stringify(result.diagnostics[0].params)),
     result.diagnostics[0].params,

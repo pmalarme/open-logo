@@ -1,5 +1,5 @@
 {
-  "description": "`is_a?` with a type word that is neither a Core/Data type nor a declared struct raises `ol-unknown-type` (issue #329, `spec/data-structures.md:287`): no `struct circle` is declared, so `\"circle\"` is an unknown type word.",
+  "description": "`is_a?` with a type word that is neither a Core/Data type nor a declared struct raises `ol-unknown-type` (issue #329, `spec/data-structures.md#dictionary-operations`): no `struct circle` is declared, so `\"circle\"` is an unknown type word.",
   "profiles": ["core-language", "data"],
   "execute": true,
   "events": [

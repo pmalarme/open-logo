@@ -161,7 +161,6 @@
  */
 
 import { execFileSync } from "node:child_process";
-import { createHash } from "node:crypto";
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join, sep } from "node:path";
 import GithubSlugger from "github-slugger";
@@ -170,23 +169,35 @@ import { marked } from "marked";
 /** Directory holding the normative specification, relative to the repository root. */
 export const SPEC_DIRECTORY = "spec";
 
-/** Location of the exceptions manifest this gate asserts against. */
-export const EXCEPTIONS_PATH = join(
-  "scripts",
-  "spec-citations-exceptions.json",
-);
+/**
+ * Files the scan skips — **none**, and that is now literally true rather than nearly true.
+ *
+ * The one entry here used to be the exceptions manifest, which had to be skipped because every entry
+ * quoted the citation it excused, so scanning it made the gate re-discover its own exception list.
+ * The manifest is gone (saga #1180): a citation that does not resolve fails, and there is nowhere to
+ * record that it is allowed to. Nothing is excluded now, including this module and its own tests —
+ * a gate that exempts itself from the rule it enforces asserts less than it appears to. Test
+ * fixtures therefore name a `contract/` directory rather than `spec/`, so a deliberately-broken
+ * fixture citation cannot masquerade as a real one.
+ */
+export const SCAN_EXCLUSIONS = Object.freeze([]);
 
 /**
- * Files the scan skips.
+ * Where a forward-looking status claim is **not** required to name a tracking issue.
  *
- * The manifest is the only one, and it is unavoidable: every entry quotes the citation it excuses,
- * so scanning it would make the gate re-discover — and demand entries for — its own exception list.
- * Nothing else is excluded, including this module and its tests: a gate that exempts itself from the
- * rule it enforces is asserting less than it appears to. Test fixtures therefore name a `contract/`
- * directory rather than `spec/`, so a deliberately-broken fixture citation cannot masquerade as a
- * real one.
+ * An Accepted ADR is immutable except for its cross-link and status lines (ADR-0000), so a claim
+ * inside one cannot be edited to name an issue — and a gate must never require the impossible. The
+ * deeper reason is that the demand does not apply: an ADR is a frozen record of a decision, so a
+ * forward-looking phrase in one describes the world *at the time of that decision* rather than
+ * pending work, and it cannot rot the way a live claim does.
+ *
+ * This is a **scoping rule, not an exemption**: it names a principle rather than a list of sites, it
+ * needs no maintenance, and it self-applies to every ADR written from here on. The distinction is
+ * the one the exceptions manifest failed — a list that must grow is an exemption. The scope is
+ * printed in the coverage statement on every run, because a gate quietly narrower than it appears is
+ * the defect this saga exists to remove.
  */
-export const SCAN_EXCLUSIONS = Object.freeze([EXCEPTIONS_PATH]);
+export const STATUS_CLAIM_EXEMPT_PREFIX = "docs/adr/";
 
 /** Directory names the filesystem walk never descends into. */
 const UNWALKED_DIRECTORIES = new Set([
@@ -243,21 +254,7 @@ export const STATUS_CLAIM_PHRASES = Object.freeze([
   "will be added",
 ]);
 
-/** The `kind` values an exception entry may declare, mapped to the finding kind each excuses. */
-export const EXCEPTION_KINDS = Object.freeze({
-  /** The citation does not resolve: missing file, past EOF, inverted, or a region with no text. */
-  "stale-citation": "resolution",
-  /** A section anchor names a heading (or a file) that does not exist. */
-  "missing-anchor": "heading",
-  /** The citing site quotes an EBNF production the cited region does not contain. */
-  "misquoted-production": "quotation",
-  /** A bare `:N` no spec-file mention precedes, which is therefore not attributable. */
-  "unattributed-reference": "attribution",
-  /** A forward-looking status claim that genuinely has no tracking issue to name. */
-  "untracked-status-claim": "status-claim",
-});
-
-/** Convert a native path to the `/`-separated form used as a manifest key on every platform. */
+/** Convert a native path to the `/`-separated form used on every platform. */
 export function toPosixPath(path) {
   return path.split(sep).join("/");
 }
@@ -438,6 +435,50 @@ const FRAGMENT_BOUNDARY = /^(?:[\s`'"“”‘’)\]}>|]|$)|^[.,:;!?*~+=…—�
  * of guessed at, and it is why this pattern is anchored and case-sensitive.
  */
 const LINE_FRAGMENT = /^L(\d+)(?:-L(\d+))?$/;
+
+/**
+ * The slug of the heading enclosing `line` — the last one at or above it — or `null` when the line
+ * precedes every heading in the document.
+ *
+ * Used only to tell an author what to write instead of the line citation they wrote. That is worth
+ * saying plainly: this is a **suggestion in a failure message**, never a repair. A gate that quietly
+ * accepted the line it could have converted would be the tolerance issue #893's reviewers deleted.
+ */
+export function enclosingSlug(headings, line) {
+  let found = null;
+  for (const heading of headings) {
+    if (heading.line > line) {
+      break;
+    }
+    found = heading;
+  }
+  return found === null || found.slug === "" ? null : found.slug;
+}
+
+/**
+ * The 1-based inclusive line range one section covers: from its heading to the line before the next
+ * heading, or to the end of the document for the last section.
+ *
+ * This is what the quotation check measures against now that citations name sections rather than
+ * line ranges. It deliberately spans *nested* subsections too — a quotation inside a sub-heading of
+ * the cited section is inside the section as a reader understands it, and narrowing to the next
+ * heading of any level would manufacture failures for accurate quotations.
+ */
+export function sectionRange(headings, slug, lineCount) {
+  const index = headings.findIndex((heading) => heading.slug === slug);
+  if (index === -1) {
+    return null;
+  }
+  const depth = headings[index].depth;
+  let end = lineCount;
+  for (const heading of headings.slice(index + 1)) {
+    if (heading.depth <= depth) {
+      end = heading.line - 1;
+      break;
+    }
+  }
+  return { start: headings[index].line, end };
+}
 
 /**
  * Every heading a markdown document publishes, in order, with the fragment each is reachable at.
@@ -1312,99 +1353,6 @@ export function collectStatusClaims(lines, runOf) {
   return claims;
 }
 
-/**
- * Stable fingerprint for one manifest entry: the citing line, the thing being excused, the entry's
- * **own rationale**, and the issue it is tracked by, hashed together.
- *
- * Hashing `why` is the point. An entry whose rationale is edited no longer matches, so the exception
- * must be re-triaged rather than quietly re-labelled — closing the hole in
- * `scripts/markdown-examples-gate.mjs`, whose `why` is checked for non-emptiness alone and can
- * therefore say anything at all. `issue` is included for the same reason: an entry asserts *who* will
- * fix this, and silently retargeting it at a different (or closed) issue changes that assertion.
- * Truncated to 16 hex digits because this keys a hand-reviewed manifest, not a security boundary.
- */
-export function siteFingerprint(context, subject, why, issue) {
-  return createHash("sha256")
-    .update(
-      `${context.trim()}\u0000${subject}\u0000${why}\u0000${issue}`,
-      "utf8",
-    )
-    .digest("hex")
-    .slice(0, 16);
-}
-
-/**
- * A manifest-entry skeleton for a finding the gate could not excuse, ready to paste and edit.
- *
- * The fingerprint is computed for the placeholder rationale, so replacing the `why` invalidates it
- * on purpose — the gate then reports the fingerprint that rationale actually needs. That round trip
- * is the mechanism keeping a manifest entry's prose pinned to the text it describes.
- */
-export function suggestException(finding, exceptionsPath) {
-  const why = "TODO: explain why this cannot be fixed now, and who will";
-  const issue = "#000";
-  const entry = {
-    subject: finding.subject,
-    observed: finding.observed,
-    kind: finding.kind,
-    issue,
-    why,
-    fingerprint: siteFingerprint(finding.context, finding.subject, why, issue),
-  };
-  return `      add to ${toPosixPath(exceptionsPath)} under "${finding.file}": ${JSON.stringify(entry)}`;
-}
-
-/**
- * Validate one manifest entry's shape, returning human-readable problems (empty when well-formed).
- * A malformed entry fails the gate rather than silently excusing something.
- */
-export function validateExceptionEntry(entry, file, position) {
-  const where = `${file} entry ${position}`;
-  const problems = [];
-  if (typeof entry.subject !== "string" || entry.subject === "") {
-    problems.push(
-      `${where}: missing "subject" — the citation or claim being excused`,
-    );
-  }
-  if (typeof entry.fingerprint !== "string" || entry.fingerprint === "") {
-    problems.push(`${where}: missing "fingerprint"`);
-  }
-  if (typeof entry.why !== "string" || entry.why.trim() === "") {
-    problems.push(
-      `${where}: missing "why" — every exception states its rationale`,
-    );
-  }
-  if (!/^#\d+$/.test(entry.issue ?? "")) {
-    problems.push(
-      `${where}: an exception records work someone must finish, so it must carry its tracking "issue" (e.g. "#948")`,
-    );
-  }
-  if (EXCEPTION_KINDS[entry.kind] === undefined) {
-    problems.push(
-      `${where}: "kind" must be one of ${Object.keys(EXCEPTION_KINDS).join(", ")} (got ${JSON.stringify(entry.kind)})`,
-    );
-  }
-  if (typeof entry.observed !== "string" || entry.observed === "") {
-    problems.push(
-      `${where}: missing "observed" — an entry must declare the exact state it excuses, so it cannot outlive it`,
-    );
-  }
-  return problems;
-}
-
-/**
- * Load the citing-file -> exception-entry[] manifest.
- *
- * JSON has no comments, so keys beginning with an underscore carry the manifest's own documentation
- * and are dropped here — no repository path starts with one, so the convention cannot collide.
- */
-export function loadExceptions(exceptionsPath = EXCEPTIONS_PATH) {
-  const parsed = JSON.parse(readFileSync(exceptionsPath, "utf8"));
-  return Object.fromEntries(
-    Object.entries(parsed).filter(([key]) => !key.startsWith("_")),
-  );
-}
-
 /** Every file under `roots`, depth-first and sorted, as `/`-separated repository-relative paths. */
 export function walkFiles(roots) {
   const found = [];
@@ -1488,8 +1436,6 @@ export function runSpecCitationsGate({
   specDirectory = SPEC_DIRECTORY,
   specRoot,
   exclusions = SCAN_EXCLUSIONS,
-  exceptionsPath = EXCEPTIONS_PATH,
-  exceptions,
 } = {}) {
   const lines = [];
   const findings = [];
@@ -1501,7 +1447,6 @@ export function runSpecCitationsGate({
     bare: 0,
     sectionAnchors: 0,
     lineFragments: 0,
-    excused: 0,
     quotations: 0,
     statusClaims: 0,
     failed: 0,
@@ -1511,91 +1456,19 @@ export function runSpecCitationsGate({
     lines.push(`FAIL ${line}`);
   };
 
-  const resolvedExceptions = exceptions ?? loadExceptions(exceptionsPath);
-  const entries = [];
-  for (const [file, fileEntries] of Object.entries(resolvedExceptions)) {
-    for (const [position, entry] of fileEntries.entries()) {
-      const problems = validateExceptionEntry(entry, file, position);
-      for (const problem of problems) {
-        fail(problem);
-      }
-      if (problems.length === 0) {
-        entries.push({ ...entry, file, position, consumed: false });
-      }
-    }
-  }
-
   /**
-   * Consume the exception excusing one finding, or report it.
+   * Report one site the gate cannot accept.
    *
-   * An entry matches only when its recorded fingerprint equals the hash of the live citing line, the
-   * subject, and the entry's **own** rationale — so an exception cannot survive an edit to the prose
-   * it describes, nor a quiet rewrite of the reason it exists. An entry that names the same subject
-   * but no longer hashes to the same value is reported as exactly that, with the fingerprint its
-   * current rationale needs, rather than as an unexplained failure.
+   * There is no second disposition any more. A finding used to be matched against a fingerprinted
+   * manifest entry and, when one matched, downgraded to `UNRESOLVED` — a green run carrying a list of
+   * known-wrong citations. Saga #1180 removed both the manifest and the idea: a citation that does
+   * not resolve fails, and there is nowhere to record that it is allowed not to. `findings` is kept
+   * so a caller can still enumerate what failed without parsing the report.
    */
-  const excuse = (finding) => {
-    const { file, context, subject, observed, kind, describe } = finding;
+  const report = (finding) => {
     findings.push(finding);
-    const match = entries.find(
-      (entry) =>
-        !entry.consumed &&
-        entry.file === file &&
-        entry.fingerprint ===
-          siteFingerprint(context, subject, entry.why, entry.issue),
-    );
-    if (match === undefined) {
-      const stale = entries.find(
-        (entry) =>
-          !entry.consumed && entry.file === file && entry.subject === subject,
-      );
-      if (stale === undefined) {
-        fail(describe);
-        lines.push(suggestException(finding, exceptionsPath));
-        return;
-      }
-      stale.consumed = true;
-      fail(
-        `${describe} — its exception in ${toPosixPath(exceptionsPath)} (entry ${stale.position}) no longer ` +
-          "matches: the citing line, the entry's own rationale, or the issue it is tracked by has changed " +
-          "since it was written, so it must be re-triaged. As written, this site fingerprints as " +
-          `${siteFingerprint(context, subject, stale.why, stale.issue)}`,
-      );
-      return;
-    }
-    match.consumed = true;
-    if (match.subject !== subject) {
-      fail(
-        `${describe} — its exception in ${toPosixPath(exceptionsPath)} is labelled "${match.subject}", ` +
-          "which is not what is there; an entry that mislabels what it excuses cannot be reviewed",
-      );
-      return;
-    }
-    if (match.observed !== observed) {
-      fail(
-        `${describe} — its exception in ${toPosixPath(exceptionsPath)} declares "${match.observed}", ` +
-          "so the exception no longer describes what is there; re-triage it",
-      );
-      return;
-    }
-    // `kind` is the entry's own account of which defect family this is, and it is checked here
-    // rather than hashed: hashing would only catch an entry EDITED after the fact, while an entry
-    // authored with the wrong kind from the start would still pass. Both reviewers of this slice
-    // independently constructed that mutation, and both got it past an earlier build — a manifest
-    // whose self-reported class can disagree with the finding it excuses corrupts the very audit
-    // counts the UNRESOLVED total is read through.
-    if (match.kind !== kind) {
-      fail(
-        `${describe} — its exception in ${toPosixPath(exceptionsPath)} is filed as "${match.kind}" ` +
-          `(a ${EXCEPTION_KINDS[match.kind]} defect) but this is a ${EXCEPTION_KINDS[kind]} one; ` +
-          "an entry that misfiles what it excuses makes the manifest's own totals wrong",
-      );
-      return;
-    }
-    counts.excused += 1;
-    lines.push(`UNRESOLVED ${describe} (${match.issue}): ${match.why}`);
+    fail(finding.describe);
   };
-
   const specCache = new Map();
   const specLinesFor = (file) => {
     if (!specCache.has(file)) {
@@ -1659,17 +1532,22 @@ export function runSpecCitationsGate({
     const runOf = proseRuns(file, fileLines);
     // A status claim is a statement about the repository, not about the spec, so mode 4 sweeps every
     // tracked file rather than only the ones that carry citations.
+    // An Accepted ADR is immutable, so a claim inside one cannot be edited to name an issue — and a
+    // frozen record describes the world at the time of its decision rather than pending work. This
+    // is a scope, printed in the coverage statement, not a list of excused sites.
+    const immutableRecord = toPosixPath(file).startsWith(
+      STATUS_CLAIM_EXEMPT_PREFIX,
+    );
     for (const claim of collectStatusClaims(fileLines, runOf)) {
       counts.statusClaims += 1;
-      if (claim.tracked) {
+      if (claim.tracked || immutableRecord) {
         continue;
       }
-      excuse({
+      report({
         file,
         context: fileLines[claim.line - 1],
         subject: claim.phrase,
         observed: "untracked",
-        kind: "untracked-status-claim",
         describe:
           `${file}:${claim.line}: "${claim.phrase}" is a claim about this repository's own state that names ` +
           "no tracking issue, so nothing will ever re-check it — name the issue it waits on",
@@ -1691,6 +1569,9 @@ export function runSpecCitationsGate({
       continue;
     }
     counts.files += 1;
+    // Which prose runs carry a RESOLVING anchor, and which section each names — the input the
+    // quotation check reads now that no citation carries a line range.
+    const anchoredByRun = new Map();
 
     for (const anchor of anchors) {
       const subject = formatAnchor(anchor);
@@ -1701,29 +1582,22 @@ export function runSpecCitationsGate({
       const wellFormed = anchor.fragment !== "" && anchor.malformed !== true;
       const fragment = wellFormed ? LINE_FRAGMENT.exec(anchor.fragment) : null;
       if (fragment !== null) {
-        // A line fragment names lines, so it is checked as the line claim it is rather than hunted
-        // for among the headings, where it could only ever be reported as a heading that does not
-        // exist.
+        // A line fragment is a line claim in an anchor's clothing — `#L` plus a number names a
+        // position, not a section, and drifts exactly as a line number does. Under the anchor-only
+        // rule it is rejected on sight rather than resolved against the file's length: whether the
+        // lines it names still hold text is beside the point, because naming lines at all is the
+        // defect.
         counts.lineFragments += 1;
-        const failure = resolveCitation(
-          {
-            specDirectory,
-            file: anchor.file,
-            start: Number(fragment[1]),
-            end: fragment[2] === undefined ? undefined : Number(fragment[2]),
-          },
-          specLinesFor(anchor.file),
-        );
-        if (failure !== null) {
-          excuse({
-            file,
-            context,
-            subject,
-            observed: failure.status,
-            kind: "stale-citation",
-            describe: `${file}:${anchor.line}: ${subject} does not resolve — ${failure.detail}`,
-          });
-        }
+        report({
+          file,
+          context,
+          subject,
+          observed: "line-fragment",
+          describe:
+            `${file}:${anchor.line}: ${subject} names LINES, not a section — GitHub's line fragment ` +
+            "drifts exactly as a line number does. Cite the heading that encloses those lines: " +
+            `${specDirectory}/${anchor.file}#a-heading (ADR-0034)`,
+        });
         continue;
       }
       counts.sectionAnchors += 1;
@@ -1731,18 +1605,25 @@ export function runSpecCitationsGate({
       const headings = specHeadingsFor(anchor.file);
       const failure = resolveAnchor(anchor, headings);
       if (failure === null) {
+        const anchoredRun = runOf[anchor.line];
+        if (!anchoredByRun.has(anchoredRun)) {
+          anchoredByRun.set(anchoredRun, []);
+        }
+        anchoredByRun.get(anchoredRun).push({
+          file: anchor.file,
+          slug: anchor.fragment,
+        });
         continue;
       }
       const wrapped =
         headings === null
           ? null
           : rejoinedFragment(anchor.fragment, fileLines[anchor.line], headings);
-      excuse({
+      report({
         file,
         context,
         subject,
         observed: failure.status,
-        kind: "missing-anchor",
         describe:
           `${file}:${anchor.line}: ${subject} does not resolve — ${failure.detail}` +
           (wrapped === null
@@ -1753,155 +1634,154 @@ export function runSpecCitationsGate({
     }
 
     for (const reference of unattributed) {
-      excuse({
+      report({
         file,
         context: fileLines[reference.line - 1],
         subject: reference.text,
         observed: "unattributed",
-        kind: "unattributed-reference",
         describe:
           `${file}:${reference.line}: the bare reference \`${reference.text}\` follows no ${specDirectory}/<file>.md ` +
           "mention in this file, so nothing says which document it means — write the full citation",
       });
     }
 
-    const citedByRun = new Map();
     for (const citation of citations) {
       counts.citations += 1;
       counts[CITATION_FORM_COUNTS[citation.form]] += 1;
       const context = fileLines[citation.line - 1];
       const subject = formatCitation(citation);
-      const failure = resolveCitation(citation, specLinesFor(citation.file));
-      const run = runOf[citation.line];
-      if (failure === null) {
-        citedByRun.set(run, true);
-        continue;
-      }
-      excuse({
+      // The rule, in one place: a citation that names a line is rejected, whether or not it
+      // currently resolves. Resolution was the old question — does this line still hold text — and
+      // the answer stopped mattering when the line form stopped being allowed. What the author is
+      // told instead is what to write, since the enclosing heading is always derivable from the
+      // line they meant. There is no exception manifest to record a survivor in: that machinery,
+      // and the 84 entries it carried, were deleted with the last line citation (saga #1180).
+      const heading =
+        specHeadingsFor(citation.file) === null
+          ? null
+          : enclosingSlug(specHeadingsFor(citation.file), citation.start);
+      report({
         file,
         context,
         subject,
-        observed: failure.status,
-        kind: "stale-citation",
-        describe: `${file}:${citation.line}: ${subject} does not resolve — ${failure.detail}`,
+        observed: "line-form",
+        describe:
+          `${file}:${citation.line}: ${subject} names a LINE. Cite the section instead — ` +
+          (heading === null
+            ? `${specDirectory}/${citation.file}#a-heading`
+            : `${specDirectory}/${citation.file}#${heading}`) +
+          " (ADR-0034). A heading does not move when text is inserted above it; a line number does, " +
+          "which is the drift saga #1180 removed.",
       });
     }
 
-    for (const run of citedByRun.keys()) {
+    for (const [run, anchored] of anchoredByRun) {
       const runLines = fileLines
         .map((text, index) => ({ line: index + 1, text }))
         .filter((entry) => runOf[entry.line] === run);
       for (const quoted of auditRunQuotations(runLines, specDirectory)) {
         counts.quotations += 1;
-        if (quoted.mention === null) {
-          continue;
-        }
-        const citation = {
-          specDirectory,
-          file: quoted.mention.file,
-          start: quoted.mention.start,
-          end: quoted.mention.stop,
-        };
-        const specLines = specLinesFor(citation.file);
-        // A citation that does not resolve was already reported once; checking a quotation against
-        // an empty region would only restate the same defect in a second, more confusing voice.
-        if (resolveCitation(citation, specLines) !== null) {
-          continue;
-        }
-        const region = [
-          { start: citation.start, end: citation.end ?? citation.start },
-          ...expandCommaTail(quoted.mention.tail).map((extra) => ({
-            start: extra.start,
-            end: extra.end ?? extra.start,
-          })),
-        ];
-        const available = region
-          .map((part) =>
-            normalizeQuotation(
-              specLines.slice(part.start - 1, part.end).join(" "),
+        // The quotation check used to measure a production against the LINE RANGE a citation named.
+        // With no line ranges left it had no input at all, and a check with no input reports success
+        // while measuring nothing — the defect this saga has caught three times. So it now measures
+        // against the SECTION an anchor names, which is the same claim at the granularity citations
+        // now have: the words you quote must be inside the section you cite.
+        //
+        // Against EVERY section the prose run cites, not one of them. A run routinely cites several,
+        // and binding a quotation to a single arbitrary one manufactures failures for accurate
+        // quotations — which is exactly what a first cut of this did across the design notes.
+        const sections = [];
+        for (const anchor of anchored) {
+          const specLines = specLinesFor(anchor.file);
+          const headings = specHeadingsFor(anchor.file);
+          if (specLines === null || headings === null) {
+            continue;
+          }
+          const region = sectionRange(headings, anchor.slug, specLines.length);
+          if (region === null) {
+            continue;
+          }
+          sections.push({
+            subject: `${specDirectory}/${anchor.file}#${anchor.slug}`,
+            text: normalizeQuotation(
+              specLines.slice(region.start - 1, region.end).join(" "),
             ),
+          });
+        }
+        if (
+          sections.length === 0 ||
+          sections.some((section) =>
+            quotationIsPresent(quoted.quotation, section.text),
           )
-          .join(" \u0000 ");
-        if (quotationIsPresent(quoted.quotation, available)) {
+        ) {
           continue;
         }
-        const subject = `${formatCitation(citation)}${quoted.mention.tail ?? ""}`;
-        excuse({
+        const subject = sections.map((section) => section.subject).join(", ");
+        report({
           file,
           context: fileLines[quoted.line - 1],
           subject: quoted.quotation,
           observed: "missing-production",
-          kind: "misquoted-production",
           describe:
             `${file}:${quoted.line}: the production \`${quoted.quotation}\` is quoted here but is not in ` +
-            `${subject} — the citation resolves and still points at the wrong passage`,
+            `${subject} — the anchor resolves and still points at the wrong section`,
         });
       }
     }
   }
 
-  for (const entry of entries) {
-    if (!entry.consumed) {
-      fail(
-        `stale exception — ${entry.file} entry ${entry.position} (${entry.subject}) matches nothing the gate found; ` +
-          "delete it, because a fixed citation must shrink this manifest rather than be re-fingerprinted",
-      );
-    }
-  }
-
   lines.push(
-    `spec citations: ${counts.citations} checked across ${counts.files} citing file(s) ` +
+    `spec citations: ${counts.citations} line-form citation(s) REJECTED across ${counts.files} citing file(s) ` +
       `(${counts.explicit} explicit, ${counts.tails} comma-appended, ${counts.bare} bare), ` +
-      `${counts.sectionAnchors} section anchor(s), ${counts.lineFragments} line fragment(s), ` +
+      `${counts.sectionAnchors} section anchor(s), ${counts.lineFragments} line fragment(s) rejected, ` +
       `${counts.quotations} quoted production(s), ` +
-      `${counts.statusClaims} status claim(s) — UNRESOLVED ${counts.excused}, ${counts.failed} failed`,
+      `${counts.statusClaims} status claim(s) — ${counts.failed} failed`,
   );
   lines.push(
-    "  This gate checks that a citation RESOLVES to text, that a section anchor (<file>.md#a-heading) names " +
-      "a heading that exists in the file it cites, that a quoted EBNF production is in the range cited, and " +
-      "that a forward-looking status claim names a tracking issue. Resolving an anchor proves A HEADING " +
-      "EXISTS and nothing further: it does NOT prove the section supports the claim written beside it. The " +
-      "wrong-passage and misstating-prose modes of issue #934 survive an anchor exactly as they survive a " +
-      "line number — a citation that resolves may still paraphrase a passage that does not support it, and " +
-      "prose beside a correct heading may still misstate what that section says. The explicit, " +
-      "comma-appended and bare counts above, and the line fragment (<file>.md#L30), all name lines and " +
-      "so still drift whenever the spec is edited above them. Ordinary non-heading edits above a " +
-      "section anchor do not move it — but resolving one proves only that SOME heading claims that " +
-      "slug, never that the section the citation meant still claims it. Duplicate headings are " +
-      "numbered positionally, so inserting a colliding heading promotes it into the bare slug and " +
-      "demotes the original, and removing or renaming an earlier duplicate promotes a later one into " +
-      "the slug it vacated; both retarget a citation silently and both leave this gate green. A " +
-      "renamed heading therefore fails loudly only when the rename leaves its slug unclaimed. A " +
-      "citation written without the spec-directory prefix is not seen at all. Headings come from a " +
-      "GFM parse and slugs from github-slugger (ADR-0035), so block structure and rendered text are " +
-      "no longer approximated; where GitHub can still resolve something this reader does not — an " +
-      "entity reference outside the escaping set, raw inline HTML, an emoji shortcode shape, or a " +
-      "numeric reference whose digit count CommonMark and GitHub's renderer disagree about — the " +
-      "cited document is refused rather than answered on a slug computed differently from GitHub's. " +
-      "Two of those four are recognised by shape, so a construct GitHub would publish literally is " +
-      "refused too: this gate errs toward refusing loudly, never toward inventing a slug. Do not read " +
-      "a green run as 'every citation is right'.",
+    "  This gate REJECTS every citation that names a line — a `<file>.md` carrying a line number, a " +
+      "comma-appended tail, a bare colon-and-number attributed to a document, and GitHub's `#L` line " +
+      "fragment. The only accepted form is the " +
+      "section anchor `<file>.md#a-heading`, and there is no exception manifest, no baseline and no " +
+      "grandfathering: a line citation fails, and nowhere records that it may. Beyond that it checks that an " +
+      "anchor names a heading that exists in the file it cites, that a quoted EBNF production is inside the " +
+      "section cited, and that a forward-looking status claim names a tracking issue. Resolving an anchor " +
+      "proves A HEADING EXISTS and nothing further: it does NOT prove the section supports the claim written " +
+      "beside it. The wrong-passage and misstating-prose modes of issue #934 survive an anchor exactly as " +
+      "they survived a line number — a citation that resolves may still paraphrase a passage that does not " +
+      "support it, and prose beside a correct heading may still misstate what that section says. Ordinary " +
+      "non-heading edits above a section anchor do not move it — but resolving one proves only that SOME " +
+      "heading claims that slug, never that the section the citation meant still claims it. Duplicate " +
+      "headings are numbered positionally, so inserting a colliding heading promotes it into the bare slug " +
+      "and demotes the original, and removing or renaming an earlier duplicate promotes a later one into " +
+      "the slug it vacated; both retarget a citation silently and both leave this gate green. A renamed " +
+      "heading therefore fails loudly only when the rename leaves its slug unclaimed. A citation written " +
+      "without the spec-directory prefix — a relative `../../<dir>/<file>.md#y` — is not seen at all, so the " +
+      "rejection above is exhaustive only over the forms this gate enumerates. Headings come from a GFM " +
+      "parse and slugs from github-slugger (ADR-0035), so block structure and rendered text are no longer " +
+      "approximated; where GitHub can still resolve something this reader does not — an entity reference " +
+      "outside the escaping set, raw inline HTML, an emoji shortcode shape, or a numeric reference whose " +
+      "digit count CommonMark and GitHub's renderer disagree about — the cited document is refused rather " +
+      "than answered on a slug computed differently from GitHub's. Two of those four are recognised by " +
+      "shape, so a construct GitHub would publish literally is refused too: this gate errs toward refusing " +
+      "loudly, never toward inventing a slug. The status-claim check does NOT apply under " +
+      `${STATUS_CLAIM_EXEMPT_PREFIX} — an Accepted ADR is immutable, so a claim inside one cannot be edited ` +
+      "to name an issue, and being a frozen record it describes the world at the time of the decision " +
+      "rather than pending work. That is a scope, not an exemption list: it names a principle, needs no " +
+      "maintenance, and self-applies to every ADR. Do not read a green run as 'every citation is right'.",
   );
-  if (counts.excused > 0) {
-    lines.push(
-      `  UNRESOLVED counts citations that do not resolve and are recorded in ${toPosixPath(exceptionsPath)} ` +
-        "against a tracking issue. Fixing one DELETES its entry; the number is expected to fall to zero.",
-    );
-  }
 
   return { ok: counts.failed === 0, counts, lines, findings };
 }
 
 /**
- * Parse CLI arguments: `--root=<path>` (repeatable), `--spec-dir=<token>`, `--spec-root=<path>`, and
- * `--exceptions=<path>` override the defaults, which is how the subprocess regression tests point the
- * CLI at isolated temp fixtures instead of the real corpus.
+ * Parse CLI arguments: `--root=<path>` (repeatable), `--spec-dir=<token>` and `--spec-root=<path>`
+ * override the defaults, which is how the subprocess regression tests point the CLI at isolated temp
+ * fixtures instead of the real corpus.
  */
 export function parseArgs(argv) {
   const roots = [];
   let specDirectory;
   let specRoot;
-  let exceptionsPath;
   for (const arg of argv) {
     if (arg.startsWith("--root=")) {
       roots.push(arg.slice("--root=".length));
@@ -1909,14 +1789,11 @@ export function parseArgs(argv) {
       specDirectory = arg.slice("--spec-dir=".length);
     } else if (arg.startsWith("--spec-root=")) {
       specRoot = arg.slice("--spec-root=".length);
-    } else if (arg.startsWith("--exceptions=")) {
-      exceptionsPath = arg.slice("--exceptions=".length);
     }
   }
   return {
     roots: roots.length > 0 ? roots : undefined,
     specDirectory,
     specRoot,
-    exceptionsPath,
   };
 }

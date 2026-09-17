@@ -144,7 +144,7 @@ test("wait -1 (negative) raises ol-range and emits no primitive event", () => {
 });
 
 test("a WORD that reads as a negative number still raises ol-range, with the coerced value", () => {
-  // The RANGE arm reached through a word. `spec/execution-model.md:33-34` accepts a word that
+  // The RANGE arm reached through a word. `spec/execution-model.md#value-and-type-model` accepts a word that
   // parses as a number wherever a number is expected, so `wait "-1"` must reach the same `ol-range`
   // the literal `-1` does. Nothing exercised that composition: every range case passed a number
   // literal, so an implementation that guarded the range only when the argument was literally a

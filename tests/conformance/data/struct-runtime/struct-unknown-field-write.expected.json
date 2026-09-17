@@ -1,5 +1,5 @@
 {
-  "description": "Writing an undeclared field raises `ol-unknown-field` with `write: true` (issue #329, `spec/data-structures.md:266`): `point` has no `height` field, and a record's field set is fixed at construction, so `:p.height = 120` can never grow a new field.",
+  "description": "Writing an undeclared field raises `ol-unknown-field` with `write: true` (issue #329, `spec/data-structures.md#dictionary-operations`): `point` has no `height` field, and a record's field set is fixed at construction, so `:p.height = 120` can never grow a new field.",
   "profiles": ["core-language", "data"],
   "execute": true,
   "events": [

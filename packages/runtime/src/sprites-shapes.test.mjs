@@ -195,7 +195,7 @@ test("set_shape does not change a turtle's identity (== still holds after set_sh
 
 test("clear_screen under tell emits one un-stamped clear and names the homed turtle on its move", () => {
   // `clear_screen` clears the one shared drawing surface exactly once, not once per addressed turtle
-  // (spec/turtles-and-sprites.md:111), and that `clear` names no turtle in any mode: ":113" — "A
+  // (spec/turtles-and-sprites.md#per-turtle-state-and-turtle-commands), and that `clear` names no turtle in any mode: "" — "A
   // `clear` event describes the shared surface rather than any turtle, so it is not turtle-specific
   // and carries no turtle identity". The homing it performs is per-turtle and is carried by the
   // `move`/`turn` pair instead, which is what lets a per-turtle state reducer home the turtle the

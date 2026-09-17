@@ -79,7 +79,7 @@ test("parses a negative number literal as a dict key", () => {
 });
 
 test("accepts a reserved word as a bare dict key", () => {
-  // Reserved words are legal dict keys (`spec/data-structures.md:143-171`): the lexer never
+  // Reserved words are legal dict keys (`spec/data-structures.md#derived-list-reporters-in-the-data-profile, spec/data-structures.md#dictionaries`): the lexer never
   // special-cases them, so `repeat`/`end`/`if` lex as ordinary `name` tokens here too.
   const dict = firstArg("print { repeat: 1 end: 2 if: 3 }");
   assert.deepEqual(

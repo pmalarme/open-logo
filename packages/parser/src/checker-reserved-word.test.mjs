@@ -17,8 +17,8 @@
 //      are drift-guarded against the public registries below, so a rename fails here rather than
 //      quietly shrinking the guard.
 //   2. **`ol-reserved-word` carries `params: { name }` and nothing else**, and its one sentence
-//      never says *keyword*, *primitive* or *alias* (`spec/error-model.md:125`, issue #883).
-//   3. **`ol-duplicate-definition` carries BOTH spans** (`spec/error-model.md:126,143-146`).
+//      never says *keyword*, *primitive* or *alias* (`spec/error-model.md#normative-code-registry`, issue #883).
+//   3. **`ol-duplicate-definition` carries BOTH spans** (`spec/error-model.md#normative-code-registry`).
 //
 // Every assertion that can be is driven off the **registry** — `heritageAliasNames()`,
 // `OL_CHECK_PROFILES` — rather than a hand-kept list, so a future slice that adds an alias is
@@ -156,7 +156,7 @@ test("#838: the AC2 literal still matches the registries it was measured from", 
     assert.equal(
       OL.tutorPrimitiveArity(name),
       0,
-      `${name} is no longer a zero-arity Tutor command (spec/conformance.md:244)`,
+      `${name} is no longer a zero-arity Tutor command (spec/conformance.md#tutor-ai)`,
     );
   }
   for (const alias of HERITAGE_TURTLE_ALIASES) {
@@ -170,7 +170,7 @@ test("#838: the AC2 literal still matches the registries it was measured from", 
 });
 
 test("#838 AC2: every built-in name is rejected at `define`, whatever profiles are active", () => {
-  // "REGARDLESS of the active profile set, including Core-only" — `spec/grammar.md:408`: what a
+  // "REGARDLESS of the active profile set, including Core-only" — `spec/grammar.md#keywords-primitives-and-built-in-names`: what a
   // profile decides is whether a name *works*, never whether a program may declare it. The
   // Core-only column is the one that was failing: it is the profile set a beginner's program runs
   // under, and it is where `define forward` silently stopped the turtle.
@@ -191,7 +191,7 @@ test("#838 AC2: every built-in name is rejected at `define`, whatever profiles a
 
 test("#838 AC2: every built-in name is rejected at `struct` too, whatever profiles are active", () => {
   // The fix must cover BOTH registration forms or the shadow simply moves to the one that was
-  // missed. `struct` is a declaration slot with no profile condition on it (`spec/grammar.md:382`),
+  // missed. `struct` is a declaration slot with no profile condition on it (`spec/grammar.md#keywords-primitives-and-built-in-names`),
   // so its built-in check runs even when `data` is inactive and the declaration would register
   // nothing: the program still asked OpenLogo for a name OpenLogo owns.
   for (const profiles of [ALL_PROFILES, CORE_ONLY]) {
@@ -219,11 +219,11 @@ test("#838 AC2: a built-in name is rejected in the source spelling the learner w
 test("#838 AC4: ol-reserved-word carries params { name } only, names no category, and keeps the lowercase voice", () => {
   // Issue #883, measured before the fix: `define thing` produced the ungrammatical "thing is
   // already a reserved", and `define count` leaked the word *primitive* into learner text. One
-  // sentence replaces both (`spec/error-model.md:125`), and the three forbidden words are asserted
+  // sentence replaces both (`spec/error-model.md#normative-code-registry`), and the three forbidden words are asserted
   // rather than assumed, because a well-meaning "clearer" message is exactly how they come back.
   //
   // The lowercase `choose` after the period is asserted for the same reason. It is the house voice
-  // (`spec/error-model.md:18`, "the warm, lowercase Logo voice", and its `:20` example
+  // (`spec/error-model.md#philosophy`, "the warm, lowercase Logo voice", and its  example
   // `i don't know how to fowad. did you mean forward?`), which every shipped diagnostic already
   // follows. It looks like a typo to anyone reading this one message in isolation, and
   // `docs/design-notes/0007-binding-vs-registration.md:369-370` capitalizes it — so without this
@@ -267,7 +267,7 @@ test("#838 AC5: a procedure defined twice raises ol-duplicate-definition with bo
 });
 
 test("#838 AC5: a third declaration still names the FIRST one — including across kinds", () => {
-  // `original_span` is "the earlier one" (`spec/error-model.md:126`). Pointing a third declaration
+  // `original_span` is "the earlier one" (`spec/error-model.md#normative-code-registry`). Pointing a third declaration
   // at the second would send the learner to another duplicate rather than to the definition that
   // won.
   //
@@ -332,10 +332,10 @@ test("#838 AC5: duplicate detection is NOT profile-gated — a struct duplicates
   // This asserted the opposite in #838's first round, gated on `data` by analogy with issue #405.
   // That was wrong, and wrong in a way the whole ruling exists to prevent:
   //
-  //   * `spec/execution-model.md:82-88` makes phase-1 registration unconditional — "The reader
+  //   * `spec/execution-model.md#reader-pipeline` makes phase-1 registration unconditional — "The reader
   //     registers every `define`/`to` procedure AND EVERY `struct` declaration … a name an earlier
   //     declaration in the program or an imported module already registered raises
-  //     `ol-duplicate-definition`". `spec/data-structures.md:304` agrees. Neither carries a profile
+  //     `ol-duplicate-definition`". `spec/data-structures.md#records-and-structs` agrees. Neither carries a profile
   //     condition.
   //   * #405's reasoning was about what a declaration REGISTERS. A duplicate is a property of what
   //     the program DECLARES, and no profile changes that.
@@ -346,7 +346,7 @@ test("#838 AC5: duplicate detection is NOT profile-gated — a struct duplicates
   //
   // The contrast to hold on to: `checker-names.ts` and `checker-arity.ts` DO gate structs on
   // `data`, and rightly — they answer "is this name visible to call", which is exactly what a
-  // profile decides (`spec/grammar.md:408`). This rule answers "may the program declare it", which
+  // profile decides (`spec/grammar.md#keywords-primitives-and-built-in-names`). This rule answers "may the program declare it", which
   // a profile never decides.
   for (const [label, source, laterLine] of [
     ["struct twice", "struct pt [ x ]\nstruct pt [ y ]\n", 2],
@@ -382,8 +382,8 @@ test("#838 AC5: built-in beats duplicate — a doubly-taken name is reported onc
 test("#838 AC3: the Geometry stdlib is a library — defining it is legal, redefining is a duplicate", () => {
   // Maintainer ruling in #838: `polygon`/`circle`/`arc`/`star`/`area`/`perimeter` have `.logo`
   // files under `stdlib/geometry/`, so they are OpenLogo SOURCE, not names OpenLogo implements.
-  // `spec/educational-model.md:169` — "Learners build `polygon` from `repeat`" — depends on the
-  // first `define polygon` staying clean, and `spec/grammar.md:412` makes a SECOND one
+  // `spec/educational-model.md#level-5--functions-and-procedures` — "Learners build `polygon` from `repeat`" — depends on the
+  // first `define polygon` staying clean, and `spec/grammar.md#keywords-primitives-and-built-in-names` makes a SECOND one
   // `ol-duplicate-definition`, never `ol-reserved-word`. The overlays `grid`/`axes`/`measure` are
   // renderer-backed primitives and stay blocked (pinned by the geometry conformance fixtures).
   const stdlib = ["polygon", "circle", "arc", "star", "area", "perimeter"];
@@ -423,7 +423,7 @@ test("#742: every Heritage alias collides exactly as its canonical does, under e
     assert.equal(
       collides(alias, ALL_PROFILES),
       collides(canonical, ALL_PROFILES),
-      `define ${alias} and define ${canonical} must agree — Heritage is alternate spellings only, no new semantics (spec/conformance.md:150)`,
+      `define ${alias} and define ${canonical} must agree — Heritage is alternate spellings only, no new semantics (spec/conformance.md#heritage)`,
     );
   }
 });
@@ -459,14 +459,14 @@ test("#742: the four Core-backed aliases are rejected, with the surface spelling
 });
 
 test("#841: no Heritage alias depends on a profile gate any more", () => {
-  // `spec/grammar.md:408` makes profile words built-in unconditionally, so no alias spelling may
+  // `spec/grammar.md#keywords-primitives-and-built-in-names` makes profile words built-in unconditionally, so no alias spelling may
   // be declared under any profile set. Sweeping the whole registry rather than naming groups is the
   // point: a future alias is covered without editing this test, and no two groups of aliases can
   // drift apart from each other.
   for (const alias of OL.heritageAliasNames()) {
     assert.ok(
       collides(alias, CORE_ONLY),
-      `${alias} is a built-in name unconditionally (spec/grammar.md:408,414)`,
+      `${alias} is a built-in name unconditionally (spec/grammar.md#keywords-primitives-and-built-in-names)`,
     );
   }
   // The Core-backed aliases, named explicitly so emptying the registry cannot make this vacuous.
@@ -480,7 +480,7 @@ test("#841: no Heritage alias depends on a profile gate any more", () => {
   for (const alias of HERITAGE_TURTLE_ALIASES) {
     assert.ok(
       collides(alias, CORE_ONLY),
-      `${alias} is a built-in name unconditionally (spec/grammar.md:408,414)`,
+      `${alias} is a built-in name unconditionally (spec/grammar.md#keywords-primitives-and-built-in-names)`,
     );
   }
 });
@@ -564,7 +564,7 @@ test("#746: every Sprites reporter collides while sprites is active", () => {
 test("#841: every Sprites reporter collides while the sprites profile is INACTIVE too", () => {
   // The other half of the pair above, and the discriminating variable is the profile set: the
   // same names, checked with and without `sprites`, must answer identically.
-  // `spec/grammar.md:408` — a profile decides whether a name works, never whether a program may
+  // `spec/grammar.md#keywords-primitives-and-built-in-names` — a profile decides whether a name works, never whether a program may
   // declare it — so a difference between these two tests would be the defect, not the point.
   for (const reporter of SPRITES_REPORTERS) {
     const raised = reservedWordFindings(`define ${reporter}\nend\n`, CORE_ONLY);

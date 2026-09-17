@@ -1,5 +1,5 @@
 {
-  "description": "`add 1 to :count` where :count is a number halts with ol-type: a list mutator's target must be a list (Data profile, issue #188, spec/data-structures.md:73-93). The Add's instruction event is still emitted before the runtime type-check fails.",
+  "description": "`add 1 to :count` where :count is a number halts with ol-type: a list mutator's target must be a list (Data profile, issue #188, spec/data-structures.md#lists, spec/data-structures.md#mutating-list-operations). The Add's instruction event is still emitted before the runtime type-check fails.",
   "profiles": ["core-language", "data"],
   "execute": true,
   "events": [

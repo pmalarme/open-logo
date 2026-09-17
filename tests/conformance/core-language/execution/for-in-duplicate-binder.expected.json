@@ -1,5 +1,5 @@
 {
-  "description": "A destructuring pattern with a repeated binder name raises ol-duplicate-binder before iteration begins (spec/error-model.md:116). Issue #103.",
+  "description": "A destructuring pattern with a repeated binder name raises ol-duplicate-binder before iteration begins (spec/error-model.md#normative-code-registry). Issue #103.",
   "profiles": ["core-language"],
   "execute": true,
   "events": [

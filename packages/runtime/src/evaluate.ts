@@ -23,7 +23,7 @@
  * index places (`Place` with `index` segments only — `.field` is Data-profile and deferred).
  *
  * `-3` is a negative *literal* (the reader already folds the sign into `NumberLitNode.value`,
- * per `spec/grammar.md:17,226`), never unary minus, so there is no negation case here — only
+ * per `spec/grammar.md#lexical-form-and-encoding, spec/grammar.md#expressions-and-calls`), never unary minus, so there is no negation case here — only
  * the binary `-` Call.
  *
  * Every operator/builtin does its own operand type-checking (`ol-type`) rather than sharing a
@@ -31,7 +31,7 @@
  * `ol-neg-sqrt`, only `/`/`mod` raise `ol-div-zero`).
  *
  * Issue #104 adds {@link requireWholeNumber} and the `repcount` reporter
- * (`spec/commands.md:776-793`): a 0-arg call that reports the nearest-enclosing `repeat`'s current
+ * (`spec/commands.md#repcount`): a 0-arg call that reports the nearest-enclosing `repeat`'s current
  * 1-based turn, or raises `ol-repcount-outside-repeat` when there is none. The active turn stack
  * lives on {@link Environment} (`repeatTurns`, nearest loop last) so nested `repeat`s and the
  * statements they run both see the same mutable stack that `executeStatements` pushes/pops around
@@ -124,13 +124,13 @@ function fail(diagnostic: Diagnostic): EvalResult {
   return { ok: false, diagnostic };
 }
 
-// --- Environment: the variable binding model (spec/execution-model.md:316-327) --------------
+// --- Environment: the variable binding model (spec/execution-model.md#special-form-delimiter-rules) --------------
 //
 // A frame is one lexical scope's name→value table. `Environment.frames` is nearest-first, and
 // the last frame is always the root/global frame — the top-level program runs directly in it.
 // Issue #94 only ever has the root frame; procedure call frames (issue #97) push additional
 // entries onto the front of `frames` without otherwise changing this shape. Keys are always the
-// case-folded (lowercased) identifier: identifiers are case-insensitive (`spec/grammar.md:13`),
+// case-folded (lowercased) identifier: identifiers are case-insensitive (`spec/grammar.md#lexical-form-and-encoding`),
 // so every binder and every `lookupVar`/`assignVar` folds the name before it touches a frame.
 
 /** One lexical scope: a mutable name→value binding table, keyed by case-folded identifier. */
@@ -140,7 +140,7 @@ export type Frame = Map<string, OLValue>;
  * The whole-program name→definition table issue #97's `execute-internal.ts` builds once, up
  * front, by scanning every {@link ProcedureDefNode} in the program (mirroring the static
  * checker's `collectProcedureArities`/`collectVisibleNames`) — so a procedure may be called
- * before its textual `define` (`spec/execution-model.md:328-333`). Keyed by the callee's
+ * before its textual `define` (`spec/execution-model.md#special-form-delimiter-rules`). Keyed by the callee's
  * lowercased name, matching every other case-insensitive command-name lookup in this package.
  */
 export type ProcedureRegistry = ReadonlyMap<string, ProcedureDefNode>;
@@ -149,7 +149,7 @@ export type ProcedureRegistry = ReadonlyMap<string, ProcedureDefNode>;
  * The whole-program struct-type table the Data profile's `execute-internal.ts` builds once, up
  * front, by scanning every {@link StructDefNode} in the program (mirroring
  * {@link ProcedureRegistry} and the phase-1 procedure pre-scan) — so a `struct` type can be used
- * as a constructor before its textual declaration (`spec/data-structures.md:252-327`, issue #329).
+ * as a constructor before its textual declaration (`spec/data-structures.md#dictionary-writes-and-upserts, spec/data-structures.md#record-operations`, issue #329).
  * Keyed by the struct type's lowercased name, matching every other case-insensitive command-name
  * lookup in this package. The stored {@link StructDefNode} supplies the declared field list (in
  * order) that the constructor fills and that `:record.field` accesses and `is_a?` validate
@@ -227,7 +227,7 @@ export interface CancellationSignal {
  * `target-source-span` value `hint` MUST carry
  * (`spec/execution-model.md#tutor-output-educational-profile`) when no narrower target is
  * selected. `hintProgress` is the host-implementation-defined progression state
- * `spec/execution-model.md:641-652` calls for: a mutable map (like `instructionCount`/`addressing`,
+ * `spec/execution-model.md#trace-and-event-registry` calls for: a mutable map (like `instructionCount`/`addressing`,
  * shared unchanged across every recursive `executeStatements`/`evaluate` call in one `execute()`
  * run) from a serialized `target-source-span` key to the last {@link TutorHintStage} emitted for
  * it, so a repeated `hint` for the same target escalates one stage per call within a single run.
@@ -264,7 +264,7 @@ export interface Environment {
   readonly instructionCount: { count: number };
   /**
    * The main line's statement-boundary hook (maintainer ruling #984,
-   * `spec/interaction-events.md:189-204`). While set, {@link executeStatements} runs it before each
+   * `spec/interaction-events.md#every-n-block`). While set, {@link executeStatements} runs it before each
    * statement, giving a queued `every` occurrence the chance to run that the ruling requires: "run it
    * once the handler is free" for as long as the main line has not finished.
    *
@@ -400,7 +400,7 @@ export interface Environment {
    * `input` is tested by mocking the answer with no new event kind). A **FIFO queue**: the first
    * `input` call takes entry 0, the second entry 1, and so on ({@link takeInputResponse}). Empty
    * (frozen `[]`) for every ordinary headless run, in which case the first `input` has no answer to
-   * take and the read ends the only other way `spec/interaction-events.md:110-111` allows — as a
+   * take and the read ends the only other way `spec/interaction-events.md#trace-stream-integration` allows — as a
    * cancelled program ({@link runtimeDiag.cancelled}). Headless execution *input*, never
    * observable in any event payload: the `primitive` event a read emits carries only the name
    * `input`, never the prompt or the submitted text.
@@ -422,7 +422,7 @@ export interface Environment {
    * `responses` the single JSON-expressible convention the #657 ruling asked for.
    *
    * The read is outstanding for exactly the duration of this call, and the call is synchronous, so
-   * `spec/interaction-events.md:108-111`'s "MUST NOT run new OpenLogo instructions or event handler
+   * `spec/interaction-events.md#trace-stream-integration`'s "MUST NOT run new OpenLogo instructions or event handler
    * blocks" holds by construction: there is no suspension point at which anything else could run.
    */
   readonly hostReader?: HostInputReader;
@@ -456,7 +456,7 @@ export interface TurtleState {
 }
 
 /**
- * The turtle's state at program start (`spec/rendering.md:78`, `spec/commands.md:1189`):
+ * The turtle's state at program start (`spec/rendering.md#coordinate-mapping-and-viewport`, `spec/commands.md#turtle-movement`):
  * position `(0,0)`, heading `0`, pen down, color `"black"`, width `1`, visible, shape `"turtle"`
  * (`spec/rendering.md`'s "Turtle avatar and shapes" section lists `"turtle"` first in the portable
  * set, matching `@openlogo/turtle`'s `INITIAL_TURTLE_STATE.shape`). Exported so
@@ -484,11 +484,11 @@ export function createDefaultTurtleState(): TurtleState {
  * - {@link states} maps every live turtle id to its own {@link TurtleState}. It is seeded with just
  *   the main turtle ({@link MAIN_TURTLE_ID}) — the default turtle every non-Sprites program draws
  *   with — and `new_turtle` adds one fresh default state per
- *   spawn (`spec/turtles-and-sprites.md:32`). This is what makes turtle state *per turtle*: two
+ *   spawn (`spec/turtles-and-sprites.md#turtle-creation`). This is what makes turtle state *per turtle*: two
  *   turtles no longer share one mutable object.
  * - {@link ids} is the current addressed set: the turtles a subsequent turtle command applies to,
- *   once for each (`spec/turtles-and-sprites.md:113`). It defaults to the single main turtle
- *   (`spec/turtles-and-sprites.md:44` "In a program without the Sprites profile, the addressed set
+ *   once for each (`spec/turtles-and-sprites.md#per-turtle-state-and-turtle-commands`). It defaults to the single main turtle
+ *   (`spec/turtles-and-sprites.md#addressing-model` "In a program without the Sprites profile, the addressed set
  *   contains the single default turtle") and `tell` replaces it.
  * - {@link currentId} is the single "current turtle" — the one `who` reports and whose per-turtle
  *   state the movement reporters (`xcor`/`ycor`/`heading`/`pos`) read. It is always the first
@@ -504,7 +504,7 @@ export function createDefaultTurtleState(): TurtleState {
  *   implicit default main turtle and per-turtle events carry NO `turtle-id` (preserving every
  *   Core/Turtle & Rendering fixture, whose main-turtle `move`/`turn`/… events have no `turtle-id`);
  *   once `tell` establishes an explicit addressed set, per-turtle events carry the acting turtle's
- *   `turtle-id` so animation/stepping/`why`/`debug` can attribute them (`spec/turtles-and-sprites.md:113`).
+ *   `turtle-id` so animation/stepping/`why`/`debug` can attribute them (`spec/turtles-and-sprites.md#per-turtle-state-and-turtle-commands`).
  */
 export interface TurtleAddressing {
   readonly states: Map<TurtleId, TurtleState>;
@@ -552,7 +552,7 @@ export function turtleStateFor(
 /**
  * The **current turtle**'s mutable drawing state — the one a turtle command reads and writes, and
  * the one the movement reporters (`xcor`/`ycor`/`heading`/`pos`) report
- * (`spec/turtles-and-sprites.md:105` "The movement reporters and commands are evaluated for the
+ * (`spec/turtles-and-sprites.md#per-turtle-state-and-turtle-commands` "The movement reporters and commands are evaluated for the
  * current turtle"). At top level, before any `tell`, that is the single default main turtle
  * ({@link MAIN_TURTLE_ID}); a `tell` re-aims {@link TurtleAddressing.currentId} at the first
  * addressed turtle and this resolves to that turtle's own state.
@@ -771,7 +771,7 @@ function lookupVar(
 
 /**
  * `:name = value` / `set name to value`: mutate the nearest existing binding, or create one in
- * the root (last) frame when no frame binds `name` yet (`spec/execution-model.md:322-324`).
+ * the root (last) frame when no frame binds `name` yet (`spec/execution-model.md#special-form-delimiter-rules`).
  * Assignment to an unbound name never fails — it always creates a global. `createEnvironment` is
  * the only way to build an {@link Environment} and always seeds at least the root frame, so the
  * cast below (rather than a defensive throw no caller could ever trigger) is safe.
@@ -792,7 +792,7 @@ function assignVar(
   root.set(key, value);
 }
 
-// --- Loop/comprehension binder helpers (spec/execution-model.md:435-439) --------------------
+// --- Loop/comprehension binder helpers (spec/execution-model.md#comprehensions-map-filter-and-reduce) --------------------
 //
 // Shared by `execute-internal.ts`'s `ForIn` statement handling (issue #103) and this module's
 // comprehension evaluation (`map`/`filter`/`reduce`, issue #105) — both bind one iterated element
@@ -801,7 +801,7 @@ function assignVar(
 // so keeping the shared helpers here (never the reverse) is the only cycle-free placement.
 
 /**
- * A `for ... in`/comprehension binder (`spec/grammar.md:136-137`): a bare name, or a
+ * A `for ... in`/comprehension binder (`spec/grammar.md#ebnf-notation`): a bare name, or a
  * destructuring pattern. The pattern node itself (`DestructuringBinderNode`) is not part of
  * `@openlogo/parser`'s public export list, so it is named here via `Extract` off the
  * already-exported {@link ComprehensionNode} rather than importing it directly —
@@ -816,7 +816,7 @@ export type DestructuringBinder = Extract<
 
 /**
  * Push a fresh body-local frame binding `bindings` (name → value) onto `environment`, nearest-first, for
- * a `for`/comprehension binder's own name(s) — `spec/execution-model.md:435-437` ("body-local
+ * a `for`/comprehension binder's own name(s) — `spec/execution-model.md#comprehensions-map-filter-and-reduce` ("body-local
  * bindings that shadow outer names only for the body"). Returns a *new* {@link Environment};
  * `environment` itself is never mutated, so once the caller stops using the returned value the binding is
  * gone — there is no explicit "pop" step, unlike `repeatTurns` (a plain mutable array shared by
@@ -855,9 +855,9 @@ export function findDuplicateBinderName(
 
 /**
  * Bind one iterated element against `binder`: a bare name binds the whole element, while a
- * destructuring pattern destructures it positionally (`spec/execution-model.md:435-439`). A list
+ * destructuring pattern destructures it positionally (`spec/execution-model.md#comprehensions-map-filter-and-reduce`). A list
  * element destructures by index; an {@link OLRecord} element destructures by its declared field
- * order (`fields()`/`get()`, `spec/data-structures.md:329-345`) — derived into a plain values array
+ * order (`fields()`/`get()`, `spec/data-structures.md#nested-records-and-dictionaries`) — derived into a plain values array
  * *before* the arity check below, so a record whose field count disagrees with the pattern's arity
  * fails the same length check a list would. Any other element (or a record/list whose length
  * disagrees with the pattern's arity) raises `ol-range` — a non-destructurable element's length is
@@ -923,7 +923,7 @@ function arg(node: ArithmeticCallNode, index: number): ExpressionNode {
   return value;
 }
 
-/** Per spec/execution-model.md:33: a word that reads as a full number literal coerces. */
+/** Per spec/execution-model.md#value-and-type-model: a word that reads as a full number literal coerces. */
 const NUMERIC_WORD = /^-?\d+(\.\d+)?([eE][+-]?\d+)?$/;
 
 function asNumber(value: OLValue): number | undefined {
@@ -1003,7 +1003,7 @@ type UnaryMathBuiltin = (typeof UNARY_MATH_BUILTINS)[number];
 const BINARY_MATH_BUILTINS = ["power"] as const;
 type BinaryMathBuiltin = (typeof BINARY_MATH_BUILTINS)[number];
 
-/** The comparison operators `spec/execution-model.md:136` places at precedence level 5. */
+/** The comparison operators `spec/execution-model.md#precedence-and-evaluation-order` places at precedence level 5. */
 const COMPARISON_OPERATORS = ["==", "!=", "<", ">", "<=", ">="] as const;
 type ComparisonOperator = (typeof COMPARISON_OPERATORS)[number];
 
@@ -1011,7 +1011,7 @@ type ComparisonOperator = (typeof COMPARISON_OPERATORS)[number];
 type OrderingOperator = "<" | ">" | "<=" | ">=";
 
 /**
- * `and`/`or` at precedence levels 6/7 (`spec/execution-model.md:137-138`): left-associative and
+ * `and`/`or` at precedence levels 6/7 (`spec/execution-model.md#precedence-and-evaluation-order`): left-associative and
  * short-circuit. The parser lowers both the infix form (`a and b`, nested binary `Call`s for
  * three or more operands) and the parenthesized variadic form (`(and a b c)`, one `ParenCall`
  * with every operand as an arg) to the same callee/args shape, so {@link evaluateLogical} just
@@ -1322,7 +1322,7 @@ export function evaluate(
 }
 
 /**
- * Evaluate a dict literal `{ key: value … }` (issue #322, `spec/data-structures.md:143-171`):
+ * Evaluate a dict literal `{ key: value … }` (issue #322, `spec/data-structures.md#derived-list-reporters-in-the-data-profile, spec/data-structures.md#dictionaries`):
  * a fresh {@link OLDict}, entries evaluated left to right. `entry.key` is a literal (never
  * evaluated); `OLDict.set` upserts an existing canonical key in place, which gives both
  * "last-duplicate-wins value" and "first-insertion-position iteration" from one call.
@@ -1343,10 +1343,10 @@ function evaluateDictLit(
 }
 
 /**
- * `value of <dictionary> for key <key>` (issue #322, `spec/grammar.md:213`) — the Heritage dict
- * reader, read-only and a **dict-only** read: `spec/data-structures.md:268` types its operand
+ * `value of <dictionary> for key <key>` (issue #322, `spec/grammar.md#expressions-and-calls`) — the Heritage dict
+ * reader, read-only and a **dict-only** read: `spec/data-structures.md#dictionary-operations` types its operand
  * `dictExpr`, so unlike the Core `[key]` selector (which also indexes lists) it accepts nothing but
- * a dict. Heritage is "alternate spellings only, no new semantics" (`spec/conformance.md:150`), so
+ * a dict. Heritage is "alternate spellings only, no new semantics" (`spec/conformance.md#heritage`), so
  * rather than restating that read it calls the very same {@link resolveDictSegment} the Core
  * `:d.key` and `:d[key]` selectors call — the reader builds no dict-read diagnostic of its own, so
  * there is no second copy to drift out of step with Core, which is how issue #784 happened.
@@ -1363,7 +1363,7 @@ function evaluateDictLit(
  * — byte-identical, for every operand type but `record` (below), to what the twin Core `:x.tom`
  * prints. That identical prose is a *consequence* of reusing the Core builder rather than the
  * requirement itself: what the spec fixes is the machine-readable half — identity is `code` plus
- * `params` and prose is presentation (`spec/error-model.md:254-259`) — so reusing the one builder
+ * `params` and prose is presentation (`spec/error-model.md#localization-boundary`) — so reusing the one builder
  * is what makes the Heritage guarantee hold where it is actually asserted.
  *
  * A **record** operand is the one container type with no Core twin: `dictExpr` excludes it, so the
@@ -1407,7 +1407,7 @@ function evaluateValueOfKey(
  * Resolve a {@link PlaceNode} read (`:l[i]`, `:d.key`, `:m[1][2]`): look up the base variable,
  * then walk every postfix segment against the value so far via {@link resolvePlaceSegment}. Every
  * segment on a read requires its key/field to already exist — a read never upserts (issue #322,
- * `spec/data-structures.md:191`).
+ * `spec/data-structures.md#malformed-dictionary-literal-entries`).
  */
 function readPlace(node: PlaceNode, environment: Environment): EvalResult {
   const base = lookupVar(environment, node.base.name);
@@ -1493,11 +1493,11 @@ type DictSegmentResolution =
  * Resolve one postfix place segment — a dotted `.field` (a dict or record read, its key a
  * parse-time literal) or a bracketed `[key]` selector (a list index or a dict key, decided by
  * `container`'s actual runtime type) — against `container` (issue #322,
- * `spec/data-structures.md:173-217`).
+ * `spec/data-structures.md#dictionaries, spec/data-structures.md#dictionary-reads`).
  *
  * `allowMissingDictKey` controls only the dict branch: `false` (every read, and every
  * *intermediate* write segment) requires the key to already exist — `ol-unknown-key` otherwise,
- * with no auto-vivification of a missing intermediate dict (`spec/data-structures.md:203`).
+ * with no auto-vivification of a missing intermediate dict (`spec/data-structures.md#malformed-dictionary-literal-entries`).
  * `true` (a write's *final* segment only) lets a missing dict key resolve anyway, so the caller
  * can upsert it. List indexing never upserts regardless of this flag — an out-of-range index is
  * always `ol-range`, matching the pre-existing list-only behavior byte-for-byte.
@@ -1613,7 +1613,7 @@ function resolvePlaceSegment(
  * In order: `container` must be a dict (else `ol-type`, `expected: "dict"`, `operation` naming the
  * caller's Core operation), `key` must be a word or number (else `ol-type`
  * `expected: "word or number"`), and — unless `allowMissingDictKey` lets a write's final segment
- * upsert — the key must already exist (else `ol-unknown-key`, `spec/data-structures.md:231,268`).
+ * upsert — the key must already exist (else `ol-unknown-key`, `spec/data-structures.md#dictionary-reads, spec/data-structures.md#dictionary-operations`).
  *
  * The key-type check reports `operation: "index"` for every caller, because the only spellings that
  * can reach it with a bad key take a *runtime* key: `:d[:k]` and `value of :d for key :k`, whose
@@ -1665,7 +1665,7 @@ function resolveDictSegment(
 
 /**
  * The `.field` tail of {@link resolvePlaceSegment} when `container` is an {@link OLRecord}
- * (issue #329, `spec/data-structures.md:252-327`). A record has a fixed field set and never grows
+ * (issue #329, `spec/data-structures.md#dictionary-writes-and-upserts, spec/data-structures.md#record-operations`). A record has a fixed field set and never grows
  * new fields, so an unknown field is `ol-unknown-field` on both read and write — `allowMissingDictKey`
  * (set only for a write's *final* segment) selects the `write: true` param/message variant rather
  * than granting the dict-style upsert vivification records never allow. A known field always
@@ -1724,7 +1724,7 @@ function writePlaceSegmentValue(
 
 /**
  * `thing "name"` — the reporter form of a variable read; `:name` is sugar for this
- * (`spec/execution-model.md:326-327`). The argument must evaluate to a word (`ol-type`
+ * (`spec/execution-model.md#special-form-delimiter-rules`). The argument must evaluate to a word (`ol-type`
  * otherwise); an unbound name raises `ol-undefined-var`, same as a `:name` read.
  */
 function evaluateThing(
@@ -1754,7 +1754,7 @@ function evaluateThing(
 }
 
 /**
- * `repcount` (`spec/commands.md:776-793`): reports the nearest-enclosing `repeat`'s current
+ * `repcount` (`spec/commands.md#repcount`): reports the nearest-enclosing `repeat`'s current
  * 1-based turn — the top of {@link Environment.repeatTurns}, since the `Repeat` handling
  * pushes each pass's turn before running the body and pops it after, so nested `repeat`s naturally
  * stack and the innermost one is always last. `ol-repcount-outside-repeat` when the stack is empty
@@ -1800,7 +1800,7 @@ export function executeAssign(
     // The parser structurally accepts any of `RenderableNode`'s kinds (a reporter/command call,
     // or a bare literal/list) in target position, precisely so this rule — not a blunt parse
     // error — can explain the mistake (`checker-not-a-place.ts`'s doc comment, `spec/grammar.md`,
-    // `spec/tooling.md:213-219`): `first :x = 5`, `count :nums = 3`, `3 = 5`, `[1 2] = 5` all
+    // `spec/tooling.md#layer-2-semantic-checking`): `first :x = 5`, `count :nums = 3`, `3 = 5`, `[1 2] = 5` all
     // reach here as a non-`Place` `node.place`.
     return {
       ok: false,
@@ -1840,8 +1840,8 @@ export function executeAssign(
  * assignment never creates a base), every *intermediate* segment resolves against the existing
  * value with no auto-vivification (`ol-range`/`ol-type`/`ol-unknown-key` per
  * {@link resolvePlaceSegment}), and only the *final* segment's slot is mutated in place — so an
- * aliased reference to the same list/dict observes the write (`spec/execution-model.md:276-287`).
- * A missing final *dict* key upserts (`spec/data-structures.md:195,203`); a missing final list
+ * aliased reference to the same list/dict observes the write (`spec/execution-model.md#assignable-places-and-mutation`).
+ * A missing final *dict* key upserts (`spec/data-structures.md#malformed-dictionary-literal-entries`); a missing final list
  * index is still always `ol-range` (lists never upsert).
  */
 function writeIndexedPlace(
@@ -1889,8 +1889,8 @@ function writeIndexedPlace(
  * TARGET`, `insert … in TARGET at …`) to the shared list it must mutate in place. Evaluating a
  * supported target (`:name`, a postfix `:l[i]`, or any list-valued reporter) yields the *same*
  * array reference the binding holds, so a `push`/`splice`/`length = 0` on it is observed through
- * every alias (`spec/data-structures.md:47`, `spec/execution-model.md:471-481`). A target that
- * does not evaluate to a list raises `ol-type` (`spec/data-structures.md:79`). `OLValue`'s list
+ * every alias (`spec/data-structures.md#the-uniform-collection-access-idiom`, `spec/execution-model.md#records-and-destructuring`). A target that
+ * does not evaluate to a list raises `ol-type` (`spec/data-structures.md#mutating-list-operations`). `OLValue`'s list
  * arm is `readonly`, so the cast to a mutable array mirrors {@link writeIndexedPlace}'s own
  * in-place write. `clear`'s target may also be a dict (issue #322), so it uses its own sibling
  * {@link evaluateCollectionTarget} instead — this helper stays list-only and byte-identical to
@@ -1922,7 +1922,7 @@ function evaluateListTarget(
 }
 
 /**
- * Execute `add value to target` (`spec/data-structures.md:79`, `spec/execution-model.md:471-481`):
+ * Execute `add value to target` (`spec/data-structures.md#mutating-list-operations`, `spec/execution-model.md#records-and-destructuring`):
  * append `value` to the list `target` in place. `value` then `target` are evaluated left to right;
  * either operand being an expression kind this profile does not yet evaluate leaves the whole
  * statement a deferred no-op — matching {@link executeAssign}/`print`, so an unimplemented operand
@@ -1959,7 +1959,7 @@ export function executeAdd(
 }
 
 /**
- * Execute `remove value from target` (`spec/data-structures.md:80,93`): remove the *first* element
+ * Execute `remove value from target` (`spec/data-structures.md#mutating-list-operations`): remove the *first* element
  * structurally equal to `value` (`==`, via {@link valuesEqual}) from the list `target`, in place.
  * If no element matches, the list is left unchanged and no diagnostic is raised. Operand
  * evaluation, deferral, and the non-list `ol-type` guard match {@link executeAdd}.
@@ -2000,7 +2000,7 @@ export function executeRemove(
 }
 
 /**
- * Execute `insert value in target at position` (`spec/data-structures.md:81`): insert `value`
+ * Execute `insert value in target at position` (`spec/data-structures.md#mutating-list-operations`): insert `value`
  * before the 1-based `position` in the list `target`, in place. `value`, `target`, then
  * `position` are evaluated left to right. A non-list target or a non-number position raises
  * `ol-type`; a numeric position that is not a whole number in `1..length + 1` raises `ol-range`
@@ -2106,7 +2106,7 @@ function evaluateCollectionTarget(
 }
 
 /**
- * Execute `clear target` (`spec/data-structures.md:82,230`): remove every element/entry from the
+ * Execute `clear target` (`spec/data-structures.md#mutating-list-operations, spec/data-structures.md#dictionary-reads`): remove every element/entry from the
  * list or dict `target`, in place. A target that is neither raises `ol-type`; an unsupported
  * target expression is a deferred no-op (matching {@link executeAdd}).
  */
@@ -2136,7 +2136,7 @@ export function executeClear(
 }
 
 /**
- * Execute `remove key key from target` (issue #322, `spec/data-structures.md:229`): drop the
+ * Execute `remove key key from target` (issue #322, `spec/data-structures.md#dictionary-reads`): drop the
  * entry keyed `key` from the dict `target`, in place. If `target` has no such key, it is left
  * unchanged and no diagnostic is raised (matching {@link executeRemove}'s "no match, no error"
  * convention). `key` then `target` are evaluated left to right; either being an expression kind
@@ -2259,7 +2259,7 @@ function resolveHeritageAliasName(
  * name. That is the rule issues #670/#733/#741 established for the params on *this* kind of path —
  * a name identifying the callable a diagnostic is about. It is not a blanket claim about every
  * param: `ol-reserved-word`'s `name` is deliberately the SURFACE spelling, because its subject is
- * the registration the learner wrote at that very span (`spec/error-model.md:124`, issue #737).
+ * the registration the learner wrote at that very span (`spec/error-model.md#normative-code-registry`, issue #737).
  */
 function withResolvedCallee(
   node: ArithmeticCallNode,
@@ -2586,7 +2586,7 @@ function evaluateBinaryMath(
 
 // --- Logic: `not` (level 2), `and`/`or` (levels 6/7), no truthiness -------------------------
 //
-// spec/execution-model.md:133,137-144. There is no truthiness (spec/error-model.md:121): every
+// spec/execution-model.md#precedence-and-evaluation-order. There is no truthiness (spec/error-model.md#normative-code-registry): every
 // operand of `not`/`and`/`or` must itself be a boolean, or the operation raises `ol-not-boolean`
 // rather than coercing a number/word/list.
 
@@ -2613,7 +2613,7 @@ function requireBoolean(
 }
 
 /**
- * `not operand` — the boolean-only prefix operator (`spec/execution-model.md:133`). A leading
+ * `not operand` — the boolean-only prefix operator (`spec/execution-model.md#precedence-and-evaluation-order`). A leading
  * `-` on a numeral is a negative *literal*, never unary minus, so `not` is the only prefix
  * operator this evaluator handles.
  */
@@ -2638,7 +2638,7 @@ function evaluateNot(
 }
 
 /**
- * `and`/`or` — left-associative and short-circuit (`spec/execution-model.md:137-144`): `and`
+ * `and`/`or` — left-associative and short-circuit (`spec/execution-model.md#precedence-and-evaluation-order`): `and`
  * evaluates its next operand only while every earlier one was `true`, stopping (and reporting
  * `false`) at the first `false`; `or` stops (reporting `true`) at the first `true`. The parser
  * lowers both the infix form (nested binary `Call`s for three or more operands, left-associative)
@@ -2654,7 +2654,7 @@ function evaluateNot(
  * (`packages/parser/src/parser.ts`'s `parseParenthesized` gathers every operand up to it) and the
  * static checker never arity-checks a grammar operator callee (`checker-arity.ts`), so `(and)`
  * and `(and :a)` parse clean with zero or one operand. `and`/`or`'s signature is `boolean and
- * boolean` (`spec/commands.md:566,585`) — two operands minimum — so fewer than two would
+ * boolean` (`spec/commands.md#and, spec/commands.md#or`) — two operands minimum — so fewer than two would
  * otherwise silently report the identity value (`true` for `and`, `false` for `or`) without ever
  * checking a single operand's type; `execute()` runs `parse()` only, so this is the sole guard.
  */
@@ -2696,11 +2696,11 @@ function evaluateLogical(
 
 // --- Comparisons: equality (`== !=`), ordering (`< > <= >=`), and chains --------------------
 //
-// spec/execution-model.md:483-510. `==`/`!=` compare any two values to a boolean and never
+// spec/execution-model.md#records-and-destructuring, spec/execution-model.md#collections-and-uniform-access. `==`/`!=` compare any two values to a boolean and never
 // raise; ordering is defined only for two numbers or two words and raises `ol-type` otherwise.
 
 /**
- * The canonical printed form of a number (`spec/execution-model.md:19,498-500`): whole values
+ * The canonical printed form of a number (`spec/execution-model.md#value-and-type-model, spec/execution-model.md#records-and-destructuring`): whole values
  * print without a decimal, non-whole values are trimmed to at most 10 significant digits. So
  * `5 == "5"` is `true`, `5 == "05"` is `false` (5 prints as `"5"`, not `"05"`), and a word
  * carrying more than 10 significant digits cannot equal the number it looks like.
@@ -2717,8 +2717,8 @@ export function formatNumber(value: number): string {
 }
 
 /**
- * The canonical printed form of any Core value (`spec/execution-model.md:19` for numbers;
- * `print`/`show` in `spec/commands.md:142-175` for the command surface). Used to render the
+ * The canonical printed form of any Core value (`spec/execution-model.md#value-and-type-model` for numbers;
+ * `print`/`show` in `spec/commands.md#thing, spec/commands.md#show` for the command surface). Used to render the
  * `print value`/`(print …)` trace event as learner-visible text: numbers follow
  * {@link formatNumber}; a word prints verbatim (no surrounding quotes); a boolean prints
  * `true`/`false`; a list prints space-separated and bracketed, recursively, so a nested list
@@ -2771,7 +2771,7 @@ function primitivePrintedForm(value: OLValue): string | undefined {
   }
   if (value instanceof OLTurtle) {
     // A turtle's printed form is its stable, deterministic identity tag `turtle #<id>`
-    // (`spec/turtles-and-sprites.md:13`, `spec/execution-model.md:540`): a turtle is an opaque
+    // (`spec/turtles-and-sprites.md#profile-status-and-dependency`, `spec/execution-model.md#equality-and-ordering`): a turtle is an opaque
     // identity, not a container, so it renders as a single leaf token — never its (mutable) drawing
     // state, which would make `print :t` non-deterministic across movement/pen changes.
     return `turtle #${formatNumber(value.id)}`;
@@ -2823,8 +2823,8 @@ function finishPrintFrame(frame: PrintFrame): string {
 }
 
 /**
- * The canonical printed form of any Core value (`spec/execution-model.md:19` for numbers;
- * `print`/`show` in `spec/commands.md:142-175` for the command surface). Used to render the
+ * The canonical printed form of any Core value (`spec/execution-model.md#value-and-type-model` for numbers;
+ * `print`/`show` in `spec/commands.md#thing, spec/commands.md#show` for the command surface). Used to render the
  * `print value`/`(print …)` trace event as learner-visible text: numbers follow
  * {@link formatNumber}; a word prints verbatim (no surrounding quotes); a boolean prints
  * `true`/`false`; a list prints space-separated and bracketed, recursively, so a nested list
@@ -2987,7 +2987,7 @@ function storeSnapshotChild(frame: SnapshotFrame, childClone: OLValue): void {
  * but it is an opaque *identity* value, not an aliasable container: its own per-turtle drawing state
  * is captured into trace events at the moment each effect is emitted, never through this
  * value-graph copy, and its identity must be preserved so a snapshotted turtle still `==` the
- * original (`spec/execution-model.md:540`). So a turtle is copied by keeping the same reference,
+ * original (`spec/execution-model.md#equality-and-ordering`). So a turtle is copied by keeping the same reference,
  * exactly like a primitive — only lists/dicts/records are structurally cloned below.
  */
 function isSnapshotLeaf(
@@ -3067,7 +3067,7 @@ export function snapshotValue(
 }
 
 /**
- * Normative `==` for OpenLogo's value types (`spec/execution-model.md:483-510` matrix): numeric
+ * Normative `==` for OpenLogo's value types (`spec/execution-model.md#records-and-destructuring, spec/execution-model.md#collections-and-uniform-access` matrix): numeric
  * equality for two numbers; number↔word by canonical printed form; case-sensitive word equality;
  * boolean identity; structural list equality; structural dict equality (same key set, pairwise
  * `==`, order-independent — issue #322); every other cross-type pair is `false`. List/dict
@@ -3112,7 +3112,7 @@ function equalRec(a: OLValue, b: OLValue, inProgress: EqualityMemo): boolean {
     return b instanceof OLRecord ? recordEqual(a, b, inProgress) : false;
   }
   if (a instanceof OLTurtle) {
-    // Turtles compare by identity, never by state (`spec/execution-model.md:540`): a turtle equals
+    // Turtles compare by identity, never by state (`spec/execution-model.md#equality-and-ordering`): a turtle equals
     // only the same turtle. Identity is the turtle's stable `id`, not the JS instance — so the
     // guarantee holds even if a turtle value reaches this comparison through two different routes
     // (`who`, `turtles`, `ask`/`each` binding, a snapshot round-trip) that hand back separate
@@ -3130,7 +3130,7 @@ function equalRec(a: OLValue, b: OLValue, inProgress: EqualityMemo): boolean {
 
 /**
  * Structural list equality that terminates on cyclic or shared structure
- * (`spec/execution-model.md:502-506`). `inProgress` holds the reference pairs currently on the
+ * (`spec/execution-model.md#records-and-destructuring, spec/execution-model.md#collections-and-uniform-access`). `inProgress` holds the reference pairs currently on the
  * comparison stack; re-encountering a pair while it is still in progress is the cyclic back-edge,
  * treated as equal for that branch (bisimulation, not identity short-circuiting). Each pair is
  * removed once its comparison completes, so `inProgress` stays a faithful stack rather than a
@@ -3169,7 +3169,7 @@ function listEqual(
 }
 
 /**
- * Structural dict equality (issue #322, `spec/execution-model.md:494`): same key set and pairwise
+ * Structural dict equality (issue #322, `spec/execution-model.md#records-and-destructuring`): same key set and pairwise
  * `==`, order-independent. Sibling of {@link listEqual} — same cyclic/shared-structure memoization
  * strategy, reusing the same `inProgress` stack since a dict can nest lists and vice versa.
  */
@@ -3249,7 +3249,7 @@ function recordEqual(
 
 /**
  * Lexicographic comparison of two words by Unicode code point
- * (`spec/execution-model.md:509`). `Array.from` iterates by code point (not UTF-16 code unit),
+ * (`spec/execution-model.md#collections-and-uniform-access`). `Array.from` iterates by code point (not UTF-16 code unit),
  * so astral characters sort by their true scalar value. Returns a negative number, `0`, or a
  * positive number when `a` sorts before, equal to, or after `b`.
  */
@@ -3306,7 +3306,7 @@ function numberOrdering(
 /**
  * Ordering (`< > <= >=`) is defined only for two numbers (compared numerically) or two words
  * (compared lexicographically); every other pair raises `ol-type`
- * (`spec/execution-model.md:508-510`). When the left operand is itself non-orderable
+ * (`spec/execution-model.md#collections-and-uniform-access`). When the left operand is itself non-orderable
  * (boolean/list) the diagnostic points at it and names the expected concept `"number or word"`;
  * otherwise the right operand does not match the left's type and the diagnostic points at the
  * right, naming the left's concept.
@@ -3389,7 +3389,7 @@ function evaluateComparisonCall(
 
 /**
  * Evaluate a chained comparison (`1 < :x < 10`) as `1 < :x and :x < 10`
- * (`spec/execution-model.md:146-147`). Operands are evaluated left-to-right, each exactly once,
+ * (`spec/execution-model.md#precedence-and-evaluation-order`). Operands are evaluated left-to-right, each exactly once,
  * and only as far as the `and` short-circuit reaches: a later operand is evaluated only when
  * every earlier link held. The shared middle operand is evaluated once and reused for both of
  * its links — the {@link ComparisonChainNode} stores it once, so single-evaluation is structural.
@@ -3428,12 +3428,12 @@ function evaluateComparisonChain(
   return ok(true);
 }
 
-// --- is-predicates: worded `is ...` and prefix `?`-predicates (spec/execution-model.md:146-166,
+// --- is-predicates: worded `is ...` and prefix `?`-predicates (spec/execution-model.md#precedence-and-evaluation-order,
 // issue #99) ------------------------------------------------------------------------------------
 //
 // `<value> is empty`/`is member of <collection>`/`is a <type-word>`/`is [ strictly ] between <low>
 // and <high>` are the worded forms; `empty?`/`member?`/`is_a?` (ordinary `Call`s dispatched from
-// {@link evaluateCall}) are their prefix equivalents (`spec/execution-model.md:153`). The worded
+// {@link evaluateCall}) are their prefix equivalents (`spec/execution-model.md#precedence-and-evaluation-order`). The worded
 // `is a <type-word>` form's type word is a parse-time literal (`IsTest`'s `{form:"a"}` carries a
 // `WordLitNode`, never evaluated), so at runtime it can only be an *unknown* type name
 // (`ol-unknown-type`) — never a wrong-typed value (`ol-type` is structurally unreachable for this
@@ -3444,7 +3444,7 @@ function evaluateComparisonChain(
 // distinction (`packages/parser/src/checker-type-field.ts`).
 
 /**
- * Core's built-in type words `is a`/`is_a?` recognize (`spec/execution-model.md:161-166`) — the
+ * Core's built-in type words `is a`/`is_a?` recognize (`spec/execution-model.md#precedence-and-evaluation-order`) — the
  * runtime's own copy of the semantic checker's `CORE_TYPE_WORDS` + `DATA_TYPE_WORDS`
  * (`packages/parser/src/checker-type-field.ts`, issues #112/#322), kept in sync by hand since it
  * is not part of `@openlogo/parser`'s public surface (`checker-type-field.ts` is not re-exported
@@ -3452,12 +3452,12 @@ function evaluateComparisonChain(
  * does not (both are "unknown", not a type mismatch). `dict` joined as of issue #322; `record`
  * joins as of issue #329 (the `record` value now exists — {@link OLRecord}). A record value is
  * still never *of* the generic `record` type under `is_a?` — it matches only its own struct type
- * name (`spec/data-structures.md:287`, see {@link valueMatchesIsAWord}) — but `record` is a known
+ * name (`spec/data-structures.md#dictionary-operations`, see {@link valueMatchesIsAWord}) — but `record` is a known
  * type *word*, so `is_a? :p "record"` is a well-formed `false`, not `ol-unknown-type`. `turtle`
  * joins as of issue #665 (the `turtle` value now exists — {@link OLTurtle}): it is a Sprites-profile
  * type word, so `is_a? :t "turtle"` is a well-formed boolean (`true` for a turtle, `false` for any
  * other value) rather than `ol-unknown-type`, matching this prefix form's runtime-evaluated
- * type-word contract (`spec/turtles-and-sprites.md:13`). The prefix `is_a?` form recognizes the word
+ * type-word contract (`spec/turtles-and-sprites.md#profile-status-and-dependency`). The prefix `is_a?` form recognizes the word
  * regardless of profile because it evaluates its type argument dynamically; the *worded* `is a
  * "turtle"` literal form's static profile gating is the semantic checker's concern, added by the
  * Sprites parser slice. Declared struct type names extend this set per program (see
@@ -3492,7 +3492,7 @@ function isKnownIsAWord(word: string, structs: StructRegistry): boolean {
 /**
  * Whether `value` is of the (already known-to-be-valid) `is_a?` type named by `word`. A record
  * matches its own struct type name and nothing else — never the generic `"record"`
- * (`spec/data-structures.md:287`) — so `is_a? (point 3 4) "point"` is `true` but
+ * (`spec/data-structures.md#dictionary-operations`) — so `is_a? (point 3 4) "point"` is `true` but
  * `is_a? (point 3 4) "record"` is `false`. Every non-record value matches its {@link typeNameOf}.
  */
 function valueMatchesIsAWord(value: OLValue, word: string): boolean {
@@ -3513,7 +3513,7 @@ function isEmptyableValue(
 
 /**
  * `is empty`/`empty?`: `true` when a list/dict/word operand has no elements/entries/characters
- * (`spec/execution-model.md:160` — accepts lists, dicts, and words). Any other type raises
+ * (`spec/execution-model.md#precedence-and-evaluation-order` — accepts lists, dicts, and words). Any other type raises
  * `ol-type`.
  */
 function evaluateIsEmptyValue(
@@ -3537,7 +3537,7 @@ function evaluateIsEmptyValue(
 
 /**
  * `is member of <collection>`/`member? value collection`: `true` when `collection` (a list or
- * dict, `spec/execution-model.md:161`) has, respectively, an element equal to `value` (list, via
+ * dict, `spec/execution-model.md#precedence-and-evaluation-order`) has, respectively, an element equal to `value` (list, via
  * {@link valuesEqual}) or a key equal to `value` (dict — key membership, a distinct check from a
  * list's element search). A `collection` that is neither raises `ol-type`; `value`'s own type is
  * unrestricted.
@@ -3568,7 +3568,7 @@ function evaluateIsMemberValue(
  * `is a <type-word>`: `true` when `value` is of the type named by the parse-time literal
  * `typeWord`. The word is grammar-checked (`IsTest`'s `{form:"a"}` carries a `WordLitNode`), so the
  * only runtime-reachable failure is an *unknown* type name — `ol-unknown-type`, never `ol-type`
- * (`spec/execution-model.md:162-163`). A declared struct type name is a known word too
+ * (`spec/execution-model.md#precedence-and-evaluation-order`). A declared struct type name is a known word too
  * (issue #329), and a record matches only its own struct type name (see
  * {@link valueMatchesIsAWord}).
  */
@@ -3585,7 +3585,7 @@ function evaluateIsAWorded(
 
 /**
  * `is_a? value type`: the prefix form's `type` argument is dynamically evaluated
- * (`spec/execution-model.md:164-166`), so — unlike the worded `is a`'s literal — it can itself be
+ * (`spec/execution-model.md#precedence-and-evaluation-order`), so — unlike the worded `is a`'s literal — it can itself be
  * the wrong type (`ol-type`, when it isn't a word at all) before the unknown-type-name check
  * (its `ol-unknown-type`) even applies. A declared struct type name is a known word (issue #329),
  * and a record matches only its own struct type name (see {@link valueMatchesIsAWord}).
@@ -3614,7 +3614,7 @@ function evaluateIsAValue(
 
 /**
  * `is [ strictly ] between <low> and <high>`: inclusive by default, exclusive with `strictly`
- * (`spec/execution-model.md:151-152,159`). Reuses the exact number/word ordering primitives `< >
+ * (`spec/execution-model.md#precedence-and-evaluation-order`). Reuses the exact number/word ordering primitives `< >
  * <= >=` use ({@link numberOrdering}, {@link compareWords}, {@link orderingHolds}) rather than
  * forking a second comparison implementation, but — unlike calling {@link evaluateOrdering}
  * directly — reports every type mismatch with `operation: "between"` (not an ordering-operator
@@ -3733,7 +3733,7 @@ function evaluateIsPredicate(
   }
 }
 
-/** `empty? value` — the prefix equivalent of `<value> is empty` (`spec/commands.md:655-669`). */
+/** `empty? value` — the prefix equivalent of `<value> is empty` (`spec/commands.md#false, spec/commands.md#empty`). */
 function evaluatePrefixEmpty(
   node: ArithmeticCallNode,
   environment: Environment,
@@ -3752,7 +3752,7 @@ function evaluatePrefixEmpty(
 
 /**
  * `member? value collection` — the prefix equivalent of `<value> is member of <collection>`
- * (`spec/commands.md:673-687`).
+ * (`spec/commands.md#empty, spec/commands.md#member`).
  */
 function evaluatePrefixMember(
   node: ArithmeticCallNode,
@@ -3778,7 +3778,7 @@ function evaluatePrefixMember(
 
 /**
  * `is_a? value type` — the prefix equivalent of `<value> is a <type-word>`
- * (`spec/commands.md:691-705`), whose `type` argument is dynamically evaluated
+ * (`spec/commands.md#member, spec/commands.md#is_a`), whose `type` argument is dynamically evaluated
  * (see {@link evaluateIsAValue}).
  */
 function evaluatePrefixIsA(
@@ -3808,14 +3808,14 @@ function evaluatePrefixIsA(
 }
 
 // --- Core list reporters: first/last/butfirst/butlast/fput/lput/sentence/word/count (issue #101,
-// #234; spec/commands.md "Words and lists", spec/execution-model.md:447-482) ---------------------
+// #234; spec/commands.md "Words and lists", spec/execution-model.md#records-and-destructuring) ---------------------
 //
 // Every reporter below is a plain `Call`/`ParenCall` — no dedicated AST node — dispatched by
 // lowercased callee name, same as the is-predicates above. `fput`/`lput`/`sentence`/`word` always
 // return a *fresh* value (never mutate an argument list in place); nested element references
-// are shared, only the outer array is copied (`spec/execution-model.md:447-482`'s
+// are shared, only the outer array is copied (`spec/execution-model.md#records-and-destructuring`'s
 // mutation-vs-copy distinction). `reverse`/`pick`/`sort` are Data-profile derived reporters
-// (`spec/data-structures.md:125-141`), not Core — they are evaluated just below `count`, sharing
+// (`spec/data-structures.md#core-non-mutating-list-reporters, spec/data-structures.md#derived-list-reporters-in-the-data-profile`), not Core — they are evaluated just below `count`, sharing
 // this section's `isWordOrList`/`listReporterType` helpers, but kept in their own issue #190 doc
 // comment since they are a separate profile slice. Unlike `first`/`last`/`butfirst`/`butlast`/
 // `count` above (fixed at exactly one input, but guarded with `requireMinArgs` only), each of
@@ -3968,7 +3968,7 @@ function evaluateButlast(
 
 /**
  * `fput`/`lput` — a *fresh* list with `value` prepended/appended to `list`
- * (`spec/commands.md` "fput"/"lput"; `spec/execution-model.md:447-482` — never mutates `list`).
+ * (`spec/commands.md` "fput"/"lput"; `spec/execution-model.md#records-and-destructuring` — never mutates `list`).
  * A non-list second argument raises `ol-type`.
  */
 function evaluateFputOrLput(
@@ -4092,7 +4092,7 @@ function evaluateWord(
 
 /**
  * `count` — the number of elements in a list, entries in a dict (issue #322), or characters in a
- * word (`spec/commands.md:1141` — accepts a word, list, or dict). Any other input raises
+ * word (`spec/commands.md#count` — accepts a word, list, or dict). Any other input raises
  * `ol-type`.
  */
 function evaluateCount(
@@ -4126,7 +4126,7 @@ function evaluateCount(
 }
 
 // --- Data-profile derived list reporters: reverse/pick/sort (issue #190,
-// spec/data-structures.md:125-141) --------------------------------------------------------------
+// spec/data-structures.md#core-non-mutating-list-reporters, spec/data-structures.md#derived-list-reporters-in-the-data-profile) --------------------------------------------------------------
 //
 // `reverse`/`sort` always report a *fresh* list — the argument list itself is never mutated, only
 // shallow-copied (its own array is copied, nested element references are shared), matching the
@@ -4241,10 +4241,10 @@ function compareSortElements(
 /**
  * `sort` — a *fresh* list with `list`'s elements sorted ascending, numbers numerically and words
  * lexicographically, following the exact ordering `<`/`>`/`<=`/`>=` already define
- * (`spec/data-structures.md:141`). A non-list argument raises `ol-type`; elements that are not
+ * (`spec/data-structures.md#derived-list-reporters-in-the-data-profile`). A non-list argument raises `ol-type`; elements that are not
  * mutually orderable (a mix of numbers and words, or any other type) raise `ol-type` too — checked
  * across *every* element before any sorting happens, per the same rule
- * `spec/data-structures.md:141` states ("is not mutually orderable and raises `ol-type`"), so a
+ * `spec/data-structures.md#derived-list-reporters-in-the-data-profile` states ("is not mutually orderable and raises `ol-type`"), so a
  * rejected list is never partially reordered. There is no length exception: a single-element list
  * still has its one element checked for orderability. Only the empty list is trivially sorted and
  * needs no orderability check at all.
@@ -4309,7 +4309,7 @@ function evaluateSort(
 }
 
 /**
- * `list` — the list constructor reporter (issue #397, `spec/data-structures.md:77-78`). The bare
+ * `list` — the list constructor reporter (issue #397, `spec/data-structures.md#mutating-list-operations`). The bare
  * call `list` takes no arguments and yields a fresh, empty, mutable list; the parenthesized
  * variadic form `(list a b …)` yields a fresh, mutable list containing each evaluated argument as
  * its own element (no `sentence`-style flattening of a list-typed argument). Every call produces
@@ -4333,7 +4333,7 @@ function evaluateListConstructor(
 }
 
 /**
- * `dict` — the empty-dict constructor reporter (issue #322, `spec/data-structures.md:150`). Takes
+ * `dict` — the empty-dict constructor reporter (issue #322, `spec/data-structures.md#dictionaries`). Takes
  * no arguments; every call yields a *fresh*, independent, empty `OLDict`.
  */
 function evaluateDict(
@@ -4350,7 +4350,7 @@ function evaluateDict(
 
 /**
  * `keys` — a fresh list of `dict`'s keys, in insertion order (issue #322,
- * `spec/data-structures.md:236`). A non-dict argument raises `ol-type`.
+ * `spec/data-structures.md#dictionary-writes-and-upserts`). A non-dict argument raises `ol-type`.
  */
 function evaluateKeys(
   node: ArithmeticCallNode,
@@ -4381,7 +4381,7 @@ function evaluateKeys(
 
 /**
  * `values` — a fresh list of `dict`'s values, in the same insertion order as {@link evaluateKeys}
- * (issue #322, `spec/data-structures.md:237`). A non-dict argument raises `ol-type`.
+ * (issue #322, `spec/data-structures.md#dictionary-writes-and-upserts`). A non-dict argument raises `ol-type`.
  */
 function evaluateValues(
   node: ArithmeticCallNode,
@@ -4411,7 +4411,7 @@ function evaluateValues(
 }
 
 /**
- * `type_of <record>` (issue #329, `spec/data-structures.md:286`): reports a record's struct type
+ * `type_of <record>` (issue #329, `spec/data-structures.md#dictionary-operations`): reports a record's struct type
  * name as a word (e.g. `person "tom" 8` → `"person"`). Records are the only values that carry a
  * struct type name, so `type_of` reads {@link OLRecord.type} directly rather than
  * {@link typeNameOf} (which reports the generic `"record"` for every record). A non-record
@@ -4441,7 +4441,7 @@ function evaluateTypeOf(
 }
 
 /**
- * A `struct` type name used as a constructor (issue #329, `spec/data-structures.md:284`):
+ * A `struct` type name used as a constructor (issue #329, `spec/data-structures.md#dictionary-operations`):
  * `point 3 4` builds a fresh mutable {@link OLRecord} of type `point` binding each declared field
  * to the argument at the same position. Arity is exactly the declared field count — too few inputs
  * raise `ol-not-enough-inputs`, too many `ol-too-many-inputs` — mirroring a fixed-arity procedure
@@ -4583,7 +4583,7 @@ function evaluatePos(
  * `towards x y` — the heading (`[0,360)`) from the turtle's current position toward `(x, y)`
  * (`spec/commands.md` "towards"). `Math.atan2(dx, dy)` (arguments in `(x, y)` order, not the usual
  * `(y, x)`) directly yields OL's compass-bearing convention — `0` points up/`+y`, `right`/clockwise
- * is positive — matching `spec/execution-model.md:538` and verified against the spec's own worked
+ * is positive — matching `spec/execution-model.md#collections-and-uniform-access` and verified against the spec's own worked
  * example: `towards 100 0` from the origin is `90` (dx=100, dy=0 → atan2(100,0) = 90°).
  * {@link normalizeHeading} folds the `atan2` result's `(-180,180]` range into `[0,360)`, same as
  * every other heading-producing path. Non-number `x`/`y` raise `ol-type`
@@ -4666,9 +4666,9 @@ function evaluateDistance(
  * reporter with an effect: it allocates the new turtle's stable identity from the per-run
  * {@link Environment.turtleWorld} — deterministic, unique, and stable, which the id-keyed turtle
  * `==` depends on ({@link OLTurtle}'s doc comment) — and, "immediately after the new turtle exists"
- * (`spec/turtles-and-sprites.md:34`), emits one `spawn-turtle` trace event. That event carries the
+ * (`spec/turtles-and-sprites.md#turtle-creation`), emits one `spawn-turtle` trace event. That event carries the
  * authoritative {@link SpawnTurtlePayload}: the new turtle's `turtle_id` plus the full default
- * turtle state a turtle starts with (`spec/turtles-and-sprites.md:32`) — origin at the canvas
+ * turtle state a turtle starts with (`spec/turtles-and-sprites.md#turtle-creation`) — origin at the canvas
  * center `[0, 0]`, heading `0`, pen down, color `"black"`, width `1`, visible, and the default
  * `"turtle"` shape (the same defaults {@link createDefaultTurtleState} gives the main turtle). The
  * envelope's optional `turtle_id` also carries that id so the event addresses the turtle it
@@ -4707,9 +4707,9 @@ function evaluateNewTurtle(
 /**
  * `who` (Sprites profile, `spec/turtles-and-sprites.md`'s "Addressing model" section): a Kind-R
  * reporter taking no inputs that reports "the turtle currently running turtle commands"
- * (`spec/turtles-and-sprites.md:26`) — the current turtle, which is the first turtle of the active
+ * (`spec/turtles-and-sprites.md#canonical-forms`) — the current turtle, which is the first turtle of the active
  * addressed set ({@link Environment.addressing}). At top level, before any `tell`, that set is the
- * single default main turtle (`spec/turtles-and-sprites.md:44`), so `who` reports the main turtle
+ * single default main turtle (`spec/turtles-and-sprites.md#addressing-model`), so `who` reports the main turtle
  * ({@link MAIN_TURTLE_ID}); after `tell :friend` it reports `:friend`, which is why
  * `tell :friend` then `who == :friend` is `true`. It reads the addressing's single
  * {@link TurtleAddressing.currentId} — the same, and only, source of truth the movement reporters
@@ -4736,7 +4736,7 @@ function evaluateWho(
  * `turtles` (Sprites profile, `spec/turtles-and-sprites.md`'s "Addressing model" section): a
  * Kind-R reporter taking no inputs that reports "the current list of turtles known to the world"
  * — the main turtle followed by every turtle created with `new_turtle`, in creation order
- * (`spec/turtles-and-sprites.md:91`). Materializes the world's live ids
+ * (`spec/turtles-and-sprites.md#addressing-model`). Materializes the world's live ids
  * ({@link Environment.turtleWorld}) into a fresh `list` of {@link OLTurtle} values. Building fresh
  * wrappers each call does not break identity: turtle `==` compares ids, so `first turtles == first
  * turtles` and `new_turtle == last turtles` hold across separate wrappers of the same turtle —
@@ -4756,28 +4756,28 @@ function evaluateTurtles(
 
 /**
  * `input <prompt>` (Interaction & Events profile, issue #681, slice I2 —
- * `spec/interaction-events.md:126-137`): a Kind-R reporter taking one prompt that displays the
+ * `spec/interaction-events.md#input-prompt-word`): a Kind-R reporter taking one prompt that displays the
  * prompt, waits for the learner to enter one value, and reports it as a word or a number. It is
- * "the only blocking read in OpenLogo v0.1 and belongs to this profile, not Core" (`:134-135`,
- * `spec/conformance.md:167-169`).
+ * "the only blocking read in OpenLogo v0.1 and belongs to this profile, not Core" (`spec/interaction-events.md#input-prompt-word`,
+ * `spec/conformance.md#sprites, spec/conformance.md#interaction--events`).
  *
  * Four steps, in this order:
  *
  *   1. **Arity** — exactly one input, guarded here because `execute()` runs `parse()` without the
  *      static checker, exactly like every other reporter.
- *   2. **Prompt type** — the prompt MUST be a `word`; anything else raises `ol-type` (`:129`,
- *      `:131`). Checked inline with `typeof value !== "string"`, exactly as the profile's other two
+ *   2. **Prompt type** — the prompt MUST be a `word`; anything else raises `ol-type` (`spec/conformance.md#data`,
+ *      `spec/conformance.md#data`). Checked inline with `typeof value !== "string"`, exactly as the profile's other two
  *      word-typed arguments (`when`'s event, `on_key`'s key) are; see
  *      {@link InputPromptNotWordParams} for the #768 ruling that narrowed this from #681's scalars.
  *   3. **The read** — take the next scripted answer ({@link takeInputResponse}) from the run's FIFO
  *      queue (`ExecuteOptions.hostInput.responses`, the #657 ruling). With no answer left the read
- *      can never finish, so it takes the only other ending `:110-111` allows and the program is
+ *      can never finish, so it takes the only other ending `spec/interaction-events.md#trace-stream-integration` allows and the program is
  *      cancelled ({@link runtimeDiag.cancelled}).
  *   4. **The after-effect event** — one `primitive` event naming `input`, emitted *after* the answer
- *      is in hand ({@link emitInputPrimitive}), then the value is reported per `:136-137`
+ *      is in hand ({@link emitInputPrimitive}), then the value is reported per `spec/grammar.md#ebnf-notation`
  *      ({@link interpretSubmittedText}).
  *
- * The **blocking** property (`:108-111` — while the read waits, no new OpenLogo instruction and no
+ * The **blocking** property (`spec/interaction-events.md#trace-stream-integration` — while the read waits, no new OpenLogo instruction and no
  * event handler block may run) is upheld by what this function does *not* do: it reaches no
  * {@link yieldToEventLoop} checkpoint and never advances the tick clock, so no `when`/`on_key`/
  * `on_click`/`every` handler can be delivered across a read, and the next instruction cannot start
@@ -4813,7 +4813,7 @@ function evaluateInput(
     // The read can never finish, so it takes the only other ending `spec/interaction-events.md:
     // 110-111` allows — "until the read finishes or the program is cancelled" — through the SHARED
     // cancellation diagnostic, not a lookalike of its own. Identity is code + params and prose is
-    // presentation (`spec/error-model.md:254-259`), so what a second builder would risk is a drift
+    // presentation (`spec/error-model.md#localization-boundary`), so what a second builder would risk is a drift
     // in the half the spec actually fixes; reusing this one keeps `ol-limit` / `{ limit:
     // "cancelled" }` identical to an externally cancelled run in any build, localized or not. The
     // span still points at the waiting `input`, which tells a learner *where* the run stopped.
@@ -4825,7 +4825,7 @@ function evaluateInput(
 
 /**
  * Perform the read itself: display `promptText` to the host and wait for the one value the learner
- * enters (`spec/interaction-events.md:134`). Reports the submitted text, or `undefined` when the
+ * enters (`spec/interaction-events.md#input-prompt-word`). Reports the submitted text, or `undefined` when the
  * read cannot be answered at all.
  *
  * Two hosts, one meaning. A caller that supplied a live reader
@@ -4836,7 +4836,7 @@ function evaluateInput(
  * reader wins when both are present: a run with a real host must never quietly prefer a stale
  * script.
  *
- * Either way the read is **synchronous**, which is how `spec/interaction-events.md:108-111`'s "MUST
+ * Either way the read is **synchronous**, which is how `spec/interaction-events.md#trace-stream-integration`'s "MUST
  * NOT run new OpenLogo instructions or event handler blocks until the read finishes" is upheld —
  * not by a check, but by there being no suspension point at which anything else could be scheduled.
  * `interaction-input-blocking.test.mjs` probes that window from inside the reader.
@@ -4942,14 +4942,14 @@ function evaluateRandom(
   );
 }
 
-// --- Comprehensions: map / filter / reduce (spec/execution-model.md:380-479, issue #105) ------
+// --- Comprehensions: map / filter / reduce (spec/execution-model.md#variables-scoping-and-procedures, spec/execution-model.md#records-and-destructuring, issue #105) ------
 //
 // Comprehensions are value-producing *expressions* usable anywhere an expression is
-// (`spec/execution-model.md:380-384`), so — unlike a procedure body, which can contain arbitrary
+// (`spec/execution-model.md#variables-scoping-and-procedures`), so — unlike a procedure body, which can contain arbitrary
 // control flow and genuinely needs `execute-internal.ts`'s full `executeStatements` dispatcher —
 // every spec worked example and acceptance criterion for a comprehension body is a single
 // bracketed expression-block whose *last* statement supplies the result
-// (`spec/execution-model.md:200-227`, the block-result rule). This module therefore evaluates a
+// (`spec/execution-model.md#brackets-blocks-and-body-forms, spec/execution-model.md#the-block-result-rule`, the block-result rule). This module therefore evaluates a
 // comprehension body itself, entirely self-contained, rather than adding a second
 // `Environment`-threaded callback (mirroring `callProcedure`) purely to reach
 // `execute-internal.ts`'s general statement dispatcher for a case with no current spec pressure —
@@ -5120,7 +5120,7 @@ type ComprehensionBodyOutcome =
  * Run one comprehension body against the per-element/accumulator {@link Environment} its caller
  * already pushed a fresh frame onto ({@link pushLoopFrame}). Leading statements run for effect
  * only (their value, if any, is discarded); the final statement supplies the body's result, per
- * the block-result rule (`spec/execution-model.md:200-227`). The caller ({@link
+ * the block-result rule (`spec/execution-model.md#brackets-blocks-and-body-forms, spec/execution-model.md#the-block-result-rule`). The caller ({@link
  * evaluateComprehension}) only ever calls this once {@link isSupportedComprehensionBody} has
  * confirmed every statement is one of the shapes handled below, so there is no "unimplemented
  * shape" fallback here to keep in sync separately.
@@ -5278,19 +5278,19 @@ function comprehensionDuplicateBinder(
 }
 
 /**
- * Evaluate a `map`/`filter`/`reduce` comprehension (`spec/execution-model.md:380-479`, worked
- * examples `:695-741`): binder-duplicate check first ({@link comprehensionDuplicateBinder}), then
+ * Evaluate a `map`/`filter`/`reduce` comprehension (`spec/execution-model.md#variables-scoping-and-procedures, spec/execution-model.md#records-and-destructuring`, worked
+ * examples `spec/execution-model.md#trace-and-event-registry, spec/execution-model.md#tutor-output-educational-profile`): binder-duplicate check first ({@link comprehensionDuplicateBinder}), then
  * the iterable (must be a list — `ol-type` otherwise, mirroring `ForIn`'s own `forInNotList`),
  * then one {@link runComprehensionBody} pass per element (each in its own fresh body-local frame,
  * {@link pushLoopFrame}) — collecting every body value for `map`, keeping elements whose boolean
  * body value is `true` for `filter` (`ol-not-boolean` for a non-boolean body value), or folding
  * into an accumulator seeded by `initial` for `reduce` (returned unchanged when `elements` is
- * empty, `spec/execution-model.md:402`).
+ * empty, `spec/execution-model.md#control-forms`).
  */
 /**
  * Run the main line's statement-boundary hook at a comprehension iteration and report a halting
  * diagnostic, or `undefined` to continue (maintainer ruling #984,
- * `spec/interaction-events.md:189-204`).
+ * `spec/interaction-events.md#every-n-block`).
  *
  * A comprehension body is an **expression**, so it never reaches `executeStatements` and never sees
  * that function's per-statement boundary — yet each iteration is main-line progress exactly as a

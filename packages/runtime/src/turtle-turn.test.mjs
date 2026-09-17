@@ -1,5 +1,5 @@
 // Unit tests for `left`/`right` (issue #201, spec/commands.md's Turtle movement table,
-// spec/execution-model.md:537-538's turn convention/normalization). `right` turns clockwise
+// spec/execution-model.md#collections-and-uniform-access's turn convention/normalization). `right` turns clockwise
 // (positive heading delta), `left` turns counter-clockwise (negative heading delta); headings are
 // always normalized to `[0,360)`.
 
@@ -129,7 +129,7 @@ test("execute propagates a failing turn-angle argument expression instead of tur
 test("execute raises ol-range for a right turn angle that overflows to Infinity, instead of emitting a NaN-corrupted turn event", () => {
   // `power 10 1000` overflows IEEE 754 double precision to `Infinity` — `Infinity % 360` is
   // `NaN`, a defect this guard prevents by halting instead of emitting a corrupted event
-  // (spec/execution-model.md:517: "OpenLogo never exposes NaN or Infinity as learner-facing
+  // (spec/execution-model.md#collections-and-uniform-access: "OpenLogo never exposes NaN or Infinity as learner-facing
   // results").
   const result = execute("right power 10 1000", "main.logo");
   assert.equal(result.events.length, 1);
@@ -140,7 +140,7 @@ test("execute raises ol-range for a right turn angle that overflows to Infinity,
     value: "Infinity",
   });
   // `params` is a diagnostic-identity payload and must survive a JSON round-trip
-  // (spec/error-model.md:34) — a raw `Infinity` number would silently become `null`.
+  // (spec/error-model.md#diagnostic-shape) — a raw `Infinity` number would silently become `null`.
   assert.deepEqual(
     JSON.parse(JSON.stringify(result.diagnostics[0].params)),
     result.diagnostics[0].params,

@@ -1,7 +1,7 @@
 // Unit tests for the profile grammar extension point + shared `end<keyword>` block-tail machinery
 // (issue #664, slice C2 of epic #658): `spec/grammar.md#profile-grammar-extensions`, plus the
-// per-profile forms in `spec/turtles-and-sprites.md:161-170` (`tell`/`ask`/`each`) and
-// `spec/interaction-events.md:54-65` (`when`/`every`/`on_key`/`on_click`).
+// per-profile forms in `spec/turtles-and-sprites.md#profile-grammar` (`tell`/`ask`/`each`) and
+// `spec/interaction-events.md#profile-grammar` (`when`/`every`/`on_key`/`on_click`).
 //
 // Every registered profile head keyword parses into one shared `ProfileStatement` node, reusing
 // the Core `expression` and block productions: a block head accepts either a bracket block or a
@@ -194,7 +194,7 @@ test("profile heads parse structurally with no active-profile input to the reade
 // --- Reader precedence: a user declaration wins over a profile head, legal or not ---
 // These pin READER behaviour only — `codesOf` reports parse diagnostics, never `check()`'s. Since
 // issue #841 the declarations below are semantically illegal in every profile set
-// (`spec/grammar.md:408`, `ol-reserved-word`), and that is exactly why the shaping matters: the
+// (`spec/grammar.md#keywords-primitives-and-built-in-names`, `ol-reserved-word`), and that is exactly why the shaping matters: the
 // reader must still produce the `ProcedureDef` + `Call` the learner wrote, so the diagnostic lands
 // on the declaration rather than on a mis-shaped `ProfileStatement`. "Shadowing" is the reader's
 // precedence rule, not a statement that the program is accepted.
@@ -222,7 +222,7 @@ test("a user procedure named `tell` takes reader precedence over the mode-switch
 });
 
 // --- Core-neutrality: the READER is profile-blind, even though the declaration is now illegal ---
-// A Core-only program may not DECLARE these words — `spec/grammar.md:408` makes profile words
+// A Core-only program may not DECLARE these words — `spec/grammar.md#keywords-primitives-and-built-in-names` makes profile words
 // built-in names unconditionally, #855 aligned `spec/interaction-events.md` with it, and #841
 // retired the checker gate, so the declaration raises `ol-reserved-word`. What these tests own is a
 // different, unchanged property one layer down: **the reader does not consult a profile set**, so

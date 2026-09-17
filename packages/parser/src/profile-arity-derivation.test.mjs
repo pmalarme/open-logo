@@ -155,7 +155,7 @@ test("every registered primitive of every profile is arity-checked when its prof
 });
 
 test("a registered primitive is NOT arity-checked when its own profile is inactive", () => {
-  // The other half of `spec/tooling.md:175-176`: visibility is per active profile, so with the
+  // The other half of `spec/tooling.md#layer-2-semantic-checking`: visibility is per active profile, so with the
   // owning profile switched off the callee is unknown and belongs to `ol-unknown-command` — one
   // finding, never an arity one too. Core is excluded: it is the profile left active throughout.
   for (const profile of OL.OL_CHECK_PROFILES) {
@@ -298,7 +298,7 @@ test("an exactly-right call stays clean in either form, for every profile the fi
 test("a Heritage alias is arity-checked as the canonical command it spells", () => {
   // `fd` resolves to `forward`, whose arity lives in the Turtle & Rendering table — so the check
   // needs BOTH profiles, and the finding's identity is the canonical name, never the alias
-  // (`spec/conformance.md:146`, `spec/error-model.md:254-259`).
+  // (`spec/conformance.md#data`, `spec/error-model.md#localization-boundary`).
   const [finding, ...rest] = checkCodes("(fd 1 2)", [
     "core-language",
     "turtle-rendering",
@@ -317,13 +317,13 @@ test("a Heritage alias is arity-checked as the canonical command it spells", () 
 });
 
 test("params.callable is the canonical lowercase name for every profile, not the surface spelling", () => {
-  // `spec/error-model.md:254-259` — diagnostic identity is `code` plus `params`, and the same
-  // condition must carry the same params; `:199` prefers the canonical lowercase spelling for
+  // `spec/error-model.md#localization-boundary` — diagnostic identity is `code` plus `params`, and the same
+  // condition must carry the same params; `spec/error-model.md#did-you-mean` prefers the canonical lowercase spelling for
   // display. OpenLogo identifiers are case-insensitive, so `(REVERSE 1 2)` and `(reverse 1 2)` are
   // one condition. Pinned as a unit assertion rather than in a fixture because this wording does
   // not opt into conformance message comparison (`"compareMessages": true`, issue #1025): the spec
-  // prescribes what an arity message must CONVEY — `:98` "say what the callable still needs", `:99`
-  // "mention wrapping the call in `( … )`" — but not the exact English, and `:261-263` positively
+  // prescribes what an arity message must CONVEY — `spec/error-model.md#normative-code-registry` "say what the callable still needs"
+  // "mention wrapping the call in `( … )`" — but not the exact English, and `spec/error-model.md#localization-boundary` positively
   // permits a template author to reorder, inflect, or soften it. Freezing our exact wording in a
   // stack-neutral fixture would oblige every conforming implementation to emit these sentences.
   const cases = [
@@ -363,7 +363,7 @@ test("a user procedure's and a struct constructor's params.callable is the DECLA
   //
   // `params` is compared by the conformance harness (unlike `message`), so this is diagnostic
   // IDENTITY. Identifiers are case-insensitive, so `Sq`, `SQ`, and `sq` name one procedure — one
-  // condition, which `spec/error-model.md:254-259` requires to carry one set of params. The call
+  // condition, which `spec/error-model.md#localization-boundary` requires to carry one set of params. The call
   // site's spelling therefore cannot be the identity. What supplies it is the name's *definition*:
   // for a built-in that is the canonical lowercase name (asserted above); for a learner's own
   // `define`/`struct` it is whatever they wrote. `define MyProc` reports `MyProc` however it is

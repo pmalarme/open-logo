@@ -5,7 +5,7 @@
  * integrations, other tools) query {@link getHostMetadata} to learn, at runtime, the exact
  * spec version this build targets, which profiles it currently and correctly supports, which
  * vendor-namespaced extensions it adds, and which rendering targets it exposes when Turtle &
- * Rendering is claimed. There is no Core language primitive for this (spec/conformance.md:288-291
+ * Rendering is claimed. There is no Core language primitive for this (spec/conformance.md#profile-dependency-dag
  * — feature detection is a host API, never a required Core program construct).
  *
  * Profile identifiers match the ids already used across the toolchain (`scripts/harness/index.mjs`
@@ -53,7 +53,7 @@
  * handler is registered, a delivered handler emits the block-head `instruction` event, and `wait`
  * emits its `primitive` after the pause completes; the normative same-tick delivery order
  * `when` -> `on_key` -> `on_click` -> due `every`, each in registration order
- * (`spec/interaction-events.md:84-89`), is pinned both across kinds and — as of this slice — WITHIN
+ * (`spec/interaction-events.md#time-ticks-and-handlers`), is pinned both across kinds and — as of this slice — WITHIN
  * each of the four kinds at a shared drain point; the six forms are gated behind the
  * `interaction-events` profile in the checker both ways; and the Interaction conformance fixtures are
  * green in the full DAG, including the `ol-type`/`ol-range` negatives for `every`/`wait`, the
@@ -91,7 +91,7 @@ export const SUPPORTED_PROFILES = [
 
 /**
  * Vendor-namespaced extension feature names this implementation adds
- * (`spec/conformance.md:266-279`, `<vendor>.<feature>`). Empty: this implementation adds no
+ * (`spec/conformance.md#feature-to-profile-table`, `<vendor>.<feature>`). Empty: this implementation adds no
  * extensions yet.
  */
 export const SUPPORTED_EXTENSIONS = [] as const;
@@ -99,11 +99,11 @@ export const SUPPORTED_EXTENSIONS = [] as const;
 /**
  * Rendering targets exposed by `@openlogo/turtle` (Canvas live rendering, deterministic SVG and
  * PNG export), reported because `turtle-rendering` is claimed
- * (`spec/conformance.md:281-286`, "rendering targets when Turtle & Rendering is claimed").
+ * (`spec/conformance.md#feature-to-profile-table, spec/conformance.md#profile-dependency-dag`, "rendering targets when Turtle & Rendering is claimed").
  */
 export const SUPPORTED_RENDERING_TARGETS = ["canvas", "svg", "png"] as const;
 
-/** The feature-detection metadata shape a host queries, per `spec/conformance.md:281-286`. */
+/** The feature-detection metadata shape a host queries, per `spec/conformance.md#feature-to-profile-table, spec/conformance.md#profile-dependency-dag`. */
 export interface HostMetadata {
   readonly openlogo: {
     readonly version: string;

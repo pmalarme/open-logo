@@ -85,9 +85,9 @@ export const INITIAL_TURTLE_STATE: TurtleState = Object.freeze({
  * That is a **single-turtle** reading, and it is only sound here. This reducer follows one turtle,
  * so "the turtle `clear_screen` homed" is unambiguous. The per-turtle sibling
  * ({@link reduceTurtleWorldState} in `world-state.ts`) deliberately does **not** fold `clear` at
- * all: one `clear_screen` homes *every* addressed turtle (`spec/turtles-and-sprites.md:111`), which
+ * all: one `clear_screen` homes *every* addressed turtle (`spec/turtles-and-sprites.md#per-turtle-state-and-turtle-commands`), which
  * no single identity on one shared-surface event can name, so there the homing must be read from the
- * per-turtle `move`/`turn` events alone (`:113` — "consumers MUST NOT read a `clear` event as an
+ * per-turtle `move`/`turn` events alone (`spec/turtles-and-sprites.md#per-turtle-state-and-turtle-commands` — "consumers MUST NOT read a `clear` event as an
  * instruction to move a turtle"). Issue #738.
  */
 export function reduceTurtleState(

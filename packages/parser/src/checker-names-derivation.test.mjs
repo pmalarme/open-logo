@@ -176,7 +176,7 @@ test("every withheld name is one a profile actually registers", () => {
 });
 
 test("a profile's callable names are invisible while the profile is inactive", () => {
-  // The gate `spec/tooling.md:175-176` requires. The sweep above would also pass for a model that
+  // The gate `spec/tooling.md#layer-2-semantic-checking` requires. The sweep above would also pass for a model that
   // ignored `profiles` entirely and made every name visible always; this is what rules that out.
   //
   // Covers every **callable** name an optional profile contributes — its primitives and, for

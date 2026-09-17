@@ -19,7 +19,7 @@
  * `instanceof OLDict` and `record` with `instanceof OLRecord`.
  */
 
-/** A legal dictionary key: words or numbers only (`spec/data-structures.md:143-153`). */
+/** A legal dictionary key: words or numbers only (`spec/data-structures.md#derived-list-reporters-in-the-data-profile, spec/data-structures.md#dictionaries`). */
 export type OLDictKey = string | number;
 
 /** One live entry inside an {@link OLDict}: the original key plus its current value. */
@@ -29,14 +29,14 @@ interface OLDictEntry {
 }
 
 /**
- * The Data-profile `dict` value (`spec/data-structures.md:143-250`): a mutable, insertion-ordered
+ * The Data-profile `dict` value (`spec/data-structures.md#derived-list-reporters-in-the-data-profile, spec/data-structures.md#dictionary-writes-and-upserts`): a mutable, insertion-ordered
  * key/value collection. Keys are words or numbers, compared under OpenLogo's number↔word equality
- * (`spec/execution-model.md:490-491`, e.g. `5` and `"5"` name the same slot, `5` and `"05"` do
+ * (`spec/execution-model.md#records-and-destructuring`, e.g. `5` and `"5"` name the same slot, `5` and `"05"` do
  * not). {@link set} on an existing canonical key updates the stored value in place rather than
  * reinserting, so "last-duplicate-wins value, first-insertion-position iteration"
- * (`spec/data-structures.md:160-168`) falls directly out of the backing `Map`'s own
+ * (`spec/data-structures.md#dictionaries`) falls directly out of the backing `Map`'s own
  * insertion-order guarantee. Assigning a dict copies the reference, not the contents
- * (`spec/execution-model.md:13-40`), same as a list.
+ * (`spec/execution-model.md#value-and-type-model`), same as a list.
  */
 export class OLDict {
   private readonly entries = new Map<string, OLDictEntry>();
@@ -112,14 +112,14 @@ export class OLDict {
 }
 
 /**
- * The Data-profile `record` value (`spec/data-structures.md:252-327`): a mutable aggregate whose
+ * The Data-profile `record` value (`spec/data-structures.md#dictionary-writes-and-upserts, spec/data-structures.md#record-operations`): a mutable aggregate whose
  * field set is FIXED at construction from its `struct` declaration. Unlike an {@link OLDict}, a
  * record can never grow or shrink — its fields are exactly the ones the `struct` declared, in
  * declared order, so writing an undeclared field is an error the runtime raises
  * (`ol-unknown-field`), never a silent insert. `type` is the struct type name the constructor was
  * named after: `type_of` reports it and `is_a?` matches against it (`spec/data-structures.md:
  * 286-287`). Assigning a record copies the reference, not the contents
- * (`spec/execution-model.md:13-40`), same as a list or dict — aliases observe in-place mutation.
+ * (`spec/execution-model.md#value-and-type-model`), same as a list or dict — aliases observe in-place mutation.
  */
 export class OLRecord {
   /** The struct type name this record was constructed from (`type_of`/`is_a?` read it). */
@@ -129,14 +129,14 @@ export class OLRecord {
    * `type_of`, destructuring, and the printed form) reports these, so a struct declared
    * `[ X Y ]` keeps its `X`/`Y` display while access folds case (below). Names that fold to the
    * same identifier are collapsed to their first spelling, so this list stays 1:1 with {@link
-   * slots}: identifiers are case-insensitive (`spec/grammar.md:13`), so a declaration like
+   * slots}: identifiers are case-insensitive (`spec/grammar.md#lexical-form-and-encoding`), so a declaration like
    * `[ x X ]` names one field, not two, and `fields()` must not report a phantom position that no
    * slot backs.
    */
   private readonly declaredFields: readonly string[];
   /**
    * Field values keyed by the case-folded field name. Identifiers are case-insensitive
-   * (`spec/grammar.md:13`), so `.x`, `.X`, and `.x` all address one slot; the folded key is the
+   * (`spec/grammar.md#lexical-form-and-encoding`), so `.x`, `.X`, and `.x` all address one slot; the folded key is the
    * single canonical form the accessors resolve against.
    */
   private readonly slots: Map<string, OLValue>;
@@ -146,7 +146,7 @@ export class OLRecord {
    * at the same index in `values`. The caller (the constructor dispatch in `@openlogo/runtime`)
    * has already checked that `values.length` equals the declared field count, so every field has
    * a value. Field names are stored case-folded so access is case-insensitive
-   * (`spec/grammar.md:13`), while `declaredFields` preserves their original spelling for display.
+   * (`spec/grammar.md#lexical-form-and-encoding`), while `declaredFields` preserves their original spelling for display.
    * Because identifiers fold, two declared names that differ only in case denote one field: the
    * folded `slots` map and the deduplicated `declaredFields` both keep the last value / first
    * spelling for such a collision, so the two views never disagree on the field count.
@@ -188,7 +188,7 @@ export class OLRecord {
   /**
    * Write `value` into `field` in place. The caller must have confirmed `field` is declared (via
    * {@link has}) — a record's field set is fixed, so this never creates a new field. The lookup
-   * folds case (`spec/grammar.md:13`), so `:p.X = …` mutates the same slot `:p.x` reads.
+   * folds case (`spec/grammar.md#lexical-form-and-encoding`), so `:p.X = …` mutates the same slot `:p.x` reads.
    */
   set(field: string, value: OLValue): void {
     this.slots.set(field.toLowerCase(), value);
@@ -201,9 +201,9 @@ export class OLRecord {
 }
 
 /**
- * The Sprites-profile `turtle` value type (`spec/turtles-and-sprites.md:13`,
- * `spec/execution-model.md:25`): a mutable turtle identity with its own drawing state. Turtle
- * values **compare by identity, not by position or shape** (`spec/execution-model.md:540` — the
+ * The Sprites-profile `turtle` value type (`spec/turtles-and-sprites.md#profile-status-and-dependency`,
+ * `spec/execution-model.md#value-and-type-model`): a mutable turtle identity with its own drawing state. Turtle
+ * values **compare by identity, not by position or shape** (`spec/execution-model.md#equality-and-ordering` — the
  * turtle row of the `==` matrix is "Same turtle identity"), so two turtles created by `new_turtle`
  * are never `==` even when their state is identical, and a turtle equals only the same turtle.
  *
@@ -228,7 +228,7 @@ export class OLTurtle {
   /**
    * The turtle's stable, per-world serial number: assigned once at creation, never reassigned,
    * unique across the world's turtles. It **is** the turtle's identity for `==`
-   * (`spec/execution-model.md:540`) — two turtle values are the same turtle exactly when their ids
+   * (`spec/execution-model.md#equality-and-ordering`) — two turtle values are the same turtle exactly when their ids
    * are equal — and doubles as the `turtle-id` of turtle-specific trace events and the token in the
    * deterministic printed form ({@link printedForm} renders `turtle #<id>`). Allocating ids so they
    * stay unique and stable per turtle is the `new_turtle`/world slice's responsibility (#673):

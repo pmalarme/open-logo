@@ -1,5 +1,5 @@
 // Unit tests for the Core list reporters' runtime evaluation (issue #101, spec/commands.md
-// "Words and lists", spec/execution-model.md:447-482). Conformance fixtures under
+// "Words and lists", spec/execution-model.md#records-and-destructuring). Conformance fixtures under
 // tests/conformance/core-language/execution/list-reporter-*.expected.json cover the primary
 // literal-observable positive/negative cases end to end. These unit tests fill in what a fixture
 // cannot: every dynamically-reachable diagnostic path exercised directly (not via
@@ -7,7 +7,7 @@
 // failure propagation branches, and the fresh-list (non-mutating) guarantee for `fput`/`lput`/
 // `sentence`.
 //
-// `reverse`/`pick`/`sort` are Data-profile derived reporters (spec/data-structures.md:125-129),
+// `reverse`/`pick`/`sort` are Data-profile derived reporters (spec/data-structures.md#core-non-mutating-list-reporters, spec/data-structures.md#derived-list-reporters-in-the-data-profile),
 // not Core, so they are intentionally out of scope here — see the PR description.
 
 import assert from "node:assert/strict";

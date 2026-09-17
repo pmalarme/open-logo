@@ -1,5 +1,5 @@
-// Unit tests for `input <prompt>` (issue #681, slice I2 — `spec/interaction-events.md:126-137`,
-// `spec/conformance.md:167-169`). `input` is the Interaction & Events profile's Kind-R reporter:
+// Unit tests for `input <prompt>` (issue #681, slice I2 — `spec/interaction-events.md#input-prompt-word`,
+// `spec/conformance.md#sprites, spec/conformance.md#interaction--events`). `input` is the Interaction & Events profile's Kind-R reporter:
 // it displays a prompt, waits for the learner to enter one value, and reports a **number** when the
 // submitted text parses as an OpenLogo number literal or a **word** preserving the entered text
 // otherwise.
@@ -9,7 +9,7 @@
 // in order by each `input` call — and there is **no new event kind**: a read emits the ordinary
 // catch-all `primitive` event, so `spec/execution-model.md`'s trace/event registry is unchanged.
 //
-// The other half of this slice — the normative **blocking** property (`:108-111`) — is
+// The other half of this slice — the normative **blocking** property (`spec/execution-model.md#three-syntactic-layers`) — is
 // structurally unprovable from a fixture (a scripted answer returns immediately, so there is no
 // "waiting" interval a headless fold can observe) and lives in
 // `interaction-input-blocking.test.mjs`.
@@ -46,17 +46,17 @@ function printedValues(result) {
     .flatMap((event) => event.payload.values);
 }
 
-// --- `spec/interaction-events.md:136-137`: number literal → number, anything else → word ---------
+// --- `spec/interaction-events.md#input-prompt-word`: number literal → number, anything else → word ---------
 
 test("a submitted answer that parses as a number literal reports a NUMBER", () => {
-  // `spec/interaction-events.md:136-137`: "If the submitted text parses as an OpenLogo number
+  // `spec/interaction-events.md#input-prompt-word`: "If the submitted text parses as an OpenLogo number
   // literal, the reporter returns a number."
   //
   // Discriminated by TYPE, not by arithmetic. `:answer + 1` would prove nothing here: OpenLogo's `+`
   // coerces a numeric word (`"42" + 1` reports 43 with no diagnostic — only a non-numeric word like
   // `"tom"` raises `ol-type`), so an implementation that never reported a number at all would still
   // print 43 and pass. `assert.deepEqual` over the printed payload distinguishes the number `42`
-  // from the word `"42"`, and `is a "number"` (`spec/grammar.md:234` — `is a` accepts any value)
+  // from the word `"42"`, and `is a "number"` (`spec/grammar.md#expressions-and-calls` — `is a` accepts any value)
   // states the same thing in the language itself.
   const result = runWithAnswers(
     ':answer = input "how old?"\nprint :answer\nprint :answer is a "number"',
@@ -80,7 +80,7 @@ test("arithmetic would NOT discriminate the two branches — the regression guar
 });
 
 test("a submitted answer that is not a number literal reports a WORD preserving the entered text", () => {
-  // The other half of `:136-137`: "Otherwise it returns a word preserving the entered text." Asks
+  // The other half of `spec/interaction-events.md#input-prompt-word`: "Otherwise it returns a word preserving the entered text." Asks
   // the SAME type question as the number test above, and gets the opposite answer — which is what
   // makes the two a discriminating pair rather than two runs of one assertion.
   const result = runWithAnswers(
@@ -102,7 +102,7 @@ test("the word branch preserves the entered text EXACTLY — no trimming, casing
 test("interpretSubmittedText classifies by the GRAMMAR, so every numeral shape the reader accepts is a number", () => {
   // The number/word decision is delegated to `parse()` rather than a hand-written numeric pattern,
   // so it cannot drift from `spec/grammar.md`'s numeral: decimals, exponents, redundant leading
-  // zeros, and the negative literal (`spec/grammar.md:17` — "A leading `-` directly before a
+  // zeros, and the negative literal (`spec/grammar.md#lexical-form-and-encoding` — "A leading `-` directly before a
   // numeral, when there is no left operand, is part of a negative numeric literal") all qualify.
   for (const [text, expected] of [
     ["42", 42],
@@ -130,7 +130,7 @@ test("interpretSubmittedText reports a word for anything that is not exactly one
   //   - "1 + 1"        — an arithmetic call whose *value* is a number but whose text is not a literal
   //   - "42 tom"       — more than one statement
   //   - ".5"/"1e"      — parses only alongside a diagnostic, so it does not parse *cleanly*
-  //   - "1,5"          — a locale decimal comma; `spec/grammar.md:17` fixes `.` as the decimal point
+  //   - "1,5"          — a locale decimal comma; `spec/grammar.md#lexical-form-and-encoding` fixes `.` as the decimal point
   //   - "42\n42"       — TWO clean number literals; a read reports one value, not a program
   for (const text of [
     "tom",
@@ -157,7 +157,7 @@ test("interpretSubmittedText reports a word for anything that is not exactly one
 // --- The after-effects a read produces: the `primitive` event, and downstream events -------------
 
 test("a completed read emits exactly one catch-all `primitive` event naming input — and no new kind", () => {
-  // `spec/interaction-events.md:105-106`: "primitives without a more specific kind emit
+  // `spec/interaction-events.md#trace-stream-integration`: "primitives without a more specific kind emit
   // `primitive`". #657 ruled out a new event kind, so this is the ONLY event a read itself adds.
   const result = runWithAnswers('print input "q"', ["tom"]);
   assert.deepEqual(result.diagnostics, []);
@@ -258,17 +258,17 @@ test("takeInputResponse advances one entry per call and reports exhaustion with 
 // --- The unanswered read: the spec's other ending, never an invented answer ---------------------
 
 test("a read with no scripted answer cancels the run (ol-limit) rather than inventing one", () => {
-  // `spec/interaction-events.md:110-111` gives a blocking read exactly two endings: it "finishes or
+  // `spec/interaction-events.md#trace-stream-integration` gives a blocking read exactly two endings: it "finishes or
   // the program is cancelled". A headless run with no answer cannot reach the first, so it takes the
   // second — deliberately, because reporting a made-up empty word would let the program run on as
   // if the learner had answered.
   //
   // It reaches that ending through the SHARED cancellation diagnostic. What the spec fixes is the
   // machine-readable half: identity is `code` plus `params` and prose is presentation
-  // (`spec/error-model.md:254-259`), so `ol-limit` / `{ limit: "cancelled" }` MUST be the same here
+  // (`spec/error-model.md#localization-boundary`), so `ol-limit` / `{ limit: "cancelled" }` MUST be the same here
   // as for an externally cancelled run — which is asserted directly against that run below, rather
   // than inferred. The message equality is a STRONGER, NON-NORMATIVE regression guard:
-  // `spec/error-model.md:261-264` lets a localized build reword this message, and equal prose does
+  // `spec/error-model.md#localization-boundary` lets a localized build reword this message, and equal prose does
   // not by itself prove a single builder — two builders could emit the same words. It is asserted
   // because diverging wording is the cheapest early signal that a lookalike builder appeared. The
   // span is what localises the diagnostic to the waiting read.
@@ -318,11 +318,11 @@ test("an empty scripted answer is a real answer — the empty word — not an ex
   assert.deepEqual(printedValues(result), [true]);
 });
 
-// --- `spec/interaction-events.md:129`/`:131`: the prompt MUST be a word ---------------------------
+// --- `spec/interaction-events.md#input-prompt-word`/: the prompt MUST be a word ---------------------------
 
 test("a prompt that is not a word raises ol-type", () => {
-  // `spec/interaction-events.md:129`/`:131`: "**Args:** one prompt, which MUST be a `word`" /
-  // "**Errors:** `ol-type` if the prompt is not a `word`", which the profile's error table (`:375-379`)
+  // `spec/interaction-events.md#input-prompt-word`/: "**Args:** one prompt, which MUST be a `word`" /
+  // "**Errors:** `ol-type` if the prompt is not a `word`", which the profile's error table (`spec/interaction-events.md#errors-and-cancellation`)
   // classes as "an argument has the wrong type".
   //
   // The maintainer's ruling on issue #768 narrowed this from #681's scalar set: `number` and
@@ -436,7 +436,7 @@ test("`define input` is rejected at registration by BOTH check() and execute(), 
   // Was: "the primitive wins over a same-named user procedure, in a program the checker already
   // rejects" — it locked `execute()`'s dispatch order for a program `check()` rejected, i.e. it
   // locked a cross-stage split. Issue #839 closes that split: the runtime's phase-1 registration
-  // (`spec/execution-model.md:82-89`) rejects the declaration itself, so `input` never gets the
+  // (`spec/execution-model.md#reader-pipeline`) rejects the declaration itself, so `input` never gets the
   // chance to resolve ahead of `environment.procedures`. `input` is not special here — `define
   // random` and `define who` behave identically.
   const source = [

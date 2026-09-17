@@ -1,5 +1,5 @@
 // Unit tests for Core arithmetic operators and precedence — `+ - * / mod`, per
-// spec/grammar.md:185-187,216-226 (issue #50). These validate the already-merged parser; they
+// spec/grammar.md#expressions-and-calls (issue #50). These validate the already-merged parser; they
 // do not change it. `parse.test.mjs` already covers "binds multiplication tighter than
 // addition" and "reads a negative numeric literal", so this file covers only what that one
 // doesn't: `-`/`/`/`mod` left-associativity, parenthesized grouping, a full precedence chain,

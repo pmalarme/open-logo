@@ -3,7 +3,7 @@
 # circle, teaching that curves are built from many tiny straight lines.
 #
 # @command circle :radius (:segments 36)
-# @spec spec/geometry-module.md:135-193
+# @spec spec/geometry-module.md#circle-radius-segments-36
 # @param radius   positive number
 # @param segments optional whole number of sides (default 36), at least 3
 # @formula side = 2 * radius * sin (180 / segments)

@@ -1,5 +1,5 @@
 {
-  "description": "`add 4 to :nums` executes: the runtime appends to the shared list in place, so the following `print :nums` observes [1 2 3 4] (Data profile, issue #188, spec/data-structures.md:73-93). Proves the Add node reaches the runtime dispatch, not just the parser.",
+  "description": "`add 4 to :nums` executes: the runtime appends to the shared list in place, so the following `print :nums` observes [1 2 3 4] (Data profile, issue #188, spec/data-structures.md#lists, spec/data-structures.md#mutating-list-operations). Proves the Add node reaches the runtime dispatch, not just the parser.",
   "profiles": ["core-language", "data"],
   "execute": true,
   "events": [

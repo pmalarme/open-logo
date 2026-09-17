@@ -241,7 +241,7 @@ function validateHostInput(hostInput) {
  * entry.
  *
  * Each entry MUST be a **string**: it is the raw text a learner would have typed, and `input`
- * classifies it as a number or a word by parsing it (`spec/interaction-events.md:136-137`). A
+ * classifies it as a number or a word by parsing it (`spec/interaction-events.md#input-prompt-word`). A
  * fixture writing the bare JSON number `42` instead of `"42"` is therefore rejected here rather than
  * silently reaching `execute()` — it would look like proof of the number branch while actually
  * skipping the very parse that branch is about. Validated as strictly as `events` above, for the
@@ -264,7 +264,7 @@ function validateHostResponses(responses) {
 
 /**
  * The five fields a fixture's expected diagnostic must always carry — its **identity** under
- * `spec/error-model.md:254-259` ("diagnostic identity is `code` plus `params`; prose is
+ * `spec/error-model.md#localization-boundary` ("diagnostic identity is `code` plus `params`; prose is
  * presentation"), plus the span, stage and severity, because a fixture asserts *where* and *when*
  * too.
  */
@@ -313,7 +313,7 @@ export function loadFixture(fixture) {
     return { error: `"diagnostics" must be an array` };
   }
 
-  // Validate each diagnostic has required fields per spec/error-model.md:28-38, and reject any key
+  // Validate each diagnostic has required fields per spec/error-model.md#diagnostic-shape, and reject any key
   // outside the contract. Rejecting unknown keys is what stops a misspelled `mesage`/`Message`/`msg`
   // from loading clean and asserting nothing (`@testing` F1 on issue #1025) — the same
   // typo-masking hole {@link validateExecuteOptions} and ALLOWED_HOST_INPUT_KEYS already close
@@ -398,11 +398,11 @@ export function loadFixture(fixture) {
   // diagnostic `message` load-bearing. It is DELIBERATELY explicit rather than inferred from the
   // presence of a `message` key, and the validations below are the point of the design.
   //
-  // The default stays what `spec/error-model.md:254-259` asks for — "Tests and editor tools SHOULD
-  // assert codes and params, not English text" — and that is not a formality: `:261-263` positively
+  // The default stays what `spec/error-model.md#localization-boundary` asks for — "Tests and editor tools SHOULD
+  // assert codes and params, not English text" — and that is not a formality: `spec/error-model.md#localization-boundary` positively
   // permits a template author to "reorder, inflect, or soften prose", so most learner wording is
   // presentation a conforming implementation may change. Opt in only where the spec fixes the words
-  // themselves; `ol-reserved-word` (`:125`) is the case this was built for, since it prescribes the
+  // themselves; `ol-reserved-word` (`spec/error-model.md#normative-code-registry`) is the case this was built for, since it prescribes the
   // sentence AND makes *keyword*/*primitive*/*alias* a MUST NOT inside it — a MUST NOT no harness
   // can enforce without reading the text.
   //
@@ -617,7 +617,7 @@ export function validateExecuteOptions(executeOptions) {
  * A fixture's `profiles` array used to *select* the fixture — {@link runHarness} intersects it with
  * the `--profile` closure to decide whether to run it — without ever *gating* it. For an
  * `"execute": true` fixture the array never reached `execute()` at all (`@openlogo/runtime` is
- * profile-blind by design, `spec/tooling.md:175-177` puts profile visibility in the Layer-2
+ * profile-blind by design, `spec/tooling.md#layer-2-semantic-checking` puts profile visibility in the Layer-2
  * checker), so a fixture whose source used Sprites forms passed with `"sprites"` deleted from its
  * array. The declaration was documentation, not enforcement — while `spec/conformance.md` makes
  * "this program requires exactly these profiles" a normative, independently-claimable property.
@@ -637,11 +637,11 @@ export function validateExecuteOptions(executeOptions) {
  *   that profile is INACTIVE — that is exactly what `heritage/check/heritage-forms-rejected-in-core`
  *   and its 30 siblings exist to prove — so a static under-declaration gate would fail the corpus's
  *   correct negative fixtures.
- * - **parse-only** fixtures have no profile semantics to gate: `spec/conformance.md:120` states the
+ * - **parse-only** fixtures have no profile semantics to gate: `spec/conformance.md#data` states the
  *   postfix-read grammar a list index uses "is unconditional Core syntax", so a Core-only fixture
  *   that merely *parses* `:nums[2]` is right as written.
  *
- * Execution is the case the spec ties to the profile: `spec/conformance.md:269` — "only
+ * Execution is the case the spec ties to the profile: `spec/conformance.md#feature-to-profile-table` — "only
  * Data-claiming implementations execute the list case".
  *
  * Precondition: every entry of `expected.profiles` is a known profile. {@link runHarness} calls
@@ -695,7 +695,7 @@ export function fixtureErrors(expected) {
 
 /**
  * Validate that diagnostics conform to the spec shape.
- * Per spec/error-model.md:28-38, every diagnostic must have a message field.
+ * Per spec/error-model.md#diagnostic-shape, every diagnostic must have a message field.
  * @param {Array} diagnostics - The diagnostics to validate.
  * @throws {Error} If any diagnostic is missing the message field.
  */
@@ -704,7 +704,7 @@ export function validateDiagnostics(diagnostics) {
     const diag = diagnostics[i];
     if (!diag.message) {
       throw new Error(
-        `produce(): actual diagnostic[${i}] missing required "message" field (spec/error-model.md:28-38)`,
+        `produce(): actual diagnostic[${i}] missing required "message" field (spec/error-model.md#diagnostic-shape)`,
       );
     }
   }
@@ -776,7 +776,7 @@ export function produce(
     ? execute(source, document, executeOptions)
     : { events: [], ...parse(source, document) };
 
-  // Validate actual diagnostics conform to spec (spec/error-model.md:28-38 requires message).
+  // Validate actual diagnostics conform to spec (spec/error-model.md#diagnostic-shape requires message).
   validateDiagnostics(diagnostics);
 
   return { events, diagnostics };
@@ -1187,7 +1187,7 @@ export function diffStream(label, keyField, expected, actual) {
 }
 
 /**
- * The five fields that are a diagnostic's **identity** under `spec/error-model.md:254-259`:
+ * The five fields that are a diagnostic's **identity** under `spec/error-model.md#localization-boundary`:
  * "diagnostic identity is `code` plus `params`; prose is presentation", with the span, stage and
  * severity carried alongside because a fixture asserts *where* and *when* too. Every fixture is
  * compared on these, always.

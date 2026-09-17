@@ -5,8 +5,8 @@
  * `scripts/examples-gate.mjs` and `scripts/markdown-examples-gate.mjs` already have, and outside the
  * loaded-module coverage set [ADR-0009](../docs/adr/0009-test-layout.md) defines.
  *
- * **Why this exists.** `spec/grammar.md:414` versions the built-in names with the specification —
- * *"there is no second list to keep in step"* — and `:363` governs them with one rule: a program may
+ * **Why this exists.** `spec/grammar.md#keywords-primitives-and-built-in-names` versions the built-in names with the specification —
+ * *"there is no second list to keep in step"* — and `spec/grammar.md#keywords-primitives-and-built-in-names` governs them with one rule: a program may
  * not **declare** a built-in name, and may **bind** a value to any name. Nothing stated what that
  * set is, and nothing compared the spec to the implementation.
  * [ADR-0021](../docs/adr/0021-built-in-names-list-and-ci-gate.md) makes
@@ -38,7 +38,7 @@
  * ## The two axes this gate now compares, and the one it used to only fingerprint
  *
  * `spec/built-in-names.json` carries two independent per-name axes and neither determines the other
- * (`spec/grammar.md:378`): `category` (may a program **declare** this name?) and `tokenClass` (how is
+ * (`spec/grammar.md#keywords-primitives-and-built-in-names`): `category` (may a program **declare** this name?) and `tokenClass` (how is
  * this word **painted**?). `category` is compared against the implementation in both directions;
  * `tokenClass` is measured declaration-first and compared back over the enumerable name sources
  * only. ADR-0026 names each mechanism and what it does not reach — "both directions" over-describes
@@ -116,7 +116,7 @@ export const STDLIB_DIR = "stdlib";
 
 /**
  * The closed vocabulary of positions that make a contextual word structural
- * (`spec/grammar.md:380`): the `is`-predicate, and the heritage `value of … for key` reader. A
+ * (`spec/grammar.md#keywords-primitives-and-built-in-names`): the `is`-predicate, and the heritage `value of … for key` reader. A
  * position outside this set is a typo or an invention, and either way the carve-out stops meaning
  * anything.
  */
@@ -174,7 +174,7 @@ export function procedureNamesIn(source) {
   const names = [];
   for (const line of codeOnly(source).split("\n")) {
     const words = line.trim().split(/\s+/);
-    // Case-folded, because `spec/grammar.md:13` makes keywords and identifiers case-insensitive:
+    // Case-folded, because `spec/grammar.md#lexical-form-and-encoding` makes keywords and identifiers case-insensitive:
     // `DEFINE Hexagon` declares the same procedure as `define hexagon`, so a scanner anchored on
     // the lowercase spelling alone would read a real stdlib procedure as absent — and this walk
     // reports an *absent* carve-out, so its blind spots become the gate's blind spots. The name is
@@ -200,8 +200,8 @@ export function definesProcedure(text, name) {
 /**
  * `source` with comments and string literals blanked out, newlines preserved.
  *
- * A single split on `"""` is not enough, because `spec/grammar.md:19` allows `\"` escapes inside a
- * literal and `:32` makes `#`, `//` and `/* *` + `/` comments — whose markers are literal *inside*
+ * A single split on `"""` is not enough, because `spec/grammar.md#lexical-form-and-encoding` allows `\"` escapes inside a
+ * literal and `spec/grammar.md#lexical-form-and-encoding` makes `#`, `//` and `/* *` + `/` comments — whose markers are literal *inside*
  * strings, and whose contents can therefore contain an unbalanced quote. Each construct has to be
  * recognised in the order the lexer would meet it, so the states below are mutually exclusive.
  */
@@ -580,7 +580,7 @@ export function entryFindings(manifest, api) {
 
     if (!isCanonicalName(entry.name)) {
       findings.push(
-        `${entry.name}: is not a canonical OpenLogo name — spec/grammar.md:15's ASCII core form is \`[a-z_][a-z0-9_]*[?!]?\`, and built-in keywords and primitives are lowercase ASCII. A manifest and an implementation that agree on a non-canonical spelling agree about something the language does not allow`,
+        `${entry.name}: is not a canonical OpenLogo name — spec/grammar.md#lexical-form-and-encoding's ASCII core form is \`[a-z_][a-z0-9_]*[?!]?\`, and built-in keywords and primitives are lowercase ASCII. A manifest and an implementation that agree on a non-canonical spelling agree about something the language does not allow`,
       );
     }
     const repeatedTags = duplicatedNames(entry.registries);
@@ -1032,7 +1032,7 @@ export function carveOutFindings(manifest, io) {
     seen.add(entry.name);
     if (!isCanonicalName(entry.name)) {
       findings.push(
-        `excluded ${entry.name}: is not a canonical OpenLogo name — spec/grammar.md:15's ASCII core form is \`[a-z_][a-z0-9_]*[?!]?\`, and built-in keywords and primitives are lowercase ASCII`,
+        `excluded ${entry.name}: is not a canonical OpenLogo name — spec/grammar.md#lexical-form-and-encoding's ASCII core form is \`[a-z_][a-z0-9_]*[?!]?\`, and built-in keywords and primitives are lowercase ASCII`,
       );
     }
     if (listed.has(entry.name)) {
@@ -1121,17 +1121,17 @@ export function carveOutFindings(manifest, io) {
  * contextual one, or renaming one to a word the language does not contain (issue #964). The gate
  * printed its own emptiness and passed.
  *
- * That is not bookkeeping. `spec/conformance.md:88-91` is why these carve-outs exist at all: the
+ * That is not bookkeeping. `spec/conformance.md#geometry` is why these carve-outs exist at all: the
  * Geometry procedures "are not opaque primitive shortcuts, and they are therefore **library
  * procedures rather than built-in names**". Their absence from the built-in list is a *claim about
- * the tree* — that the source is really there — and `spec/geometry-module.md:419` makes the
+ * the tree* — that the source is really there — and `spec/geometry-module.md#notes-for-implementers` makes the
  * learner-visible source "part of the contract". A carve-out silently deleted turns that claim into
  * an oversight nobody can distinguish from a missing name.
  *
  * **Read the bound precisely: this binds a carve-out to a `define` HEADER, not to a body.** Six
  * empty `define`/`end` shells satisfy it. That the shipped procedures are the real teaching source
  * is a different claim, held by `tests/conformance/geometry/stdlib/source-drift.test.mjs`, which
- * asserts every call site inlines the source verbatim. Naming that here so this comment's `:419`
+ * asserts every call site inlines the source verbatim. Naming that here so this comment's `spec/geometry-module.md#notes-for-implementers`
  * citation is not over-read as something this function checks.
  *
  * **An empty result is a finding, not a vacuous pass** — and the emptiness that matters is
@@ -1194,7 +1194,7 @@ export function stdlibCarveOutFindings(
   // a file count non-zero while both sets are empty, which is the vacuous pass this guards.
   if (defined.size === 0) {
     findings.push(
-      `${STDLIB_DIR}/ defines no OpenLogo procedure across ${files.length} .logo file(s) — the library carve-outs are what record that the geometry standard library is OpenLogo SOURCE rather than built-in names (spec/conformance.md:88-91, ADR-0012), and a bijection with an empty set asserts nothing`,
+      `${STDLIB_DIR}/ defines no OpenLogo procedure across ${files.length} .logo file(s) — the library carve-outs are what record that the geometry standard library is OpenLogo SOURCE rather than built-in names (spec/conformance.md#geometry, ADR-0012), and a bijection with an empty set asserts nothing`,
     );
   }
 
@@ -1227,7 +1227,7 @@ const NUMBER_WORDS = {
 };
 
 /**
- * The **contextual keywords** `spec/grammar.md:380` names — the words that are structural by
+ * The **contextual keywords** `spec/grammar.md#keywords-primitives-and-built-in-names` names — the words that are structural by
  * position without OpenLogo owning the name — extracted from the sentence that enumerates them:
  * *"By contrast, `empty`, `member`, `of`, and `a` are **not** keywords and **not** built-in
  * names."*
@@ -1553,7 +1553,7 @@ export function wordsBetween(text, open, close) {
  * claim made executable: a bare statement head, an argument, a list element, a `local` binder, a
  * postfix field, an `export` operand, a `for … from` binder, a `for … in` binder, and a `set … to`
  * place. Every one after the first is a position where the grammar admits a keyword as an
- * **ordinary name** (`spec/grammar.md:386`), which is where a positional rule for this class was
+ * **ordinary name** (`spec/grammar.md#keywords-primitives-and-built-in-names`), which is where a positional rule for this class was
  * refuted (issue #855) — so a class that varied by position is caught here rather than assumed away.
  *
  * Each probe must yield **at least one** matching token. Unioning the classes across probes made a
@@ -1596,7 +1596,7 @@ export const CONTEXTUAL_POSITION_NODE_KINDS = {
  * `keyword` token-class row alone, `"tooling"` for the whole of `spec/tooling.md`, `"grammar"` for
  * `spec/grammar.md`.
  *
- * Three sides, not two, because two can be emptied together: `spec/grammar.md:380`'s "the contextual
+ * Three sides, not two, because two can be emptied together: `spec/grammar.md#keywords-primitives-and-built-in-names`'s "the contextual
  * keywords are exactly these four" is a normative statement in a document this slice does not touch,
  * so it is the independent lower bound (issue #959 review, finding 4).
  */
@@ -1660,7 +1660,7 @@ export function paintedClasses(api, name, profiles) {
  *   restated here, so a class the implementation adds is accepted without an edit);
  * - every {@link TOKEN_CLASS_PROBES} position yields **at least one** token for the name, and every
  *   token in every position carries exactly that class;
- * - the profile rule of `spec/tooling.md:30-31` holds **for the profile the entry names**: a name
+ * - the profile rule of `spec/tooling.md#normative-token-class-model` holds **for the profile the entry names**: a name
  *   painted `keyword` by a non-Core profile is `keyword` with that profile active and `primitive`
  *   with it inactive, and every other name is unmoved by either. Comparing only "all profiles"
  *   against "Core alone" left the *owning* profile unchecked — re-filing `tell` under Interaction
@@ -1790,7 +1790,7 @@ export function profileGatingFindings(api, entry) {
     }
     findings.push(
       gated
-        ? `${entry.name}: must be "${expected}" ${describe} but the highlighter paints it ${[...painted.classes].join(" and ")} — spec/tooling.md:30 gates a profile word on ITS OWN profile (${entry.profile}), and spec/tooling.md:31 makes it "primitive" while that profile is inactive`
+        ? `${entry.name}: must be "${expected}" ${describe} but the highlighter paints it ${[...painted.classes].join(" and ")} — spec/tooling.md#normative-token-class-model gates a profile word on ITS OWN profile (${entry.profile}), and  makes it "primitive" while that profile is inactive`
         : `${entry.name}: is painted "${entry.tokenClass}" under every profile but ${[...painted.classes].join(" and ")} ${describe} — only a profile's structural words move`,
     );
   }
@@ -1972,7 +1972,7 @@ export function contextualDeclaration(manifest) {
 /**
  * The **exception set**: the four words painted `keyword` by position and ordinary names elsewhere.
  *
- * They are not built-in names (`spec/grammar.md:378`), so they are not rows in `names` and no flat
+ * They are not built-in names (`spec/grammar.md#keywords-primitives-and-built-in-names`), so they are not rows in `names` and no flat
  * class can express them. What makes this a gate rather than a carve-out that passes when emptied
  * (issue #964) is that the set is pinned from four sides at once, and each measures the others:
  *
@@ -2018,7 +2018,7 @@ export function contextualTokenClassFindings(manifest, api) {
   }
   if (carveOuts.size === 0) {
     findings.push(
-      `${MANIFEST_PATH}: no excluded carve-out has reason "contextual-keyword" — spec/grammar.md:380 names four such words, so an empty set here is drift rather than a language with none`,
+      `${MANIFEST_PATH}: no excluded carve-out has reason "contextual-keyword" — spec/grammar.md#keywords-primitives-and-built-in-names names four such words, so an empty set here is drift rather than a language with none`,
     );
   }
   const named = new Set(words.map((word) => word.name));
@@ -2034,7 +2034,7 @@ export function contextualTokenClassFindings(manifest, api) {
   );
   if (unclaimed.length > 0) {
     findings.push(
-      `${MANIFEST_PATH}: no contextual word claims position(s) ${unclaimed.join(", ")} — spec/grammar.md:380 makes each of them structural, and the probe is the only thing proving the highlighter paints a word "${declared.class}" there`,
+      `${MANIFEST_PATH}: no contextual word claims position(s) ${unclaimed.join(", ")} — spec/grammar.md#keywords-primitives-and-built-in-names makes each of them structural, and the probe is the only thing proving the highlighter paints a word "${declared.class}" there`,
     );
   }
   for (const name of carveOuts.keys()) {
@@ -2185,7 +2185,7 @@ export function generatedRowClauses(manifest) {
  * The profile half of the row's rule. It carries no data to render, so it is a **required literal**
  * — nothing more and nothing less. It exists because the polarity of this sentence is a normative
  * claim that the rest of the row check could not see: rewriting it to "whether or not their profile
- * is active" contradicts `spec/tooling.md:31` and used to pass.
+ * is active" contradicts `spec/tooling.md#normative-token-class-model` and used to pass.
  */
 export const REQUIRED_ROW_SENTENCES = [
   "Profile words — a profile's block-heads and its mode-switch commands — take this class while their profile is active, and `primitive` while it is not.",
@@ -2237,10 +2237,10 @@ export function reEnumerationFindings(row, names) {
     .sort((left, right) => right.length - left.length);
   const alternation = `(?:${escaped.join("|")})`;
   // Identifier-aware boundaries, NOT `\b`: OpenLogo names may end in `?` or `!`
-  // (`spec/grammar.md:15`), and `\b` cannot match after a non-word character, so
+  // (`spec/grammar.md#lexical-form-and-encoding`), and `\b` cannot match after a non-word character, so
   // `member?, empty?, and list?` slipped past a `\b`-anchored rule entirely (issue #959 review
   // round 3, finding 3). The classes are Unicode-aware because a user name may contain Unicode
-  // letters (`spec/tooling.md:24`), so `éset` is ONE identifier and must not read as a boundary
+  // letters (`spec/tooling.md#normative-token-class-model`), so `éset` is ONE identifier and must not read as a boundary
   // before `set` (round 4).
   const identifier = "[\\p{L}\\p{N}_?!]";
   const before = `(?<!${identifier})`;

@@ -1,5 +1,5 @@
 /**
- * Level 3 — variables (`spec/educational-model.md:89-121`, issue #325). The learner question
+ * Level 3 — variables (`spec/educational-model.md#level-3--variables`, issue #325). The learner question
  * is "How can one name control many places?": `:name` marks a variable everywhere, both when
  * reading and when writing a target; `=` assigns a value (`:size = 80`); the worded form
  * `set size to value` reads like a sentence and connects to Logo heritage; `==` compares while
@@ -13,7 +13,7 @@ import type { Exercise } from "./exercise.js";
 
 /**
  * The single Level 3 lesson: one name, `:size`, controlling every side of a square. The first
- * two worked examples reproduce `spec/educational-model.md:105-118`'s two `:size` blocks
+ * two worked examples reproduce `spec/educational-model.md#level-3--variables`'s two `:size` blocks
  * verbatim — the symbol assignment form and the worded form — so the lesson never drifts from
  * the normative sample. The third worked example adds `:size = :size + 10` to show the same
  * name being read and written in one statement, per the issue's "one name controls many

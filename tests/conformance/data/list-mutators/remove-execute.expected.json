@@ -1,5 +1,5 @@
 {
-  "description": "`remove 2 from :nums` executes: the runtime deletes only the first structural-equal occurrence in place, so `print :nums` observes [1 3 2] (the trailing 2 stays) (Data profile, issue #188, spec/data-structures.md:73-93).",
+  "description": "`remove 2 from :nums` executes: the runtime deletes only the first structural-equal occurrence in place, so `print :nums` observes [1 3 2] (the trailing 2 stays) (Data profile, issue #188, spec/data-structures.md#lists, spec/data-structures.md#mutating-list-operations).",
   "profiles": ["core-language", "data"],
   "execute": true,
   "events": [

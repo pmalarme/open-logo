@@ -55,11 +55,11 @@ profile or the whole DAG. The runner discovers every `*.expected.json` and pairs
   Inside an opted-in fixture the grain is per diagnostic: only those that carry a `message` have
   their prose asserted, so a fixture can pin one sentence and leave its siblings free.
 
-  **Opt in only where the spec fixes the words.** The default is what `spec/error-model.md:254-259`
-  asks for — "diagnostic identity is `code` plus `params`; prose is presentation" — and `:261-263`
+  **Opt in only where the spec fixes the words.** The default is what `spec/error-model.md#localization-boundary`
+  asks for — "diagnostic identity is `code` plus `params`; prose is presentation" — and `spec/error-model.md#localization-boundary`
   positively permits a template author to "reorder, inflect, or soften" a message, so most learner
   wording is presentation a conforming implementation may change. Freezing it would make this corpus
-  resist a change the spec allows. `ol-reserved-word` is the case this exists for: `:125` prescribes
+  resist a change the spec allows. `ol-reserved-word` is the case this exists for: `spec/error-model.md#normative-code-registry` prescribes
   the sentence *and* makes *keyword*, *primitive* and *alias* a MUST NOT inside it — a MUST NOT no
   harness can enforce without reading the text, and one that shipped violated twice (#751, #871)
   while the corpus stayed green. Today the only fixtures that opt in are the built-in-name ones
@@ -164,7 +164,7 @@ dependency closure, so `"geometry"` already covers `"data"` — does not cover t
 It used to only select: `profiles` never reached `execute()`, so a fixture whose source used Sprites
 forms passed with `"sprites"` deleted from its array, and the declaration was documentation rather
 than enforcement. Correcting that surfaced 8 fixtures under `core-language/execution/` that executed
-`:nums[i]` while claiming Core alone — Data by `spec/conformance.md:269`, "only Data-claiming
+`:nums[i]` while claiming Core alone — Data by `spec/conformance.md#feature-to-profile-table`, "only Data-claiming
 implementations execute the list case".
 
 The gate applies to **executed** fixtures only, and the two exclusions are deliberate:
@@ -173,7 +173,7 @@ The gate applies to **executed** fixtures only, and the two exclusions are delib
   which resolves primitives through the active set. Those fixtures deliberately name an *inactive*
   profile's forms (`heritage/check/heritage-forms-rejected-in-core` and its siblings exist precisely
   to prove the rejection), so a static under-declaration gate would fail correct fixtures.
-- **Parse-only fixtures have no profile semantics to gate** — `spec/conformance.md:120` states that
+- **Parse-only fixtures have no profile semantics to gate** — `spec/conformance.md#data` states that
   the postfix-read grammar a list index uses "is unconditional Core syntax", so a Core-only fixture
   that merely *parses* `:nums[2]` is right as written.
 

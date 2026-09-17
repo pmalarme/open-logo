@@ -2,7 +2,7 @@
 # WITHOUT moving, drawing, or inspecting the turtle: a pure reporter.
 #
 # @command area :shape
-# @spec spec/geometry-module.md:310-415
+# @spec spec/geometry-module.md#shape-spec-lists-for-area-and-perimeter, spec/geometry-module.md#perimeter-shape
 # @param shape ["polygon" sides size] or ["circle" radius]
 # @formula polygon area = sides * size^2 / (4 * tan (180 / sides))
 # @formula circle area  = pi * radius^2

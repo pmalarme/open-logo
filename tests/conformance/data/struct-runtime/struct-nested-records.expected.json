@@ -1,5 +1,5 @@
 {
-  "description": "Records nest and their field chains read and write through (issue #329, `spec/data-structures.md:252-327`): a `segment` of two `point` records supports `:s.head.x`/`:s.tail.y`, and `:s.head.x = 100` mutates the inner record in place.",
+  "description": "Records nest and their field chains read and write through (issue #329, `spec/data-structures.md#dictionary-writes-and-upserts, spec/data-structures.md#record-operations`): a `segment` of two `point` records supports `:s.head.x`/`:s.tail.y`, and `:s.head.x = 100` mutates the inner record in place.",
   "profiles": ["core-language", "data"],
   "execute": true,
   "events": [

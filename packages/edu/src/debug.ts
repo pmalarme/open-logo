@@ -1,11 +1,11 @@
 /**
  * The deterministic, offline, template-based `debug` baseline meta-command
- * (`spec/educational-model.md#debug`, `:512-531`). Given a {@link TutorContext} it produces a
+ * (`spec/educational-model.md#debug`). Given a {@link TutorContext} it produces a
  * {@link TutorOutput} that helps a learner inspect what happened **without exposing
  * implementation stack traces or a complete, ready-to-run solution** — the Educational profile's
  * normative guardrail (`spec/conformance.md#educational`).
  *
- * The spec's baseline behavior for `debug` (`spec/educational-model.md:516-523`) is:
+ * The spec's baseline behavior for `debug` (`spec/educational-model.md#debug`) is:
  *
  * - Show the current instruction.
  * - Show relevant variable values.
@@ -139,7 +139,7 @@ function findRelevantErrorDiagnostic(
 }
 
 /**
- * Names the current instruction (`spec/educational-model.md:518`'s "Show the current
+ * Names the current instruction (`spec/educational-model.md#debug`'s "Show the current
  * instruction"): the callee name when `target` is a call `commandMetadata` identifies, a
  * template phrase for other statement kinds, or a whole-program fallback when nothing is
  * selected.
@@ -166,10 +166,10 @@ function describeCurrentInstruction(context: TutorContext): string {
 }
 
 /**
- * Collects the `:name`s of variables read directly by `target` (`spec/educational-model.md:519`'s
+ * Collects the `:name`s of variables read directly by `target` (`spec/educational-model.md#debug`'s
  * "Show relevant variable values"): the name itself when `target` is a bare `:name` read, or
  * every `:name` argument of a call. `debug` has no runtime variable snapshot to read from — only
- * the parsed program, spans, trace events, and diagnostics (`spec/educational-model.md:435`) — so
+ * the parsed program, spans, trace events, and diagnostics (`spec/educational-model.md#baseline-meta-commands`) — so
  * it names the variables in play rather than inventing a value it was never given.
  */
 function collectVariableNames(target: AnyNode | undefined): readonly string[] {
@@ -198,7 +198,7 @@ function stringParam(diagnostic: Diagnostic, key: string): string | undefined {
 }
 
 /**
- * Describes the variables `target` reads, when any (`spec/educational-model.md:519`). When the
+ * Describes the variables `target` reads, when any (`spec/educational-model.md#debug`). When the
  * relevant diagnostic carries `expected`/`actual` type params (as `ol-type` diagnostics do), the
  * segment names the mismatch directly; otherwise it just lists the variables in play so a
  * learner knows where to look next.
@@ -224,7 +224,7 @@ function variableValuesSegment(
 
 /**
  * The turtle-state fields `debug` reports for one turtle
- * (`spec/educational-model.md:520`'s "Show turtle state when useful: position, heading, pen,
+ * (`spec/educational-model.md#debug`'s "Show turtle state when useful: position, heading, pen,
  * color, width"). Mutable while {@link foldTurtleStatesByIdentity} accumulates into it; each
  * field stays absent until an event sets it, so `debug` only ever reports what the trace
  * actually says about that turtle.
@@ -283,13 +283,13 @@ const MAIN_TURTLE_ID: TurtleId = 0;
  * through a single set of variables, so under Sprites a `tell [ :a :b ]` reported one *blended*
  * state — last write wins per field — that no turtle ever actually had: position and heading
  * from whichever turtle moved last, color from whichever set one last.
- * `spec/turtles-and-sprites.md:113` requires the identities to exist precisely "so animation,
+ * `spec/turtles-and-sprites.md#per-turtle-state-and-turtle-commands` requires the identities to exist precisely "so animation,
  * stepping, `why`, and `debug` can explain which turtle moved or changed", and names `debug`
  * among the consumers the rule exists for.
  *
  * An absent `turtle_id` folds into {@link MAIN_TURTLE_ID}, not into a bucket of its own. The
  * producer omits the id exactly when no explicit `tell`/`ask`/`each` addressing is in force
- * (:113 scopes the identity requirement to explicit addressing), and the turtle acting then is
+ * (spec/turtles-and-sprites.md#per-turtle-state-and-turtle-commands scopes the identity requirement to explicit addressing), and the turtle acting then is
  * the main turtle — the same one a `tell [ who ]` later stamps as `turtle_id: 0`. Keeping them
  * apart would let one turtle be reported twice, at two different positions, whenever a program
  * interleaves addressed and unaddressed movement (`forward 5` / `ask who [ forward 5 ]` /
@@ -298,7 +298,7 @@ const MAIN_TURTLE_ID: TurtleId = 0;
  * also exactly how `debug` would start contradicting the picture on screen again.
  *
  * A `clear` is deliberately **not** a state-bearing kind, in either mode (issue #738).
- * `spec/turtles-and-sprites.md:113` is explicit that "consumers MUST NOT read a `clear` event as an
+ * `spec/turtles-and-sprites.md#per-turtle-state-and-turtle-commands` is explicit that "consumers MUST NOT read a `clear` event as an
  * instruction to move a turtle: a turtle's position and heading change only through the events that
  * report that turtle's movement" — and it names `debug` among the consumers that rule exists for.
  * This fold used to home on `clear{mode:"clear_screen"}`, mirroring `@openlogo/turtle`'s
@@ -311,7 +311,7 @@ const MAIN_TURTLE_ID: TurtleId = 0;
  * #847 that producer emits an explicit `move`/`turn` pair for every turtle it actually homes, which
  * the arms below already fold — now per turtle, so a multi-turtle homing is reported once per
  * turtle instead of collapsing into one. `reduceTurtleState` keeps its `clear` branch for the
- * different job it has — reducing an arbitrary producer's stream, where `spec/rendering.md:153`'s
+ * different job it has — reducing an arbitrary producer's stream, where `spec/rendering.md#clear-operations`'s
  * payload discriminator may be the only record of the homing.
  */
 function foldTurtleStatesByIdentity(
@@ -374,7 +374,7 @@ function foldTurtleStatesByIdentity(
 
 /**
  * Renders one turtle's folded state as the comma-separated field list `debug` reports, in the
- * fixed order `spec/educational-model.md:520` lists them ("position, heading, pen, color,
+ * fixed order `spec/educational-model.md#debug` lists them ("position, heading, pen, color,
  * width"). Empty when the bucket describes nothing — see {@link turtleStateSegment}, which drops
  * such a turtle rather than emitting a clause with no fields in it.
  */
@@ -439,7 +439,7 @@ function countLiveTurtles(events: readonly TraceEvent[]): number {
 }
 
 /**
- * The turtle-state segment `debug` reports (`spec/educational-model.md:520`), naming **which**
+ * The turtle-state segment `debug` reports (`spec/educational-model.md#debug`), naming **which**
  * turtle each state belongs to as soon as there is more than one turtle it could be.
  *
  * Three shapes, all sharing the `Turtle state so far:` opening so a consumer can still find the
@@ -456,7 +456,7 @@ function countLiveTurtles(events: readonly TraceEvent[]): number {
  * with state. Keying it on state alone made `:a = new_turtle` / `ask :a [ forward 5 ]` — the
  * simplest Sprites program there is — report `position (0, 5)` unnamed, the exact sentence a bare
  * `forward 5` produces for the *main* turtle, even though the turtle that moved was `#1` and the
- * main turtle had not moved at all. `spec/rendering.md:193` makes identification a MUST in that
+ * main turtle had not moved at all. `spec/rendering.md#non-visual-state-descriptions` makes identification a MUST in that
  * situation ("Implementations with multiple turtles MUST identify the active turtle or addressed
  * turtle set"), and `@openlogo/turtle`'s accessible state region already names turtles on this
  * same trigger — "once the world holds more than one live turtle" (`a11y.ts`, issue #749) — so
@@ -467,12 +467,12 @@ function countLiveTurtles(events: readonly TraceEvent[]): number {
  *
  * `turtle #<id>` is the identity a turtle value prints as — `@openlogo/runtime`'s `printedForm`
  * renders `turtle #<id>` from `@openlogo/core`'s `OLTurtle.id` — so `debug`'s clauses match what
- * `print who` or `print :friend` just showed the learner (`spec/turtles-and-sprites.md:39`, `:85`).
+ * `print who` or `print :friend` just showed the learner (`spec/turtles-and-sprites.md#turtle-creation`, `spec/turtles-and-sprites.md#addressing-model`).
  * The tag is not spelled out in `spec/*.md`; the runtime is its normative source here, and the
  * test alongside this reads it back through `printedForm` so the two cannot drift apart.
  *
  * Ordering by id rather than by when each turtle last acted is deliberate.
- * `spec/turtles-and-sprites.md:113` requires that "the result never depends on the order the
+ * `spec/turtles-and-sprites.md#per-turtle-state-and-turtle-commands` requires that "the result never depends on the order the
  * turtles were listed in: `tell [ :a :b ]` and `tell [ :b :a ]` home the same two turtles" — and
  * those two forms genuinely do emit their per-turtle events in opposite orders, so reporting the
  * last turtle to act (or reporting in event order) would make `debug`'s answer depend on the
@@ -514,10 +514,10 @@ function turtleStateSegment(events: readonly TraceEvent[]): string | undefined {
 
 /**
  * Reconstructs which procedures are still open at the end of the trace
- * (`spec/educational-model.md:521`'s "For procedures, show a friendly call path"): every
+ * (`spec/educational-model.md#debug`'s "For procedures, show a friendly call path"): every
  * `procedure-enter` pushes its callee's name, every `procedure-exit` pops one — the same
  * enter/exit pairing the trace/event contract registers and illustrates
- * (`spec/execution-model.md:631-697,775-813`) — leaving only the frames still active. When the
+ * (`spec/execution-model.md#turtle-and-canvas-state, spec/execution-model.md#trace-and-event-registry, spec/execution-model.md#tutor-output-educational-profile, spec/execution-model.md#recursive-call`) — leaving only the frames still active. When the
  * target itself is a completed procedure call (its enter/exit pair already closed, so no frame is
  * left open), the target's own `commandMetadata` still names the procedure it invoked — showing
  * that single-name path is more useful to a learner than showing nothing.
@@ -541,7 +541,7 @@ function callPathSegment(context: TutorContext): string | undefined {
 }
 
 /**
- * The one next investigation step `debug` suggests (`spec/educational-model.md:523`'s "Suggest
+ * The one next investigation step `debug` suggests (`spec/educational-model.md#debug`'s "Suggest
  * one next investigation step, not a full fix"). Never a corrected program — only where to look
  * next — so it can never violate the Educational profile's no-full-solution guardrail.
  */

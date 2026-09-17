@@ -1,5 +1,5 @@
 // Unit tests for `for ... in`/`for ... from ... to ... by` loop mechanics and binder scoping
-// (issue #103, spec/execution-model.md:340,392-398,857-872). Conformance fixtures under
+// (issue #103, spec/execution-model.md#variables-scoping-and-procedures, spec/execution-model.md#control-forms, spec/execution-model.md#final-dict-key-upsert, spec/execution-model.md#for--in-with-destructuring). Conformance fixtures under
 // tests/conformance/core-language/execution/for-*.expected.json cover the event/diagnostic shape
 // end to end for the Given/When/Then scenarios; these unit tests fill in what a fixture cannot:
 // runtime-only edge cases (loop-variable scoping ending at runtime, nested repeat/for repcount
@@ -236,7 +236,7 @@ test("the boundary tolerance does not admit a pass genuinely beyond a fractional
   assert.deepEqual(printedValues, [0]);
 });
 
-test("for ... in folds the bare-name binder: a differently-cased :read sees the binding (spec/grammar.md:13)", () => {
+test("for ... in folds the bare-name binder: a differently-cased :read sees the binding (spec/grammar.md#lexical-form-and-encoding)", () => {
   const result = execute("for N in [1 2 3] [\n  print :n\n]", doc);
   assert.deepEqual(result.diagnostics, []);
   const printed = result.events
@@ -245,7 +245,7 @@ test("for ... in folds the bare-name binder: a differently-cased :read sees the 
   assert.deepEqual(printed, [1, 2, 3]);
 });
 
-test("for ... from ... to folds the range binder: a differently-cased :read sees the binding (spec/grammar.md:13)", () => {
+test("for ... from ... to folds the range binder: a differently-cased :read sees the binding (spec/grammar.md#lexical-form-and-encoding)", () => {
   const result = execute("for I from 1 to 3 [\n  print :i\n]", doc);
   assert.deepEqual(result.diagnostics, []);
   const printed = result.events
@@ -254,7 +254,7 @@ test("for ... from ... to folds the range binder: a differently-cased :read sees
   assert.deepEqual(printed, [1, 2, 3]);
 });
 
-test("for ... in folds destructuring binders: differently-cased reads see each binding (spec/grammar.md:13)", () => {
+test("for ... in folds destructuring binders: differently-cased reads see each binding (spec/grammar.md#lexical-form-and-encoding)", () => {
   const result = execute(
     "for [:A :B] in [[1 2]] [\n  print :a\n  print :b\n]",
     doc,

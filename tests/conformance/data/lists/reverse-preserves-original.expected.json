@@ -1,5 +1,5 @@
 {
-  "description": "`reverse` (Data profile, spec/data-structures.md:125-141) reports a fresh list with `:nums`'s elements in reverse order; the argument variable itself is unchanged on the following statement, proving `reverse` copies rather than mutates. Issue #190.",
+  "description": "`reverse` (Data profile, spec/data-structures.md#core-non-mutating-list-reporters, spec/data-structures.md#derived-list-reporters-in-the-data-profile) reports a fresh list with `:nums`'s elements in reverse order; the argument variable itself is unchanged on the following statement, proving `reverse` copies rather than mutates. Issue #190.",
   "profiles": ["data"],
   "execute": true,
   "events": [

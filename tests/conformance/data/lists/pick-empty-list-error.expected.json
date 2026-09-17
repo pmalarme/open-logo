@@ -1,5 +1,5 @@
 {
-  "description": "`pick` on an empty list raises `ol-range` (spec/data-structures.md:125-141, spec/error-model.md \"`pick` from an empty list\"). Issue #190.",
+  "description": "`pick` on an empty list raises `ol-range` (spec/data-structures.md#core-non-mutating-list-reporters, spec/data-structures.md#derived-list-reporters-in-the-data-profile, spec/error-model.md \"`pick` from an empty list\"). Issue #190.",
   "profiles": ["data"],
   "execute": true,
   "events": [

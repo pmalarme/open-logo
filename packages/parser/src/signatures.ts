@@ -36,12 +36,12 @@ export interface ArityRange {
 
 /**
  * A primitive's **Kind**, as each primitive's own entry in the spec states it: a `command` performs
- * an effect and reports no value, a `reporter` reports one (`spec/commands.md:15,17` — *"**Kind** is
+ * an effect and reports no value, a `reporter` reports one (`spec/commands.md#notation-and-language-surface` — *"**Kind** is
  * **Command**, **Reporter**, or **Special form**"*, and *"**Result** is the reported value or `—`
  * for commands and effect-only special forms"*).
  *
- * The block-result rule judges a block by its last statement (`spec/execution-model.md:217-230`,
- * whose closing sentence at `:228-229` is the `ol-no-value` rule itself), so this is the fact a
+ * The block-result rule judges a block by its last statement (`spec/execution-model.md#the-block-result-rule`,
+ * whose closing sentence at `spec/execution-model.md#the-block-result-rule` is the `ol-no-value` rule itself), so this is the fact a
  * comprehension body's `ol-no-value` (`checker-control-flow.ts`, and `@openlogo/runtime`'s
  * `runComprehensionBody`) and a control body's `ol-style-useless-value` (`checker-style.ts`) all
  * need about a call — three consumers, and before issue #932 two hand-written three-name lists.
@@ -135,13 +135,13 @@ export function corePrimitiveArity(name: string): number | undefined {
  * Pen and screen tables in [`spec/commands.md`](../../../spec/commands.md). Each row is a canonical
  * name, its **Kind** and arity as that primitive's own entry states them, and — for five of them —
  * the one-word alias spelling `spec/commands.md` documents inline: `setxy`/`seth` (issue #202;
- * `spec/commands.md:1280,1297`), `setcolor`/`setbg`
- * (issue #208; `spec/commands.md:1522,1540`), and `setwidth` (issue #209; `spec/commands.md:1557`).
+ * `spec/commands.md#set_xy, spec/commands.md#set_heading`), `setcolor`/`setbg`
+ * (issue #208; `spec/commands.md#set_color, spec/commands.md#set_background`), and `setwidth` (issue #209; `spec/commands.md#set_width`).
  *
  * **The alias lives on its canonical's row rather than in a table beside it.** Until issue #841 the
  * five were independent arity entries with no recorded relationship, so nothing anywhere could
  * answer "what is `setxy` an alias *of*?" — `canonicalOfHeritageAlias("setxy")` returns `undefined`,
- * because they are not Heritage (`spec/conformance.md:148-157` closes that list and none of them is
+ * because they are not Heritage (`spec/conformance.md#heritage` closes that list and none of them is
  * in it). That made the edge unverifiable: `spec/built-in-names.json` records `setxy → set_xy`, and
  * the strongest check available against an unrecorded edge was "the target is some entry of equal
  * arity", which accepts `setxy → distance` just as happily.
@@ -168,7 +168,7 @@ export function corePrimitiveArity(name: string): number | undefined {
  * `fd`/`bk`/`lt`/`rt`/`pu`/`pd`/`st`/`ht`/`cs` are the genuinely **Heritage**-profile (M5) short
  * spellings and are not here. Kept as a separate table from {@link CORE_PRIMITIVE_ARITY} because
  * the two profiles have independent visibility: the Layer-2 checker gates each on its own active
- * profile (`spec/tooling.md:175-176`), while the reader groups a bare call's arguments for *any*
+ * profile (`spec/tooling.md#layer-2-semantic-checking`), while the reader groups a bare call's arguments for *any*
  * recognized primitive regardless of profile — the profile-legality decision belongs to the
  * checker, not the reader.
  */
@@ -289,15 +289,15 @@ export function turtlePrimitiveArity(name: string): number | undefined {
  * reporters in the Data profile" table, the dictionary operations table, and the record operations
  * table in [`spec/data-structures.md`](../../../spec/data-structures.md): `reverse`/`pick`/`sort`
  * each take one `list` argument, matching the spec's own worked example's bare-call form
- * (`:backward = reverse :nums`); `list` takes none as a bare call (`spec/data-structures.md:77`'s
+ * (`:backward = reverse :nums`); `list` takes none as a bare call (`spec/data-structures.md#mutating-list-operations`'s
  * empty-list constructor reporter — its variadic parenthesized form `(list a b …)`,
- * `spec/data-structures.md:78`, is not a fixed arity and so is not represented in this table, the
+ * `spec/data-structures.md#mutating-list-operations`, is not a fixed arity and so is not represented in this table, the
  * same way `dict` has no parenthesized variadic form to register); `dict` takes none (the
  * empty-constructor reporter); `keys`/`values` each take one `dict` argument; `type_of` takes one
- * `record` argument and reports its struct type name (`spec/data-structures.md:286`). Kept as its
+ * `record` argument and reports its struct type name (`spec/data-structures.md#dictionary-operations`). Kept as its
  * own table rather than folded into {@link CORE_PRIMITIVE_ARITY} for the same reason
  * {@link TURTLE_PRIMITIVE_ARITY} is separate: the two profiles have independent visibility (the
- * Layer-2 checker gates each on its own active profile, `spec/tooling.md:175-176`), while the
+ * Layer-2 checker gates each on its own active profile, `spec/tooling.md#layer-2-semantic-checking`), while the
  * reader (this table's only consumer, via {@link primitiveArity}) groups a bare call's arguments
  * for *any* recognized primitive regardless of profile.
  */
@@ -346,7 +346,7 @@ export function dataPrimitiveArity(name: string): number | undefined {
  * default arity, keyed by canonical lowercase name to the maximum the paren form accepts
  * (`Number.POSITIVE_INFINITY` for an open variadic) — mirrors {@link CORE_PRIMITIVE_MAX_ARITY}
  * exactly. `list`'s bare form is the empty-list constructor (arity 0), but its parenthesized
- * alternate `(list a b …)` (`spec/data-structures.md:78`) is open variadic, just like `(print …)`.
+ * alternate `(list a b …)` (`spec/data-structures.md#mutating-list-operations`) is open variadic, just like `(print …)`.
  * Every other Data primitive absent here is strictly fixed-arity.
  */
 const DATA_PRIMITIVE_MAX_ARITY: ReadonlyMap<string, number> = new Map([
@@ -362,7 +362,7 @@ const DATA_PRIMITIVE_MAX_ARITY: ReadonlyMap<string, number> = new Map([
  * production or AST node kind (`ast-design` skill: "one node kind per grammar production"). Kept
  * as its own table for the same reason {@link TURTLE_PRIMITIVE_ARITY}/{@link DATA_PRIMITIVE_ARITY}
  * are separate: Educational has its own independent profile visibility (the Layer-2 checker gates
- * it on its own active profile, `spec/tooling.md:175-176`), while the reader groups a bare call's
+ * it on its own active profile, `spec/tooling.md#layer-2-semantic-checking`), while the reader groups a bare call's
  * arguments for *any* recognized primitive regardless of profile.
  */
 const EDUCATIONAL_PRIMITIVES: readonly PrimitiveRow[] = [
@@ -402,7 +402,7 @@ export function educationalPrimitiveArity(name: string): number | undefined {
  * The **Tutor (AI)** profile's one command (issue #838), whose canonical signature is normative in
  * [`spec/conformance.md`](../../../spec/conformance.md#tutor-ai): `challenge` is a Command, arity 0,
  * invoked as the bare word — the same "zero-input bare Command" shape as the Educational
- * meta-commands it augments (`spec/ai-tutor.md:173`).
+ * meta-commands it augments (`spec/ai-tutor.md#challenge-ai-created-practice-not-a-test-trap`).
  *
  * Tutor has no runtime yet, so before this slice `challenge` was the one built-in name with **no
  * registry at all** and therefore the one a program could declare with nothing to consult. It gets
@@ -443,7 +443,7 @@ export function tutorPrimitiveArity(name: string): number | undefined {
  * guide lines, crossed axes, or a measurement marker. Kept as its own table for the same reason
  * {@link TURTLE_PRIMITIVE_ARITY}/{@link EDUCATIONAL_PRIMITIVE_ARITY} are separate: Geometry has its
  * own independent profile visibility (the Layer-2 checker gates it on its own active profile,
- * `spec/tooling.md:175-176`), while the reader groups a bare call's arguments for *any* recognized
+ * `spec/tooling.md#layer-2-semantic-checking`), while the reader groups a bare call's arguments for *any* recognized
  * primitive regardless of profile.
  */
 const GEOMETRY_PRIMITIVES: readonly PrimitiveRow[] = [
@@ -481,7 +481,7 @@ export function geometryPrimitiveArity(name: string): number | undefined {
 /**
  * Default arities for the **Interaction & Events** profile's Core-spelled primitives that the
  * reader must group arguments for — `wait <n>` (issue #680, slice I1) and `input <prompt>` (issue
- * #681, slice I2), the profile's only two ordinary calls (`spec/interaction-events.md:65`: "`input`
+ * #681, slice I2), the profile's only two ordinary calls (`spec/interaction-events.md#profile-grammar`: "`input`
  * and `wait` are ordinary calls and take no block"). `wait` is a Kind-C Command taking one input and
  * `input` a Kind-R Reporter taking one prompt, both derived from
  * [`spec/interaction-events.md`](../../../spec/interaction-events.md)'s "Profiles and reservation"
@@ -492,7 +492,7 @@ export function geometryPrimitiveArity(name: string): number | undefined {
  * the reader groups their single argument. Kept as its own table for the same reason
  * {@link TURTLE_PRIMITIVE_ARITY}/{@link GEOMETRY_PRIMITIVE_ARITY} are separate:
  * Interaction & Events has its own independent profile visibility (the Layer-2 checker gates it on
- * its own active profile, `spec/tooling.md:175-176`), while the reader groups a bare call's
+ * its own active profile, `spec/tooling.md#layer-2-semantic-checking`), while the reader groups a bare call's
  * arguments for *any* recognized primitive regardless of profile.
  */
 const INTERACTION_PRIMITIVES: readonly PrimitiveRow[] = [
@@ -530,7 +530,7 @@ export function interactionPrimitiveArity(name: string): number | undefined {
 /**
  * The **Interaction & Events** profile block-head names the Layer-2 checker must treat as visible
  * so a call site whose head is one of them does not raise `ol-unknown-command` under an active
- * `interaction-events` profile (issue #682, slice I3 — `spec/tooling.md:175-176`,
+ * `interaction-events` profile (issue #682, slice I3 — `spec/tooling.md#layer-2-semantic-checking`,
  * `spec/interaction-events.md` §Profiles and reservation). These are the four reserved block-heads
  * `when`/`every`/`on_key`/`on_click` the reader lowers to a `ProfileStatement` (C2 #664's
  * `PROFILE_STATEMENT_FORMS`), NOT ordinary primitive calls — so they live in their own table,
@@ -571,17 +571,17 @@ export function interactionEventsBlockHeadNames(): readonly string[] {
 /**
  * Default arities for the **Sound** profile's primitives (issue #689,
  * [`spec/interaction-events.md`](../../../spec/interaction-events.md)'s "Sound primitives"
- * section). `set_tempo` takes one number (the beats-per-minute, `spec/interaction-events.md:286-299`)
- * and `beep` takes none (`spec/interaction-events.md:336-351`) — the two primitives slice S1 (#689)
+ * section). `set_tempo` takes one number (the beats-per-minute, `spec/interaction-events.md#set_tempo-beats-per-minute`)
+ * and `beep` takes none (`spec/interaction-events.md#beep`) — the two primitives slice S1 (#689)
  * delivered; `note`/`rest` arrived with #690 and `play` with #691, so all five are registered
  * below, each a bare `Call` grouped by its arity exactly as `set_width`/`grid` are. Kept as
  * its own table for the same reason {@link TURTLE_PRIMITIVE_ARITY}/{@link GEOMETRY_PRIMITIVE_ARITY}
  * are separate: Sound has its own independent profile visibility (the Layer-2 checker gates it on
- * its own active `sound` profile, `spec/tooling.md:175-176`), while the reader groups a bare call's
+ * its own active `sound` profile, `spec/tooling.md#layer-2-semantic-checking`), while the reader groups a bare call's
  * arguments for *any* recognized primitive regardless of profile — the profile-legality decision
  * belongs to the checker, not the reader. Sound command names are ordinary primitive names (not
- * reserved block-heads) whose availability requires the profile (`spec/interaction-events.md:47`;
- * the names themselves are built-in unconditionally per `spec/grammar.md:408`).
+ * reserved block-heads) whose availability requires the profile (`spec/interaction-events.md#profiles-and-reservation`;
+ * the names themselves are built-in unconditionally per `spec/grammar.md#keywords-primitives-and-built-in-names`).
  */
 const SOUND_PRIMITIVES: readonly PrimitiveRow[] = [
   ["set_tempo", "command", 1],
@@ -624,7 +624,7 @@ export function soundPrimitiveArity(name: string): number | undefined {
  * and checker, not bare-call primitives whose arguments the reader groups. Kept as its own table
  * for the same reason {@link TURTLE_PRIMITIVE_ARITY}/{@link GEOMETRY_PRIMITIVE_ARITY} are separate:
  * Sprites has its own independent profile visibility (the Layer-2 checker gates it on its own
- * active profile, `spec/tooling.md:175-176`), while the reader groups a bare call's arguments for
+ * active profile, `spec/tooling.md#layer-2-semantic-checking`), while the reader groups a bare call's arguments for
  * *any* recognized primitive regardless of profile. Registering these arities therefore does NOT
  * make the Sprites profile callable under Core or claimable — that gating is the checker's and the
  * profile-claim slice's concern.
@@ -663,12 +663,12 @@ export function spritesPrimitiveArity(name: string): number | undefined {
 /**
  * The **Heritage** profile's short command and reporter aliases (issues #668 slice H3 + #669 slice
  * H4), each mapping onto the Core-spelled command or reporter it is an alternate spelling of. The
- * list and its one-to-one canonical mapping are authoritative in `spec/conformance.md:151` and
- * `spec/commands.md`'s per-command **Aliases** rows (`fd`→`forward`:1195, `bk`→`back`:1212,
- * `lt`→`left`:1229, `rt`→`right`:1246, `st`→`show_turtle`:1418, `ht`→`hide_turtle`:1435,
- * `pu`→`pen_up`:1452, `pd`→`pen_down`:1470, `cs`→`clear_screen`:1488, `pr`→`print`:146, plus the
- * list reporters `bf`→`butfirst`:1070, `bl`→`butlast`:1087, `se`→`sentence`:1019). Heritage is
- * "alternate spellings only — no new semantics" (`spec/conformance.md:150`): the reader records
+ * list and its one-to-one canonical mapping are authoritative in `spec/conformance.md#heritage` and
+ * `spec/commands.md`'s per-command **Aliases** rows (`fd`→`forward`spec/commands.md#forward, `bk`→`back`spec/commands.md#back,
+ * `lt`→`left`spec/commands.md#left, `rt`→`right`spec/commands.md#right, `st`→`show_turtle`spec/commands.md#show_turtle, `ht`→`hide_turtle`spec/commands.md#hide_turtle,
+ * `pu`→`pen_up`spec/commands.md#pen_up, `pd`→`pen_down`spec/commands.md#pen_down, `cs`→`clear_screen`spec/commands.md#clear_screen, `pr`→`print`spec/commands.md#print, plus the
+ * list reporters `bf`→`butfirst`spec/commands.md#butfirst, `bl`→`butlast`spec/commands.md#butlast, `se`→`sentence`spec/commands.md#sentence). Heritage is
+ * "alternate spellings only — no new semantics" (`spec/conformance.md#heritage`): the reader records
  * `canonical` on the alias's {@link import("./ast.js").CallNode} so the runtime dispatches through
  * the exact same code path as the Core spelling, and this module never keeps a second copy of each
  * canonical's arity — that stays each owning profile's single source-of-truth table (see
@@ -731,7 +731,7 @@ export function heritageAliasNames(): readonly string[] {
  * an alternate of". Two consumers need that answer for different reasons, and they must never drift:
  * `checker-heritage-form.ts` points a Core-only learner's did-you-mean at the Core spelling, and
  * `checker-control-flow.ts` canonicalizes `params.keyword` so a Heritage escape's diagnostic
- * identity is byte-identical to its Core twin's (`spec/error-model.md:254-259`, issue #737).
+ * identity is byte-identical to its Core twin's (`spec/error-model.md#localization-boundary`, issue #737).
  *
  * Declared `as const` so {@link canonicalOfHeritageFormHead} can report each head's canonical as a
  * literal type: that is what lets a caller thread a canonical spelling into a diagnostic param
@@ -773,9 +773,9 @@ export function heritageFormHeadNames(): readonly HeritageFormHead[] {
 /**
  * The **Heritage** profile's WORDED forms — the multi-word spellings, which are neither callable
  * *names* like {@link HERITAGE_ALIAS_CANONICAL}'s aliases nor single-word statement heads like
- * {@link HERITAGE_FORM_HEAD_CANONICAL}'s. `spec/conformance.md:153` lists exactly one today, the
+ * {@link HERITAGE_FORM_HEAD_CANONICAL}'s. `spec/conformance.md#heritage` lists exactly one today, the
  * worded dictionary reporter `value of … for key` (slice H5, issue #670), whose production is
- * `spec/grammar.md:213`'s `value-of-reader`.
+ * `spec/grammar.md#expressions-and-calls`'s `value-of-reader`.
  *
  * Each entry records three things. `phrase` is quoted verbatim from that spec bullet, so a guard
  * can hold this table against the spec's own inventory without normalising anything. `node` is the
@@ -789,17 +789,17 @@ export function heritageFormHeadNames(): readonly HeritageFormHead[] {
  * dict key `value` like any other word. The phrase's other literals are weaker still, being
  * ordinary vocabulary that reaches params on its own account (a malformed form quotes whatever
  * token it stopped at through `ol-bad-token`'s `text`): `of` is the contextual preposition of the
- * `is member of` predicate (`spec/grammar.md:380`), `for` opens the Core `for … in`/`for … from … to`
- * loops, and `key` is also the Data profile's `remove key … from` (`spec/grammar.md:115`) — which is
+ * `is member of` predicate (`spec/grammar.md#keywords-primitives-and-built-in-names`), `for` opens the Core `for … in`/`for … from … to`
+ * loops, and `key` is also the Data profile's `remove key … from` (`spec/grammar.md#ebnf-notation`) — which is
  * why the head, not the phrase, is what {@link HERITAGE_SURFACE_SPELLINGS} registers for
  * canonical-param matching. The operands the phrase elides are a dict and a word/number key
- * (`spec/data-structures.md:268`).
+ * (`spec/data-structures.md#dictionary-operations`).
  *
  * There is deliberately no `canonical` column. The four form heads each map onto a Core WORD
  * (`make` → `set`, `to` → `define`, `output`/`op` → `return`), which is what lets
  * {@link canonicalOfHeritageFormHead} hand a caller a canonical spelling for a diagnostic param.
  * This reader's Core equivalent is the `[]`/`.` selector *syntax* — `:d["k"]`, `:d.k`
- * (`spec/data-structures.md:265-268`) — not a word, so there is no canonical spelling to report and
+ * (`spec/data-structures.md#dictionary-operations`) — not a word, so there is no canonical spelling to report and
  * inventing one would name something absent from the diagnostic's own span. That is exactly why
  * `checker-heritage-form.ts` gives this form's rejection no `did you mean`, and why the form must
  * live in its own table rather than being forced into the head→canonical map.
@@ -909,9 +909,9 @@ export function heritageWordedFormHeads(): readonly string[] {
  * Read "identifies" precisely: these are the words a learner writes to make the reader take a
  * Heritage spelling rather than a Core one. Several of them are ALSO ordinary Core vocabulary in
  * some other position, so this is not a list of Heritage-exclusive tokens: `to` is the preposition
- * of Core's `set … to` and the bound of `for … from … to` (`spec/grammar.md:104,128`) as well as
+ * of Core's `set … to` and the bound of `for … from … to` (`spec/grammar.md#ebnf-notation`) as well as
  * the Heritage procedure opener, and the worded reader's head `value` is a globally reserved word
- * (`spec/grammar.md:371`). What each entry has in common is that a diagnostic naming it would be
+ * (`spec/grammar.md#keywords-primitives-and-built-in-names`). What each entry has in common is that a diagnostic naming it would be
  * naming the learner's Heritage spelling of a condition their Core twin raises identically.
  *
  * This is the enumerable definition of "a Heritage surface spelling", and it exists so the
@@ -925,7 +925,7 @@ export function heritageWordedFormHeads(): readonly string[] {
  * A spelling here is a WORD, which is why {@link HERITAGE_WORDED_FORMS} contributes its head
  * rather than its phrase: a leak is a string sitting in a param, and the guards match whole words
  * against rendered param values. The three tables together cover every spelling
- * `spec/conformance.md:146-157`'s Heritage inventory writes in code formatting (issue #755) — an
+ * `spec/conformance.md#data, spec/conformance.md#heritage`'s Heritage inventory writes in code formatting (issue #755) — an
  * agreement the parser guard asserts against the spec file itself, rather than by restating it
  * here. Before #755 these were the single-word tables only, and this comment nevertheless claimed a
  * completeness the worded reader disproved.
@@ -1052,7 +1052,7 @@ interface ProfilePrimitives {
  *
  * The `null` entries are not omissions, they are claims:
  * - `heritage` — its short aliases carry no arity of their own. Heritage is "alternate spellings
- *   only, no new semantics" (`spec/conformance.md:150`), so an alias resolves to its canonical and
+ *   only, no new semantics" (`spec/conformance.md#heritage`), so an alias resolves to its canonical and
  *   reads *that* profile's entry ({@link heritageAliasArity}); a Heritage table here would be a
  *   second copy of every canonical's arity, the very duplication this registry removes.
  * - `modules`, `localization` — neither profile defines a bare-call primitive: `spec/modules.md`'s
@@ -1134,7 +1134,7 @@ function arityRangeIn(
  * The default arity of any registered primitive — Core or an optional profile's Core-spelled
  * primitives — or `undefined` when `name` matches none of them. This is the reader's single
  * lookup (`parser.ts`'s `arityOf`): the reader has no notion of an "active profile" (that is a
- * Layer-2 checker concept, `spec/tooling.md:175-176`), so it must group a bare call's arguments
+ * Layer-2 checker concept, `spec/tooling.md#layer-2-semantic-checking`), so it must group a bare call's arguments
  * for *any* known primitive name, leaving the question of whether that primitive is legal under
  * the program's active profile set entirely to `check()`. Matching is case-insensitive.
  */
@@ -1154,7 +1154,7 @@ export function primitiveArity(name: string): number | undefined {
  * `undefined` when no active profile registers it — the static arity checker's single lookup
  * (`checker-arity.ts`, issue #874), and the profile-aware counterpart to {@link primitiveArity}.
  *
- * Only profiles present in `profiles` are consulted, exactly as `spec/tooling.md:175-176` requires
+ * Only profiles present in `profiles` are consulted, exactly as `spec/tooling.md#layer-2-semantic-checking` requires
  * ("MUST use the active conformance profile set when deciding which primitives and profile
  * block-heads are available") — a primitive whose owning profile is inactive is not visible, so its
  * arity is not statically known and the callee belongs to `ol-unknown-command` instead. An
@@ -1209,9 +1209,9 @@ function registeredCommandKind(
  * Is `name` a registered primitive whose kind is **Command** — it performs an effect and reports no
  * value? The profile-blind lookup, and the runtime's counterpart to {@link primitiveArity}:
  * `@openlogo/runtime` executes a program without an active-profile set (a Layer-2 checker concept,
- * `spec/tooling.md:175-177`), so it classifies any registered primitive. A Heritage short alias is
+ * `spec/tooling.md#layer-2-semantic-checking`), so it classifies any registered primitive. A Heritage short alias is
  * resolved to its canonical and answers as that canonical does — Heritage is "alternate spellings
- * only, no new semantics" (`spec/conformance.md:150`) — the same fallback the reader's own
+ * only, no new semantics" (`spec/conformance.md#heritage`) — the same fallback the reader's own
  * `arityOf` makes through {@link heritageAliasArity}. A name no profile registers (a user
  * procedure, a misspelling) is not a known command: it reports `false`, so a caller judging a
  * block's last statement treats it as value-producing rather than reporting a speculative error.
@@ -1233,11 +1233,11 @@ export function isPrimitiveCommandName(name: string): boolean {
  * command-vs-reporter lookup (`checker-control-flow.ts`'s `ol-no-value` and `checker-style.ts`'s
  * `ol-style-useless-value`).
  *
- * Only profiles present in `profiles` are consulted, as `spec/tooling.md:175-177` requires: a
+ * Only profiles present in `profiles` are consulted, as `spec/tooling.md#layer-2-semantic-checking` requires: a
  * primitive whose owning profile is inactive is not visible, so its kind is not statically known
  * and its callee belongs to `ol-unknown-command` instead. A Heritage short alias resolves to its
  * canonical only when `heritage` is active, and then answers as that canonical does under the same
- * active set — which `spec/conformance.md:155` requires directly: the nine turtle aliases "spell
+ * active set — which `spec/conformance.md#heritage` requires directly: the nine turtle aliases "spell
  * Turtle & Rendering primitives and therefore also need the **Turtle & Rendering** profile, while
  * `pr` spells a Core output command". Matching is case-insensitive.
  */
@@ -1317,7 +1317,7 @@ export function primitiveRegistryProfiles(): readonly CheckProfile[] {
  * The Heritage arm is not a special case bolted on here — it is the other half of
  * {@link PROFILE_PRIMITIVES}'s deliberate `heritage: null`, and it lives beside that entry so the
  * claim and its compensation cannot drift apart. An alias carries no arity of its own (Heritage is
- * "alternate spellings only, no new semantics", `spec/conformance.md:150`), so it has no row in an
+ * "alternate spellings only, no new semantics", `spec/conformance.md#heritage`), so it has no row in an
  * arity table and `profilePrimitiveNames("heritage")` is correctly empty — yet `fd` is still a name
  * a learner can call and a did-you-mean can suggest. A consumer that asks "what may this profile's
  * name be?" must get both, and asking one registry rather than remembering to union two is what

@@ -1,5 +1,5 @@
 {
-  "description": "Writing `:record.field` mutates the fixed slot in place, and a record is a reference type (issue #329, `spec/data-structures.md:266`, `spec/execution-model.md:13-40`): `:p.x = 10` changes `:p.x` from `3` to `10` with no fresh value, and after `:q = :p` the write `:q.y = 99` is observed through the alias `:p.y`.",
+  "description": "Writing `:record.field` mutates the fixed slot in place, and a record is a reference type (issue #329, `spec/data-structures.md#dictionary-operations`, `spec/execution-model.md#value-and-type-model`): `:p.x = 10` changes `:p.x` from `3` to `10` with no fresh value, and after `:q = :p` the write `:q.y = 99` is observed through the alias `:p.y`.",
   "profiles": ["core-language", "data"],
   "execute": true,
   "events": [

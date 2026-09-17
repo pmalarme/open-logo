@@ -14,7 +14,7 @@
  * (`spec/rendering.md`'s "Drawing model": "Repainting a target MUST be possible from retained
  * scene data without re-running the program"). Draw order is normative: background, then
  * drawing items in execution order, then overlays, then the visible turtle avatar
- * (`spec/rendering.md:32`: "The logical draw order is background first, then drawing items in
+ * (`spec/rendering.md#drawing-model`: "The logical draw order is background first, then drawing items in
  * execution order, then overlays, then the visible turtle avatar").
  */
 
@@ -342,7 +342,7 @@ function paintAvatar(
   target.restore();
 }
 
-/** Grid overlay guide-line color (`spec/rendering.md:141`: color must not be the sole carrier —
+/** Grid overlay guide-line color (`spec/rendering.md#grid-axes-and-measure-overlays`: color must not be the sole carrier —
  * see {@link AXES_STROKE_STYLE}'s distinct width for how the axes overlay stays distinguishable
  * without relying on color alone). */
 const GRID_STROKE_STYLE = "#cccccc";
@@ -353,7 +353,7 @@ const GRID_LINE_WIDTH = 1;
 /** Axes overlay line color, deliberately distinct from {@link GRID_STROKE_STYLE}. */
 const AXES_STROKE_STYLE = "#888888";
 /** Axes lines are drawn bolder than grid lines — a non-color (width) distinction, per
- * `spec/rendering.md:141` ("axes can use labels or line patterns"). */
+ * `spec/rendering.md#grid-axes-and-measure-overlays` ("axes can use labels or line patterns"). */
 const AXES_LINE_WIDTH = 2;
 
 /** `measure` overlay marker color and size, in world units before viewport scaling
@@ -389,7 +389,7 @@ function multiplesInRange(
 /**
  * Draws the grid overlay's guide lines: vertical lines at every world-x multiple of
  * `grid.spacing`, horizontal lines at every world-y multiple, each spanning the full viewport
- * (`spec/geometry-module.md:272`: "Grid lines are parallel to the canvas axes and pass through
+ * (`spec/geometry-module.md#grid`: "Grid lines are parallel to the canvas axes and pass through
  * every multiple of the spacing").
  */
 function paintGridOverlay(
@@ -429,7 +429,7 @@ function paintGridOverlay(
 
 /**
  * Draws the axes overlay: the horizontal line `y == 0` and the vertical line `x == 0`, crossing
- * at `home` (`spec/geometry-module.md:286`), each spanning the full viewport.
+ * at `home` (`spec/geometry-module.md#axes`), each spanning the full viewport.
  */
 function paintAxesOverlay(target: RenderTarget, viewport: Viewport): void {
   const [originX, originY] = worldToTarget([0, 0], viewport);
@@ -448,7 +448,7 @@ function paintAxesOverlay(target: RenderTarget, viewport: Viewport): void {
 /**
  * Draws the `measure` overlay's marker: a small filled dot at the last-measured position plus a
  * short tick pointing along the last-measured heading — an educational annotation, not turtle
- * drawing (`spec/geometry-module.md:298-300`).
+ * drawing (`spec/geometry-module.md#measure`).
  */
 function paintMeasureOverlay(
   target: RenderTarget,
@@ -478,7 +478,7 @@ function paintMeasureOverlay(
 
 /**
  * Draws every enabled overlay (`grid`/`axes`/`measure`) on top of the retained scene, in that
- * fixed order, matching the Geometry profile's overlays (`spec/rendering.md:131-141`). A `save`/
+ * fixed order, matching the Geometry profile's overlays (`spec/rendering.md#grid-axes-and-measure-overlays`). A `save`/
  * `restore` bracket isolates the overlay draw calls' `strokeStyle`/`fillStyle`/`lineWidth` from
  * whatever the caller sets afterwards (mirroring {@link paintAvatar}'s isolation).
  */
@@ -581,7 +581,7 @@ export type PaintableTurtles = TurtleState | TurtleWorldState;
 /**
  * The avatar states to consider painting, in the order they are painted: the one state itself for
  * a single turtle, or every live turtle in creation order for a world. Visibility is *not* filtered
- * here — {@link paintTurtle} applies `spec/rendering.md:117`'s "A hidden turtle still moves … only
+ * here — {@link paintTurtle} applies `spec/rendering.md#turtle-avatar-and-shapes`'s "A hidden turtle still moves … only
  * omits the avatar" rule per turtle.
  */
 function avatarStates(turtles: PaintableTurtles): readonly TurtleState[] {

@@ -1,5 +1,5 @@
 // Unit tests for `repeat`/`forever` loop mechanics and the `repcount` reporter (issue #104,
-// spec/execution-model.md:389-392, spec/commands.md:775-792). Conformance fixtures under
+// spec/execution-model.md#control-forms, spec/commands.md#repeat, spec/commands.md#repcount). Conformance fixtures under
 // tests/conformance/core-language/execution/repeat-*.expected.json and
 // repcount-outside-repeat.expected.json cover the event/diagnostic shape end to end; these unit
 // tests fill in what a fixture cannot: `forever`'s loop mechanics (a real, unbounded `forever`
@@ -161,7 +161,7 @@ test("repeat with a word count that does not read as a number raises ol-type", (
   });
 });
 
-test("repeat with a word count that reads as a whole number coerces, per spec/execution-model.md:33", () => {
+test("repeat with a word count that reads as a whole number coerces, per spec/execution-model.md#value-and-type-model", () => {
   const result = execute('repeat "2" [\n  print repcount\n]', doc);
   assert.deepEqual(result.diagnostics, []);
   const printedValues = result.events

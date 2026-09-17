@@ -365,7 +365,7 @@ test("`value of <dict> for key <key>` propagates a failing dictionary expression
 });
 
 test("`value of <dict> for key <key>` raises the Core dict-read `ol-type` when the dictionary is not a dict", () => {
-  // The reader is DICT-ONLY (`spec/data-structures.md:268` types its operand `dictExpr`), so its
+  // The reader is DICT-ONLY (`spec/data-structures.md#dictionary-operations` types its operand `dictExpr`), so its
   // Core twin is the dotted `.field` selector's dict branch, not `:d[k]`: `operation: "field"`,
   // `expected: "dict"` — no Heritage spelling in the machine-readable params (issue #670), and no
   // `"list or dict"`, which was the `[k]` selector's expectation and self-contradictory for a list
@@ -442,7 +442,7 @@ test("`value of <dict> for key <key>` reports a numeric key bare (unquoted) in t
   assert.equal(result.diagnostic.message, "this dict has no key 5.");
 });
 
-// The Heritage-contract twin tests (issue #670, `spec/conformance.md:150` — alternate spellings,
+// The Heritage-contract twin tests (issue #670, `spec/conformance.md#heritage` — alternate spellings,
 // no new semantics): the reader `value of D for key K` must produce a result byte-identical to its
 // Core twin on the same operands — the same value on success, and on failure the same diagnostic
 // `code`, `params`, `message`, `stage`, and `severity`. Only the `source_span` may differ (it points
@@ -452,7 +452,7 @@ test("`value of <dict> for key <key>` reports a numeric key bare (unquoted) in t
 // There are TWO twins because the reader sits between two Core selectors, and picking the wrong one
 // per condition is exactly what issue #784 was:
 //   * `D.key`  — the DOTTED read, whose non-record container must be a dict. The twin for the
-//     operand's own type, because the reader is dict-only too (`spec/data-structures.md:268` types
+//     operand's own type, because the reader is dict-only too (`spec/data-structures.md#dictionary-operations` types
 //     the operand `dictExpr`). The two agree on every container type except `record`, which `.key`
 //     accepts and the reader does not — see the record test below.
 //   * `D[K]`   — the read with a RUNTIME key. The twin for the key's type, because `.key` takes a
@@ -512,7 +512,7 @@ test("`value of <dict> for key <key>` is byte-identical to the Core runtime-key 
   // `[key]` remains the twin for the conditions that do not turn on the operand's own type: a
   // successful read and a missing key. The third such condition — a key that is neither word nor
   // number, which `.key` cannot express at all — needs the SAME evaluated key on both sides, and an
-  // inline one is not a twin (`spec/grammar.md:256`: a bare identifier inside a selector is a
+  // inline one is not a twin (`spec/grammar.md#places-selectors-and-keys`: a bare identifier inside a selector is a
   // literal word key, so `:d[true]` is the word "true" while `for key true` is a boolean). It is
   // therefore twinned with the key bound to a variable, in
   // heritage-canonical-diagnostic-params.test.mjs's EXTRA_TWINS, and its params are pinned by the
@@ -527,9 +527,9 @@ test("`value of <dict> for key <key>` is byte-identical to the Core runtime-key 
 });
 
 // The one container type with NO Core twin, pinned deliberately rather than left to be rediscovered
-// as a bug. The reader's operand is typed `dictExpr` (`spec/data-structures.md:268`), so a record is
+// as a bug. The reader's operand is typed `dictExpr` (`spec/data-structures.md#dictionary-operations`), so a record is
 // out of range and rejected — while the Core `.key` selector it otherwise twins ACCEPTS records
-// (`spec/data-structures.md:252-327`) and reports `ol-unknown-field` instead. The divergence
+// (`spec/data-structures.md#dictionary-writes-and-upserts, spec/data-structures.md#record-operations`) and reports `ol-unknown-field` instead. The divergence
 // predates issue #784 (the reader rejected records before it too, just with `expected: "list or
 // dict"`) and is spec-mandated, so closing it either way is a `spec/` decision, not a runtime one.
 // Uses execute() rather than evalExpr() because a record needs a `struct` declaration and a binding.

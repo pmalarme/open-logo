@@ -1,4 +1,4 @@
-# Issues #979 and #980, the execution half. Two readers did not honour `spec/grammar.md:34`'s
+# Issues #979 and #980, the execution half. Two readers did not honour `spec/grammar.md#lexical-form-and-encoding`'s
 # *"within a single expression … newlines are insignificant"*: the `value`/`of` interception of the
 # Heritage reader (#979), and the `.field` postfix (#980).
 #
@@ -9,7 +9,7 @@
 # beside its one-line twin and the two payloads must be identical.
 #
 # `execute()` runs `parse()` and never `check()`, so the runtime holds its own copy of these rules.
-# The reader operates on a dict, so Heritage also needs Data (`spec/conformance.md:305`).
+# The reader operates on a dict, so Heritage also needs Data (`spec/conformance.md#profile-dependency-dag`).
 :d = { a: 7 b: "a" }
 :k = "a"
 :nested = { inner: { x: 9 } }
@@ -29,7 +29,7 @@ print { a: value
 of :d for key :k }
 print { a: value of :d for key :k }
 
-# UPPERCASE, because keywords are case-insensitive (`spec/grammar.md:13`) and a continuation that
+# UPPERCASE, because keywords are case-insensitive (`spec/grammar.md#lexical-form-and-encoding`) and a continuation that
 # compared surface text would break only this spelling.
 print VALUE
 OF :d FOR KEY :k

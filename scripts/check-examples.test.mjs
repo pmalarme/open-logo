@@ -185,7 +185,7 @@ test("detectUsedProfiles finds data for add/remove/insert/clear collection mutat
 });
 
 test("detectUsedProfiles finds BOTH heritage and data for the 'value of ... for key' dict reader", () => {
-  // spec/conformance.md:273/:301: `value of ... for key` is classified as Heritage, but that
+  // spec/conformance.md#feature-to-profile-table, spec/conformance.md#profile-dependency-dag: `value of ... for key` is classified as Heritage, but that
   // spelling "also needs Data" because it operates on dicts — an example using it must declare
   // BOTH profiles, or the missing one goes undetected (the same G8 masking class this whole gate
   // exists to close; a first draft classified this construct as "data" only and missed heritage).
@@ -246,7 +246,7 @@ test("detectUsedProfiles finds geometry for the polygon/star/circle/arc derived 
   assert.deepEqual(detectUsedProfiles("arc 50 90\n"), ["geometry"]);
 });
 
-test("detectUsedProfiles finds BOTH geometry and data for area/perimeter (spec/conformance.md:261)", () => {
+test("detectUsedProfiles finds BOTH geometry and data for area/perimeter (spec/conformance.md#feature-to-profile-table)", () => {
   // "area/perimeter read a shape spec by list index, so they also need Data" — the same
   // "this construct's own semantics always need a second profile" rule already applied to
   // ValueOfKey, scoped to just these two of the six derived stdlib names.
@@ -329,7 +329,7 @@ test("detectUsedProfiles finds educational for the explain/why/hint/debug meta-c
   assert.deepEqual(detectUsedProfiles("debug\n"), ["educational"]);
 });
 
-test("detectUsedProfiles finds tutor-ai for the 'challenge' Socratic entry point (spec/conformance.md:279-280)", () => {
+test("detectUsedProfiles finds tutor-ai for the 'challenge' Socratic entry point (spec/conformance.md#feature-to-profile-table)", () => {
   // Fourth review round: `challenge` was previously excluded on the theory that, like
   // `to`/`output`/`op`, it has no registered primitive-arity entry
   // (packages/parser/src/educational-meta-commands.test.mjs:64 confirms
@@ -360,7 +360,7 @@ test("detectUsedProfiles finds heritage for a short-alias call", () => {
 
 test("detectUsedProfiles finds heritage for the 'make' assignment spelling", () => {
   // Since issue #151 `make "name" value` parses as an `Assign` node whose `form` is `"make"`
-  // (spec/grammar.md:105 make-assignment ::= "make" word-literal expression), NOT a zero-arity
+  // (spec/grammar.md#ebnf-notation make-assignment ::= "make" word-literal expression), NOT a zero-arity
   // Call — so the detector recognizes it by that node form, not by a callee name.
   assert.deepEqual(detectUsedProfiles('make "x" 1\n'), ["heritage"]);
 });
@@ -380,7 +380,7 @@ test("detectUsedProfiles finds heritage for the 'to'/'output'/'op' spellings via
 });
 
 test("detectUsedProfiles does NOT flag heritage for 'to' in its three legitimate non-Heritage roles (for-range bound, set-assignment preposition, add-to-list preposition)", () => {
-  // `to` is also a plain keyword in three grammar productions (spec/grammar.md:104, :113, :128)
+  // `to` is also a plain keyword in three grammar productions (spec/grammar.md#ebnf-notation)
   // where it appears mid-statement, never as a statement opener — so the reader never dispatches
   // `parseProcedureDef` for them and no `ProcedureDef keyword:"to"` node results, so a plain
   // example using one of them is never spuriously flagged as needing Heritage (acceptance
@@ -402,7 +402,7 @@ test("detectUsedProfiles finds modules for the 'import'/'export' reserved words"
   assert.deepEqual(detectUsedProfiles("export foo\n"), ["modules"]);
 });
 
-test("detectUsedProfiles finds localization for the 'alias' reserved word (spec/localization.md:18-21)", () => {
+test("detectUsedProfiles finds localization for the 'alias' reserved word (spec/localization.md#alias-special-form)", () => {
   // `alias new_name existing_name` is THE Localization aliasing mechanism; like import/export it
   // has no AST production today, so it is detected the same way.
   assert.deepEqual(detectUsedProfiles("alias avancer forward\n"), [
@@ -679,7 +679,7 @@ test("runExamplesGate: catches masking via a Data derived-reporter primitive too
 });
 
 test("runExamplesGate: catches masking of the Heritage half of 'value of ... for key' too (integration-owner review follow-up)", () => {
-  // spec/conformance.md:273/:301: `value of ... for key` is Heritage AND (because it operates on
+  // spec/conformance.md#feature-to-profile-table, spec/conformance.md#profile-dependency-dag: `value of ... for key` is Heritage AND (because it operates on
   // dicts) Data. A manifest that declares "data" + an unrelated unimplemented profile ("sound")
   // but omits "heritage" must still FAIL loudly naming heritage, not SKIP — the exact G8 masking
   // class this gate exists to close, this time on the Heritage side of the dependency.

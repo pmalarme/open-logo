@@ -2,7 +2,7 @@
 # WITHOUT moving, drawing, or inspecting the turtle: a pure reporter.
 #
 # @command perimeter :shape
-# @spec spec/geometry-module.md:310-415
+# @spec spec/geometry-module.md#shape-spec-lists-for-area-and-perimeter, spec/geometry-module.md#perimeter-shape
 # @param shape ["polygon" sides size] or ["circle" radius]
 # @formula polygon perimeter = sides * size
 # @formula circle perimeter (circumference) = 2 * pi * radius

@@ -1,5 +1,5 @@
 {
-  "description": "`insert 9 in :nums at 2` executes: the runtime splices 9 before 1-based position 2 in place, so `print :nums` observes [1 9 2 3] (Data profile, issue #188, spec/data-structures.md:73-93).",
+  "description": "`insert 9 in :nums at 2` executes: the runtime splices 9 before 1-based position 2 in place, so `print :nums` observes [1 9 2 3] (Data profile, issue #188, spec/data-structures.md#lists, spec/data-structures.md#mutating-list-operations).",
   "profiles": ["core-language", "data"],
   "execute": true,
   "events": [
