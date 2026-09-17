@@ -1,5 +1,5 @@
 {
-  "description": "Reading an undeclared field raises `ol-unknown-field` (issue #329, `spec/data-structures.md#dictionary-operations`): `point` has no `height` field, so `:p.height` is an unknown-field read (no `write` param, matching the read/write convention of `checker-type-field.ts`'s `resolveRecordField`).",
+  "description": "Reading an undeclared field raises `ol-unknown-field` (issue #329, `spec/data-structures.md#record-operations`): `point` has no `height` field, so `:p.height` is an unknown-field read (no `write` param, matching the read/write convention of `checker-type-field.ts`'s `resolveRecordField`).",
   "profiles": ["core-language", "data"],
   "execute": true,
   "events": [

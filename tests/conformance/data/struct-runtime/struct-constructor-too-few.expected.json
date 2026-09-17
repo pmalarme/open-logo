@@ -1,5 +1,5 @@
 {
-  "description": "A constructor call with fewer arguments than declared fields raises `ol-not-enough-inputs` (issue #329, `spec/data-structures.md#dictionary-operations`): `point` declares 2 fields, so `point 3` supplies too few — the constructor's arity equals the declared field count, exactly like a user procedure.",
+  "description": "A constructor call with fewer arguments than declared fields raises `ol-not-enough-inputs` (issue #329, `spec/data-structures.md#record-operations`): `point` declares 2 fields, so `point 3` supplies too few — the constructor's arity equals the declared field count, exactly like a user procedure.",
   "profiles": ["core-language", "data"],
   "execute": true,
   "events": [

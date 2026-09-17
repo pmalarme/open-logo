@@ -1,5 +1,5 @@
 {
-  "description": "`is_a?` on a record matches only its own struct type name, so the generic word `\"record\"` is `false` (issue #329, `spec/data-structures.md#dictionary-operations`): `\"record\"` is a known type word (no `ol-unknown-type`), but a `point` record's type is `\"point\"`, not `\"record\"`.",
+  "description": "`is_a?` on a record matches only its own struct type name, so the generic word `\"record\"` is `false` (issue #329, `spec/data-structures.md#record-operations`): `\"record\"` is a known type word (no `ol-unknown-type`), but a `point` record's type is `\"point\"`, not `\"record\"`.",
   "profiles": ["core-language", "data"],
   "execute": true,
   "events": [
