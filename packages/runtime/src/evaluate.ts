@@ -1407,7 +1407,7 @@ function evaluateValueOfKey(
  * Resolve a {@link PlaceNode} read (`:l[i]`, `:d.key`, `:m[1][2]`): look up the base variable,
  * then walk every postfix segment against the value so far via {@link resolvePlaceSegment}. Every
  * segment on a read requires its key/field to already exist — a read never upserts (issue #322,
- * `spec/data-structures.md#malformed-dictionary-literal-entries`).
+ * `spec/data-structures.md#dictionary-reads`).
  */
 function readPlace(node: PlaceNode, environment: Environment): EvalResult {
   const base = lookupVar(environment, node.base.name);
@@ -1493,11 +1493,11 @@ type DictSegmentResolution =
  * Resolve one postfix place segment — a dotted `.field` (a dict or record read, its key a
  * parse-time literal) or a bracketed `[key]` selector (a list index or a dict key, decided by
  * `container`'s actual runtime type) — against `container` (issue #322,
- * `spec/data-structures.md#dictionaries, spec/data-structures.md#malformed-dictionary-literal-entries, spec/data-structures.md#dictionary-reads`).
+ * `spec/data-structures.md#dictionaries, spec/data-structures.md#dictionary-reads`).
  *
  * `allowMissingDictKey` controls only the dict branch: `false` (every read, and every
  * *intermediate* write segment) requires the key to already exist — `ol-unknown-key` otherwise,
- * with no auto-vivification of a missing intermediate dict (`spec/data-structures.md#malformed-dictionary-literal-entries`).
+ * with no auto-vivification of a missing intermediate dict (`spec/data-structures.md#dictionary-writes-and-upserts`).
  * `true` (a write's *final* segment only) lets a missing dict key resolve anyway, so the caller
  * can upsert it. List indexing never upserts regardless of this flag — an out-of-range index is
  * always `ol-range`, matching the pre-existing list-only behavior byte-for-byte.
@@ -1841,7 +1841,7 @@ export function executeAssign(
  * value with no auto-vivification (`ol-range`/`ol-type`/`ol-unknown-key` per
  * {@link resolvePlaceSegment}), and only the *final* segment's slot is mutated in place — so an
  * aliased reference to the same list/dict observes the write (`spec/execution-model.md#assignable-places-and-mutation`).
- * A missing final *dict* key upserts (`spec/data-structures.md#malformed-dictionary-literal-entries`); a missing final list
+ * A missing final *dict* key upserts (`spec/data-structures.md#dictionary-writes-and-upserts`); a missing final list
  * index is still always `ol-range` (lists never upsert).
  */
 function writeIndexedPlace(

@@ -187,7 +187,7 @@ export interface UnknownKeyParams {
  * `spec/data-structures.md#mutating-list-operations`, `spec/execution-model.md#collections-and-uniform-access`) whose target is not a list,
  * or by `insert`'s position argument that is not a number. Issue #322 widens this for the dict
  * half of `clear` (target may be a list or dict) and for `remove key … from`, whose target must
- * be a dict specifically (`spec/data-structures.md#dictionary-reads, spec/data-structures.md#dictionary-writes-and-upserts`). Same `{expected, actual, value,
+ * be a dict specifically (`spec/data-structures.md#dictionary-operations`). Same `{expected, actual, value,
  * operation}` shape as the other `ol-type` param builders so every stage agrees on identity;
  * `operation` names the mutator verb for the message.
  */
@@ -837,7 +837,7 @@ export const runtimeDiag = {
 
   /**
    * `ol-unknown-field`: a `:record.field` read or write named a field the record's struct type
-   * does not declare (`spec/data-structures.md#dictionary-operations, spec/data-structures.md#records-and-structs`, `spec/error-model.md#normative-code-registry`). Records have
+   * does not declare (`spec/data-structures.md#records-and-structs, spec/data-structures.md#record-operations`, `spec/error-model.md#normative-code-registry`). Records have
    * a fixed field set and never grow new fields, so an unknown field is an error on both read and
    * write. Same `{ type, field }` params (plus `write: true` for a write) and message templates as
    * the parser's `resolveRecordField` (`checker-type-field.ts`, issue #112) so the static and
