@@ -132,7 +132,7 @@ test("distinguishes a negative literal from subtraction, per spec/grammar.md#exp
 });
 
 test("a `-` separated from its numeral by a gap is a stray token, not a negative literal", () => {
-  // Per spec/grammar.md#expressions-and-calls, only a `-` written directly against a numeral is a negative literal.
+  // Per spec/grammar.md#lexical-form-and-encoding, only a `-` written directly against a numeral is a negative literal.
   // `- 3` has a gap and no left operand for subtraction, so it is an unreadable stray token.
   const { diagnostics } = OL.parse("print - 3", doc);
   assert.equal(diagnostics.length, 1);

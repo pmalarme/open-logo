@@ -1,5 +1,5 @@
 {
-  "description": "`clear` empties a dict in place (issue #322, `spec/data-structures.md#dictionary-reads`, extending the list-mutator `clear` from #188 to dicts); `count` is 0 after clearing a two-entry dict.",
+  "description": "`clear` empties a dict in place (issue #322, `spec/data-structures.md#dictionary-operations`, extending the list-mutator `clear` from #188 to dicts); `count` is 0 after clearing a two-entry dict.",
   "profiles": ["core-language", "data"],
   "execute": true,
   "events": [

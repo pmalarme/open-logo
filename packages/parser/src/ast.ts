@@ -524,7 +524,7 @@ export interface ClearNode extends NodeBase {
  * set, and a same-named constructor reporter (Data profile, `spec/grammar.md#ebnf-notation`'s
  * `struct-declaration`/`field-list`; `spec/data-structures.md#records-and-structs, spec/data-structures.md#record-operations`). Both `name` and each
  * `field` are {@link SpannedName} metadata, not walkable nodes: the bracketed field list contains
- * bare field names that perform no evaluation (`spec/data-structures.md#record-operations`), so a `StructDef` has
+ * bare field names that perform no evaluation (`spec/data-structures.md#records-and-structs`), so a `StructDef` has
  * no expression children (its own `childrenOf` case returns none). Grammar/AST only — the
  * constructor-call and field mutation semantics land in a later Data-profile slice.
  */

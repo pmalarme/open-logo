@@ -517,7 +517,7 @@ function turtleStateSegment(events: readonly TraceEvent[]): string | undefined {
  * (`spec/educational-model.md#debug`'s "For procedures, show a friendly call path"): every
  * `procedure-enter` pushes its callee's name, every `procedure-exit` pops one — the same
  * enter/exit pairing the trace/event contract registers and illustrates
- * (`spec/execution-model.md#execution-safety, spec/execution-model.md#trace-and-event-registry, spec/execution-model.md#tutor-output-educational-profile, spec/execution-model.md#worked-traces, spec/execution-model.md#recursive-call`) — leaving only the frames still active. When the
+ * (`spec/execution-model.md#trace-and-event-registry, spec/execution-model.md#tutor-output-educational-profile, spec/execution-model.md#worked-traces, spec/execution-model.md#recursive-call`) — leaving only the frames still active. When the
  * target itself is a completed procedure call (its enter/exit pair already closed, so no frame is
  * left open), the target's own `commandMetadata` still names the procedure it invoked — showing
  * that single-name path is more useful to a learner than showing nothing.

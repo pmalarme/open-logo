@@ -1446,7 +1446,7 @@ function executeTurtleShapeCall(
 /**
  * Is `statement` a call to `home`/`set_xy` or `set_xy`'s Turtle & Rendering-profile alias `setxy`
  * (issue #202, Core absolute positioning; `spec/commands.md#set_xy`). Unlike `forward`'s `fd`,
- * `setxy`/`seth` are **not** Heritage — `spec/conformance.md#data`'s Heritage short-alias list
+ * `setxy`/`seth` are **not** Heritage — `spec/conformance.md#heritage`'s Heritage short-alias list
  * is closed and does not include them, so they are registered (with `set_xy`'s arity) in
  * `packages/parser/src/signatures.ts` and dispatched identically here. Same shape/convention as
  * {@link isTurtleMoveCall}.

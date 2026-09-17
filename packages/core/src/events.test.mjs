@@ -206,7 +206,7 @@ test("primitive payload accepts a non-interaction primitive name (generic catch-
 });
 
 test("the registry marks exactly the per-turtle effect kinds as turtle-specific (issue #764)", () => {
-  // spec/execution-model.md#execution-safety — the envelope's `turtle-id` is "present only when the event is
+  // spec/execution-model.md#trace-and-event-registry — the envelope's `turtle-id` is "present only when the event is
   // turtle-specific, otherwise absent". This partition is what lets a producer stamp envelopes and a
   // consumer validate them from one list instead of each hard-coding its own. It answers "may this
   // kind carry an id at all", NOT "may a producer label it with whichever turtle is acting" — the
@@ -295,7 +295,7 @@ test("primitive payload carries the addressed turtle set for tell/ask/each (issu
     assert.equal(event.payload.addressing.current_turtle_id, 1);
     // An addressing event describes a SET, so it is never turtle-specific: the envelope's
     // `turtle_id` is "present only when the event is turtle-specific"
-    // (spec/execution-model.md#execution-safety) and the current turtle travels in the payload instead.
+    // (spec/execution-model.md#trace-and-event-registry) and the current turtle travels in the payload instead.
     assert.equal(event.turtle_id, undefined);
   }
 });
