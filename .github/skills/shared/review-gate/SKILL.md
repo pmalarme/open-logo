@@ -294,23 +294,26 @@ file lengths, and `spec/*.md:<line>` ranges all drift silently, and this saga re
 
 ### (g) Mutation — break your own code and confirm something fails
 
-A passing suite means one of two things: the code is right, or **nothing is watching it**. Those are
-indistinguishable from the outside, so establish which one you have.
+A passing suite does not establish that the behaviour you changed is **asserted**. It may be
+unexercised, exercised but not asserted, asserted on the wrong value, or measured against a stale
+artifact — and from outside, all of those look like success.
 
-For each behaviour the change introduces, make a small edit that **changes** that behaviour, rebuild,
+So for each behaviour the change introduces, make an edit that **changes** that behaviour, rebuild,
 and confirm a named test or fixture goes red. If nothing fails, that behaviour is unasserted —
 however many tests pass elsewhere.
 
-Measured in issue #1155: this one-character edit is behaviour-changing — it lets a program begin
-running and fail partway instead of being refused before any effect —
+In issue #1155, measured at parent `acd0364d` and recorded by `066ce9fe`, this one-field edit is
+behaviour-changing — it lets a program begin running and fail partway instead of being refused
+before any effect —
 
 ```diff
 - { node: node.value, rootIsRead: true }
 + { node: node.value, rootIsRead: false }
 ```
 
-— and it survived **25 unit tests and 1018 conformance fixtures**. Five such gaps were found in that
-one slice; **all five by mutation, none by reading**, and every one sat beside a passing test.
+— and it survived the whole suite at that commit. PR #1176 records five such gaps found in that one
+slice, each beside a passing test; see its table for the enumeration and for which are walled by
+conformance fixtures versus unit assertions.
 
 Three traps, each of which produced a wrong answer in that slice:
 
@@ -319,7 +322,8 @@ Three traps, each of which produced a wrong answer in that slice:
   resolves a stale package. Both report "survived" while testing the *unmutated* tree.
 - **Read the result, not the diff.** A diff proves you changed the text; only the result proves you
   changed the behaviour. `context !== "inside" && context !== "dispatch-dependent"` is just
-  `=== "outside"` — a no-op mutation reports "not detected", which is byte-identical to a real gap.
+  `=== "outside"` — a no-op mutation reports "not detected", which is indistinguishable from a real
+  gap.
 - **A clean-direction assertion is not coverage.** A test that passes both with and without the
   change measures only the rule's *silence*. Assert the reporting direction too.
 
@@ -329,31 +333,37 @@ nothing about it.
 ### (h) Prose — audit it as prose, in its own pass
 
 Comments, fixture `description`s, and PR bodies are read *beside* the code they describe, so a false
-sentence next to correct code and a green fixture looks right. Three consecutive review rounds in
-issue #1155 read the same defective sentences and passed them.
+sentence next to correct code and a green fixture looks right. In issue #1155 several review rounds
+read the same defective sentences and passed them; PR #1176 records the rounds and their findings.
 
 So make a pass over **only the sentences this change adds or edits**, with the code out of view, and
 ask of each: **what measurement would falsify this, and did I run it?**
 
 The failure is not evenly distributed. Of three sentences written in one commit by one author, the
-**two that quantified** were both false; the one saying *"every other fixture in the corpus"* was
-true, because it cannot rot. So:
+two that **quantified** were both false and the one that did not was true — a count in living
+documentation goes stale silently, while a claim scoped to a measured revision does not. So:
 
 - **Delete rather than rewrite.** A sentence you cannot verify is removed, not hedged — deleted text
   cannot be wrong. Keep only a measurement with its scope, a rationale that asserts no universal, or
-  a pointer (`see file.ts:NN`).
+  a pointer.
 - **Remove a derived number, don't update it.** An updated count is a defect with a longer fuse.
-- **No unenumerated absolutes** — *no*, *only*, *every*, *never*, *the one* — unless the universe is
-  finite, enumerable, and you enumerated it.
-- **Replace a trap with a pointer, not a story.** Where deleting would invite a maintainer into the
-  trap, cite the mechanism's source; a pointer cannot be wrong about causation because it asserts
-  none. Three false claims in one commit came from *reconstructing* a cause from a real measurement.
-- **When you change what class something belongs to**, every sentence citing it as an example of that
-  class becomes false, and nothing links a class to its examples. Sweep the citing sites, not just
-  the definition.
+  Where a number must stay, anchor it to the revision it was measured at.
+- **No unenumerated absolutes** — *no*, *only*, *every*, *never*, *all*, *none* — unless the
+  universe is finite, enumerable, and you enumerated it *where the reader can see it*.
+- **Prefer a pointer to a reconstructed cause.** Where deleting would invite a maintainer into a
+  trap, cite the mechanism's source instead of explaining it: a pointer asserts no causation, so it
+  cannot be wrong about causation. It can still be wrong about *location* — item (f) applies, so
+  prefer a stable symbol, an issue or PR number, or a commit-anchored reference over a bare
+  `file.ts:NN`. In #1155 three false claims in one commit came from reconstructing a cause from a
+  real measurement.
+- **When you change what class something belongs to**, search for sentences citing the subject as an
+  example of the old class and revalidate them. Nothing links a class to its examples, so the
+  definition site is the one place the change is obvious and the citing sites are where it is not.
 
-Unlike (g) this cannot be mechanised: mutating a description changes nothing, because nothing reads
-it. Behaviour has an oracle; prose does not. That is precisely why it needs a deliberate pass.
+Unlike (g) this has no general oracle. Some prose does have one — runnable examples, the citation
+and ADR-numbering gates, format checks — but a fixture `description` has none: the harness **reads
+it and compares nothing** (`scripts/harness/index.mjs`, stated at `tests/conformance/README.md`), so
+a wrong description passes every check. That is why the pass has to be deliberate.
 
 ## Findings — every finding gets resolved, blocking or not
 
@@ -435,6 +445,8 @@ ground out.
 - [ ] Runnable `spec/examples/*.logo` and doc snippets parse/run.
 - [ ] A11y / pedagogy checked where applicable.
 - [ ] Instructions / skills / docs / spec drift checked (in-PR if needed); every count and `file:line` citation the change touches was **re-derived**, not trusted.
+- [ ] **Mutation**: for each behaviour introduced, an edit that changes it was confirmed to turn a named test or fixture red, with the mutant verified live in `dist` — no-op and clean-direction-only mutations do not count.
+- [ ] **Prose audited as prose**: a separate pass over only the sentences this change adds or edits, each one either measured with its scope, asserting no unenumerated absolute, or deleted.
 - [ ] **Every finding resolved — blocking *and* non-blocking**: each one fixed, or declined with a one-line rationale (+ follow-up issue number when it is real work outside the write-set).
 - [ ] Converged within the **10-round cap** (otherwise: not opened — escalated to `@orchestrator`/maintainer with the open findings and per-round SHAs).
 - [ ] All verdicts `pass` on the **same final HEAD** (SHA-stamped) and attached; any later commit re-ran every reviewer; no self-merge.
