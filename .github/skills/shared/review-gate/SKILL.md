@@ -9,7 +9,7 @@ description: >-
   each dispatch, the dispatched SHA tagged, and the branch frozen once every verdict stamps one SHA.
   The orchestrator then does a final verification and merges.
 created: 2026-07-17T00:00
-updated: 2026-08-25T00:00
+updated: 2026-09-17T00:00
 ---
 
 ## Purpose
@@ -226,7 +226,7 @@ defect the rule exists to prevent.
 ## The checklist
 
 The **logic/spec reviewer** (`rubber-duck`, or a named fallback) owns logic, design, and
-spec-fidelity; the **QA** sub-agent(s) re-prove items (a)–(f) below from a clean tree. Every
+spec-fidelity; the **QA** sub-agent(s) re-prove items (a)–(h) below from a clean tree. Every
 dispatched reviewer must clear every item before the PR is opened.
 
 ### (a) Clean-tree Definition-of-Done re-run
@@ -291,6 +291,76 @@ is an **unverified assertion** — nothing recomputes it (see
 reviewer checks them by measuring against the current tree, not by trusting the PR body: counts,
 file lengths, and `spec/*.md:<line>` ranges all drift silently, and this saga renumbered
 `spec/grammar.md` under existing citations.
+
+### (g) Mutation — break your own code and confirm something fails
+
+A passing suite does not establish that the behaviour you changed is **asserted**. It may be
+unexercised, exercised but not asserted, asserted on the wrong value, or measured against a stale
+artifact — and from outside, all of those look like success.
+
+So for each behaviour the change introduces, make an edit that **changes** that behaviour, rebuild
+whatever artifact is actually exercised, and confirm a named test or fixture goes red. If nothing
+fails, that behaviour is unasserted — however many tests pass elsewhere.
+
+In issue #1155, measured at parent `acd0364d` and recorded by `066ce9fe`, this one-field edit is
+behaviour-changing — it lets a program begin running and fail partway instead of being refused
+before any effect —
+
+```diff
+- { node: node.value, rootIsRead: true }
++ { node: node.value, rootIsRead: false }
+```
+
+— and it survived the whole suite at that commit. PR #1176 tabulates five such gaps found in that
+one slice, each beside a passing test.
+
+Three traps, each of which produced a wrong answer in that slice:
+
+- **Verify the mutant reached the artifact under test.** For compiled package code that means
+  `dist/` — `tsc -b` serves a stale build when a restored file gets an older mtime, and
+  `Copy-Item -Recurse node_modules` dereferences workspace symlinks so a sandbox resolves a stale
+  package. For a script or workflow run directly from source, confirm the run loaded the edited
+  file. Both failures report "survived" while testing the *unmutated* artifact.
+- **Read the result, not the diff.** A diff proves the text changed, not that behaviour changed —
+  confirm the mutation with a control whose observed result differs.
+  `context !== "inside" && context !== "dispatch-dependent"` is just `=== "outside"` — a no-op
+  mutation reports "not detected", which is indistinguishable from a real gap.
+- **A clean-direction assertion is not coverage.** A test that passes both with and without the
+  change measures only the rule's *silence*. Assert the reporting direction too.
+
+Coverage percentage does not substitute for this: a line can be executed by a test that asserts
+nothing about it.
+
+### (h) Prose — audit it as prose, in its own pass
+
+Comments, fixture `description`s, and PR bodies are read *beside* the code they describe, so a false
+sentence next to correct code and a green fixture looks right. PR #1176 records false prose
+surviving and reappearing across review rounds in issue #1155 — including replacement prose that
+introduced new false claims.
+
+So make a pass over **only the prose this change adds or edits**, with the code out of view, and ask
+of each factual claim in it: **what measurement would falsify this, and did I run it?** Judge
+claims, not sentences — a sentence may carry several, and a purely prescriptive clause such as
+"delete rather than rewrite" asserts no fact to measure. "Findings — every finding gets resolved"
+below governs what to do with a false claim once found; it applies here unchanged.
+
+- **Remove a derived number, don't update it.** An updated count is a defect with a longer fuse.
+  Where a number must stay, anchor it to the revision it was measured at.
+- **No unenumerated absolutes** — *no*, *only*, *every*, *never*, *all*, *none* — unless the
+  universe is finite, enumerable, and you enumerated it *where the reader can see it*.
+- **Prefer a pointer to a reconstructed cause.** Where deleting would invite a maintainer into a
+  trap, cite the mechanism's source instead of explaining it: a pointer avoids restating a causal
+  story you would have to verify. It is still a citation, so item (f) applies — check that it
+  resolves *and* that it supports the claim beside it, and prefer a stable symbol, an issue or PR
+  number, or a commit-anchored reference over a bare `file.ts:NN`.
+- **When you change what class something belongs to**, search for claims citing the subject as an
+  example of the old class, and revalidate them. The definition site is where the change is obvious;
+  the citing sites are where it is not.
+
+Unlike (g), the oracle here is narrow. Some prose has one — runnable examples, the citation and
+ADR-numbering gates, format checks. A fixture `description` does not: the conformance harness reads
+it (`scripts/harness/index.mjs`) but does not validate whether its prose is true, as
+`tests/conformance/README.md` states. That is why the pass has to be deliberate.
 
 ## Findings — every finding gets resolved, blocking or not
 
@@ -372,6 +442,8 @@ ground out.
 - [ ] Runnable `spec/examples/*.logo` and doc snippets parse/run.
 - [ ] A11y / pedagogy checked where applicable.
 - [ ] Instructions / skills / docs / spec drift checked (in-PR if needed); every count and `file:line` citation the change touches was **re-derived**, not trusted.
+- [ ] **Mutation**: for each behaviour introduced, an edit that changes it was confirmed to turn a named test or fixture red, with the mutant verified live in the artifact actually exercised — no-op and clean-direction-only mutations do not count.
+- [ ] **Prose audited as prose**: a separate pass over only the prose this change adds or edits, each factual claim in it either measured with its scope and free of unenumerated absolutes, or resolved under "Findings".
 - [ ] **Every finding resolved — blocking *and* non-blocking**: each one fixed, or declined with a one-line rationale (+ follow-up issue number when it is real work outside the write-set).
 - [ ] Converged within the **10-round cap** (otherwise: not opened — escalated to `@orchestrator`/maintainer with the open findings and per-round SHAs).
 - [ ] All verdicts `pass` on the **same final HEAD** (SHA-stamped) and attached; any later commit re-ran every reviewer; no self-merge.
