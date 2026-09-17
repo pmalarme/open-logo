@@ -664,10 +664,14 @@ export function spritesPrimitiveArity(name: string): number | undefined {
  * The **Heritage** profile's short command and reporter aliases (issues #668 slice H3 + #669 slice
  * H4), each mapping onto the Core-spelled command or reporter it is an alternate spelling of. The
  * list and its one-to-one canonical mapping are authoritative in `spec/conformance.md#heritage` and
- * `spec/commands.md`'s per-command **Aliases** rows (`fd`→`forward`spec/commands.md#forward, `bk`→`back`spec/commands.md#back,
- * `lt`→`left`spec/commands.md#left, `rt`→`right`spec/commands.md#right, `st`→`show_turtle`spec/commands.md#show_turtle, `ht`→`hide_turtle`spec/commands.md#hide_turtle,
- * `pu`→`pen_up`spec/commands.md#pen_up, `pd`→`pen_down`spec/commands.md#pen_down, `cs`→`clear_screen`spec/commands.md#clear_screen, `pr`→`print`spec/commands.md#print, plus the
- * list reporters `bf`→`butfirst`spec/commands.md#butfirst, `bl`→`butlast`spec/commands.md#butlast, `se`→`sentence`spec/commands.md#sentence). Heritage is
+ * `spec/commands.md`'s per-command **Aliases** rows (`fd`→`forward` `spec/commands.md#forward`,
+ * `bk`→`back` `spec/commands.md#back`, `lt`→`left` `spec/commands.md#left`,
+ * `rt`→`right` `spec/commands.md#right`, `st`→`show_turtle` `spec/commands.md#show_turtle`,
+ * `ht`→`hide_turtle` `spec/commands.md#hide_turtle`, `pu`→`pen_up` `spec/commands.md#pen_up`,
+ * `pd`→`pen_down` `spec/commands.md#pen_down`,
+ * `cs`→`clear_screen` `spec/commands.md#clear_screen`, `pr`→`print` `spec/commands.md#print`, plus
+ * the list reporters `bf`→`butfirst` `spec/commands.md#butfirst`,
+ * `bl`→`butlast` `spec/commands.md#butlast`, `se`→`sentence` `spec/commands.md#sentence`). Heritage is
  * "alternate spellings only — no new semantics" (`spec/conformance.md#heritage`): the reader records
  * `canonical` on the alias's {@link import("./ast.js").CallNode} so the runtime dispatches through
  * the exact same code path as the Core spelling, and this module never keeps a second copy of each
