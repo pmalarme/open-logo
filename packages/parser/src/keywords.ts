@@ -140,7 +140,7 @@ const KEYWORDS = new Set<string>(OL_KEYWORDS);
  * - `"sprites"` — the block-heads `ask` and `each` plus the mode-switch command `tell`
  *   (`spec/turtles-and-sprites.md#reserved-words-in-this-profile`).
  * - `"interaction-events"` — the event block-heads `when`, `every`, `on_key`, and `on_click`
- *   (`spec/spec/interaction-events.md#profiles-and-reservation`).
+ *   (`spec/interaction-events.md#profiles-and-reservation`).
  *
  * **Two different questions read this registry, and only one of them is profile-gated.** Confusing
  * them is what issue #841 came to fix, so the split is stated here rather than at each call site:

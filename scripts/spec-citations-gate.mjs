@@ -60,8 +60,10 @@
  *
  * In JavaScript and TypeScript sources a bare `:N` counts only inside a comment line. That is a
  * structural rule, not a tolerance: a formatted contrast ratio, whose template literal ends with a
- * closing brace immediately before a colon and a digit, is live code, and no citation is ever written
- * in an expression. {@link isProseLine}'s tests pin that shape by asserting on that exact literal.
+ * closing brace immediately before a colon and a digit, is live code. It is a **bound, not a proof
+ * of exhaustiveness** — a citation CAN be written in an expression, and two were, inside `test(…)`
+ * titles; both were converted by hand once review found them. {@link isProseLine}'s tests pin the
+ * ratio shape by asserting on that exact literal.
  *
  * ## No automatic tolerance, and nowhere to record an exception
  *
@@ -290,6 +292,37 @@ export function specDocuments(root) {
   );
 }
 
+/**
+ * The specification documents whose **basename is unique in the repository**, which is the set a
+ * prefix-less reference may safely be attributed to.
+ *
+ * A document published only under the specification directory can only mean that document when cited bare.
+ * A `README` exists at the repository root and in most packages, so citing one bare is
+ * far more likely to mean a neighbour than `spec/README.md` — and attributing it to the
+ * specification would be the gate inventing a citation the author did not write. Rejecting an
+ * ambiguous basename is not a carve-out list: it is a property of the tree, recomputed on every run,
+ * and it shrinks by itself if a colliding file is deleted.
+ *
+ * This is what makes it safe to reject the relative form outside `spec/` at all. Without it, closing
+ * that blind spot would have meant failing every `README.md#…` cross-link in the instruction files.
+ */
+export function unambiguousSpecDocuments(root, trackedFiles) {
+  const published = specDocuments(root);
+  const elsewhere = new Set();
+  const specPrefix = `${toPosixPath(root)}/`;
+  for (const file of trackedFiles) {
+    const path = toPosixPath(file);
+    if (path.startsWith(specPrefix)) {
+      continue;
+    }
+    const basename = path.slice(path.lastIndexOf("/") + 1);
+    if (published.has(basename)) {
+      elsewhere.add(basename);
+    }
+  }
+  return new Set([...published].filter((name) => !elsewhere.has(name)));
+}
+
 /** Convert a native path to the `/`-separated form used on every platform. */
 export function toPosixPath(path) {
   return path.split(sep).join("/");
@@ -450,18 +483,25 @@ export const SLUG_CHARACTER = "[\\p{L}\\p{N}\\p{M}\\p{Pc}\\p{So}-]";
  *
  * **That second guard is a stated bound, not a claim of exhaustiveness.** A citation written inside
  * a string literal in live code — a `test("… per <file>.md:226", …)` title — is *not* enumerated,
- * and dropping the guard to reach it was measured: it would catch two genuine citations and thirteen
- * pieces of fixture data, including this gate's own `file:line:form` assertion strings. Two such
- * citations existed in this corpus and were converted by hand; nothing prevents a new one. The
- * rule is structural either way, so it needs no maintenance — but it is narrower than "every line
- * citation in the tree", and the coverage statement says so.
+ * and dropping the guard to reach it was measured: it would catch those citations along with a
+ * larger and growing number of fixture-data sites, including this gate's own `file:line:form`
+ * assertion strings. The exact ratio is not recorded here because it moves with every test added —
+ * what matters, and does not move, is that the guard trades a small known miss for a false-positive
+ * class that would be fatal in a gate with no tolerance.
  */
 const PREFIX_LESS_REFERENCE =
-  /(?<![A-Za-z0-9._/#-])([A-Za-z][A-Za-z0-9-]*\.md):(\d+)(?:-(\d+))?((?:,\d+(?:-\d+)?)+)?/g;
+  /(?<![A-Za-z0-9._/#-])([A-Za-z][A-Za-z0-9-]*\.md)(?::(\d+)(?:-(\d+))?((?:,\d+(?:-\d+)?)+)?|#([\p{L}\p{N}\p{M}\p{Pc}-]+))/gu;
 
 function mentionPattern(specDirectory) {
+  const token = specDirectory.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   return new RegExp(
-    `${specDirectory.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\/([A-Za-z0-9._-]+\\.md)(?::(\\d+)(?:-(\\d+))?((?:,\\d+(?:-\\d+)?)+)?)?(?:#(${SLUG_CHARACTER}*))?`,
+    // The lookbehind rejects a DOUBLED prefix. Without it `<dir>/<dir>/x.md#y` fails to match at the
+    // first `spec/`, the scan resumes one character later, and the inner `<dir>/x.md#y` is enumerated
+    // as a perfectly good citation — so a path that resolves nowhere passed the gate. A blanket
+    // search-and-replace produced exactly that, and the gate could not see what the replace had
+    // done. A RELATIVE path (`../../<dir>/x.md`) is deliberately still matched: it names a real
+    // document and resolving it is better than ignoring it.
+    `(?<!${token}\\/)${token}\\/([A-Za-z0-9._-]+\\.md)(?::(\\d+)(?:-(\\d+))?((?:,\\d+(?:-\\d+)?)+)?)?(?:#(${SLUG_CHARACTER}*))?`,
     "gu",
   );
 }
@@ -1115,6 +1155,7 @@ export function collectCitations(
   const citations = [];
   const anchors = [];
   const unattributed = [];
+  const unprefixedAnchors = [];
 
   const mentions = [];
   const pattern = mentionPattern(specDirectory);
@@ -1165,10 +1206,25 @@ export function collectCitations(
     match = pattern.exec(text);
   }
 
-  // The prefix-less line form, enumerated from the same pass so the two can never disagree about
-  // what the file says. It is collected BEFORE the early return below, because a file may carry a
-  // prefix-less reference and no prefixed mention at all — which is precisely how 60 of them stayed
+  // The prefix-less forms, enumerated from the same pass so the two can never disagree about what
+  // the file says. Collected BEFORE the early return below, because a file may carry a prefix-less
+  // reference and no prefixed mention at all — which is precisely how 60 line references stayed
   // invisible while the gate reported zero line citations.
+  //
+  // The ANCHOR half is enumerated only OUTSIDE the specification directory. Inside it, one document
+  // linking to a sibling relatively is the normal and correct way to write that link, and 71 such
+  // links exist; outside it, an unprefixed anchor is checked by nothing at all, which is the blind
+  // spot ADR-0036's "only accepted form" sentence forbids. Ambiguous basenames never reach here —
+  // {@link unambiguousSpecDocuments} has already dropped `README.md` and anything else the tree
+  // publishes twice — so rejecting the form cannot collide with a link to a neighbour.
+  // Whether the CITING file lives inside the specification directory. Tested as a path segment
+  // rather than a prefix, because a rooted run reports absolute paths — the production scan yields
+  // repo-relative ones, so a prefix test passed in CI and silently failed everywhere else, which is
+  // the environment-dependent blindness this gate keeps having to root out.
+  const citingPath = toPosixPath(path);
+  const insideSpecDirectory =
+    citingPath.startsWith(`${specDirectory}/`) ||
+    citingPath.includes(`/${specDirectory}/`);
   PREFIX_LESS_REFERENCE.lastIndex = 0;
   let bareDocument = PREFIX_LESS_REFERENCE.exec(text);
   while (bareDocument !== null) {
@@ -1177,11 +1233,21 @@ export function collectCitations(
     const inside = mentions.some(
       (mention) => index >= mention.index && index < mention.end,
     );
-    if (
+    const eligible =
       !inside &&
       knownDocuments.has(bareDocument[1]) &&
-      isProseLine(path, lines[line - 1])
-    ) {
+      isProseLine(path, lines[line - 1]);
+    if (eligible && bareDocument[5] !== undefined) {
+      if (!insideSpecDirectory) {
+        unprefixedAnchors.push({
+          specDirectory,
+          file: bareDocument[1],
+          fragment: bareDocument[5],
+          line,
+          written: bareDocument[0],
+        });
+      }
+    } else if (eligible) {
       citations.push({
         specDirectory,
         file: bareDocument[1],
@@ -1210,7 +1276,7 @@ export function collectCitations(
 
   if (mentions.length === 0) {
     citations.sort((left, right) => left.line - right.line);
-    return { citations, anchors, unattributed };
+    return { citations, anchors, unattributed, unprefixedAnchors };
   }
 
   // Which file an earlier explicit citation gave each exact line spec, so a bare back-reference
@@ -1278,7 +1344,7 @@ export function collectCitations(
     bare = BARE_REFERENCE.exec(text);
   }
   citations.sort((left, right) => left.line - right.line);
-  return { citations, anchors, unattributed };
+  return { citations, anchors, unattributed, unprefixedAnchors };
 }
 
 /** Collapse whitespace and drop markdown emphasis so a quotation matches the text it came from. */
@@ -1533,6 +1599,7 @@ export function runSpecCitationsGate({
     tails: 0,
     bare: 0,
     prefixLess: 0,
+    unprefixedAnchors: 0,
     sectionAnchors: 0,
     lineFragments: 0,
     quotations: 0,
@@ -1559,7 +1626,11 @@ export function runSpecCitationsGate({
   };
   const specCache = new Map();
 
-  const knownDocuments = specDocuments(specRoot ?? specDirectory);
+  const scannedFiles = listCitationFiles(roots);
+  const knownDocuments = unambiguousSpecDocuments(
+    specRoot ?? specDirectory,
+    scannedFiles,
+  );
 
   const specLinesFor = (file) => {
     if (!specCache.has(file)) {
@@ -1608,12 +1679,29 @@ export function runSpecCitationsGate({
     }
   };
 
-  for (const file of listCitationFiles(roots)) {
+  for (const file of scannedFiles) {
     const text = readTextFile(file);
     if (text === null) {
       continue;
     }
     const fileLines = splitLines(text);
+    // A DOUBLED directory prefix names nothing, and neither pattern can see it: the mention pattern
+    // is stopped by the lookbehind and the prefix-less one by its own `/` guard, so the path is
+    // silently ignored rather than wrongly resolved. Silence is not good enough for a path that
+    // resolves nowhere — a blanket search-and-replace produced exactly this shape in shipped source
+    // and nothing noticed. Detected literally, because there is nothing subtle about it.
+    const doubled = `${specDirectory}/${specDirectory}/`;
+    if (text.includes(doubled)) {
+      for (const [index, line] of fileLines.entries()) {
+        if (line.includes(doubled)) {
+          fail(
+            `${file}:${index + 1}: \`${doubled}\` is a doubled directory prefix — it names no ` +
+              "document, and no citation pattern can see it, so it would otherwise be ignored in " +
+              "silence. Write the prefix once.",
+          );
+        }
+      }
+    }
     const runOf = proseRuns(file, fileLines);
     // A status claim is a statement about the repository, not about the spec, so mode 4 sweeps every
     // tracked file rather than only the ones that carry citations.
@@ -1649,16 +1737,13 @@ export function runSpecCitationsGate({
     ) {
       continue;
     }
-    const { citations, anchors, unattributed } = collectCitations(
-      file,
-      text,
-      specDirectory,
-      knownDocuments,
-    );
+    const { citations, anchors, unattributed, unprefixedAnchors } =
+      collectCitations(file, text, specDirectory, knownDocuments);
     if (
       citations.length === 0 &&
       anchors.length === 0 &&
-      unattributed.length === 0
+      unattributed.length === 0 &&
+      unprefixedAnchors.length === 0
     ) {
       continue;
     }
@@ -1736,6 +1821,23 @@ export function runSpecCitationsGate({
         describe:
           `${file}:${reference.line}: the bare reference \`${reference.text}\` follows no ${specDirectory}/<file>.md ` +
           "mention in this file, so nothing says which document it means — write the full citation",
+      });
+    }
+
+    // An anchor written without the directory prefix, outside the specification directory. It is
+    // not a line claim, so it does not drift — but nothing resolves it either, and ADR-0036 admits
+    // exactly one form. Inside `spec/` the relative form is normal and is never reported.
+    for (const anchor of unprefixedAnchors) {
+      counts.unprefixedAnchors += 1;
+      report({
+        file,
+        context: fileLines[anchor.line - 1],
+        subject: anchor.written,
+        observed: "unprefixed-anchor",
+        describe:
+          `${file}:${anchor.line}: ${anchor.written} omits the ${specDirectory}/ prefix, so nothing ` +
+          `resolves it — write ${specDirectory}/${anchor.file}#${anchor.fragment} (ADR-0036 admits ` +
+          "one form, and an unprefixed anchor outside the specification directory is checked by nothing)",
       });
     }
 
@@ -1835,6 +1937,7 @@ export function runSpecCitationsGate({
       `(${counts.explicit} explicit, ${counts.tails} comma-appended, ${counts.bare} bare, ` +
       `${counts.prefixLess} prefix-less), ` +
       `${counts.sectionAnchors} section anchor(s), ${counts.lineFragments} line fragment(s) rejected, ` +
+      `${counts.unprefixedAnchors} unprefixed anchor(s) rejected, ` +
       `${counts.quotations} quoted production(s), ` +
       `${counts.statusClaims} status claim(s) — ${counts.failed} failed`,
   );
@@ -1893,11 +1996,16 @@ export function runSpecCitationsGate({
       "and demotes the original, and removing or renaming an earlier duplicate promotes a later one into " +
       "the slug it vacated; both retarget a citation silently and both leave this gate green. A renamed " +
       "heading therefore fails loudly only when the rename leaves its slug unclaimed. A citation written " +
-      "without the spec-directory prefix is now enumerated too, but only in its LINE form and only on a " +
-      "prose line naming a document this directory publishes: a relative `../../<dir>/<file>.md#y` " +
-      "ANCHOR is still unchecked, and inside the specification directory itself that relative form is " +
-      "the normal way one document links to a sibling. So the rejection above is exhaustive over every " +
-      "LINE spelling this gate can name, while anchor resolution remains blind to the relative form. " +
+      "without the spec-directory prefix is now enumerated too: the LINE form anywhere, and the " +
+      "ANCHOR form outside the specification directory, both only on a prose line naming a document " +
+      "whose basename is unique in the repository — an ambiguous one such as a README is left alone, " +
+      "because attributing it to the specification would invent a citation nobody wrote. Inside the " +
+      "specification directory the relative anchor is the normal way one document links to a sibling " +
+      "and is never reported. A relative path that still carries the spec-directory segment " +
+      "(`../../<dir>/<file>.md#y`) IS matched and resolved; one with no such segment is not seen at " +
+      "all. So the rejection above is exhaustive over every spelling this gate can name, and a " +
+      "citation written inside a string literal in live code is the one shape it deliberately does " +
+      "not reach. " +
       "Headings come from a GFM " +
       "parse and slugs from github-slugger (ADR-0035), so block structure and rendered text are no longer " +
       "approximated; where GitHub can still resolve something this reader does not — an entity reference " +

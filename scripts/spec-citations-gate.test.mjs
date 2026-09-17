@@ -64,6 +64,7 @@ import {
   splitLines,
   suggestionDistance,
   toPosixPath,
+  unambiguousSpecDocuments,
   unsupportedConstructs,
   walkFiles,
 } from "./spec-citations-gate.mjs";
@@ -496,11 +497,17 @@ test("a tree of anchor citations passes, and the report states what it does not 
   );
   assert.match(
     summary,
-    /rejection above is\s+exhaustive over every LINE spelling this gate can name/,
+    /rejection above is exhaustive over every spelling this gate can name/,
   );
-  // And the bound is stated in both directions: the relative ANCHOR form is still unresolved, so a
-  // green run must not be read as "every reference to the spec is checked".
-  assert.match(summary, /anchor resolution remains blind to the relative form/);
+  // And the bound is stated in both directions: a citation inside a string literal in live code is
+  // the one shape the rule deliberately does not reach, so a green run must not be read as "no line
+  // citation exists anywhere in the tree".
+  assert.match(
+    summary,
+    /citation written inside a string literal in live code is the one shape it deliberately does\s+not reach/,
+  );
+  // An ambiguous basename is left alone rather than attributed to the specification.
+  assert.match(summary, /an ambiguous one such as a README is left alone/);
   assert.match(summary, /does NOT prove the section supports the claim/);
   assert.match(summary, /wrong-passage and misstating-prose modes/);
   assert.match(summary, /names a heading that exists in the file it cites/);
@@ -1862,7 +1869,7 @@ function writeSections() {
   return `${CONTRACT}/conformance.md`;
 }
 
-test("THE PREFIX-LESS LINE FORM is enumerated and rejected, and a relative ANCHOR is not", () => {
+test("THE PREFIX-LESS FORMS are rejected, and the relative anchor inside spec/ is not", () => {
   // The hole saga #1180 would otherwise have left open. A `<file>.md:12` written without the
   // directory prefix is a line claim like any other, and until it was enumerated the gate could
   // report zero line citations while 60 of them sat in the tree — an instrument reporting success
@@ -1885,19 +1892,94 @@ test("THE PREFIX-LESS LINE FORM is enumerated and rejected, and a relative ANCHO
   assert.equal(rejected.counts.prefixLess, 1);
   assert.match(report, /0 bare, 1 prefix-less/);
 
-  // The other half, which must keep working: a relative ANCHOR is not a line claim, and inside the
-  // specification directory it is the normal way one document links to a sibling. Rejecting it
-  // would break 71 legitimate references to fix none.
+  // The ANCHOR half, OUTSIDE the specification directory: not a line claim, so it does not drift —
+  // but nothing resolves it either, and ADR-0036 admits exactly one form.
   write(
     "bare.md",
     `See grammar.md#ebnf-notation for the selector production.\n`,
   );
-  const accepted = runOverTemp();
-  assert.equal(accepted.ok, true, "a relative anchor must not be rejected");
-  assert.equal(accepted.counts.prefixLess, 0);
-  // It is also not COUNTED as a resolved anchor, because the gate does not resolve the relative
-  // form — stated rather than implied, so the counter cannot be read as coverage it does not have.
-  assert.equal(accepted.counts.sectionAnchors, 0);
+  const unprefixed = runOverTemp();
+  assert.equal(
+    unprefixed.ok,
+    false,
+    "an unprefixed anchor outside spec/ is checked by nothing, so it is rejected",
+  );
+  assert.equal(unprefixed.counts.unprefixedAnchors, 1);
+  assert.match(
+    unprefixed.lines.join("\n"),
+    /omits the contract\/ prefix, so nothing resolves it — write contract\/grammar\.md#ebnf-notation/,
+  );
+
+  // INSIDE the specification directory the same anchor is the normal way one document links to a
+  // sibling, and 71 such links exist. Rejecting it there would break every one of them to fix none.
+  rmSync(join(TEMP_DIR, "bare.md"));
+  write(
+    `${CONTRACT}/sibling.md`,
+    "# Sibling\n\nSee grammar.md#ebnf-notation for the rule.\n",
+  );
+  const inside = runOverTemp();
+  assert.equal(
+    inside.ok,
+    true,
+    "a relative anchor inside the specification directory must keep working",
+  );
+  assert.equal(inside.counts.unprefixedAnchors, 0);
+});
+
+test("an AMBIGUOUS basename is never attributed to the specification", () => {
+  // A README exists at the repository root and in most packages, so citing one bare almost
+  // certainly means a neighbour. Attributing it to the specification would be the gate inventing a
+  // citation the author did not write — a false positive, which is fatal in a gate with no
+  // tolerance. The exclusion is a property of the tree, recomputed every run, not a maintained list.
+  writeGrammar();
+  write(`${CONTRACT}/README.md`, "# Readme\n\n## Overview\n\ntext\n");
+  write("README.md", "# Repository readme\n\n## Overview\n");
+  write("cites.md", "See README.md:3 and README.md#overview here.\n");
+  const result = runOverTemp();
+  assert.equal(result.ok, true, "an ambiguous basename must be left alone");
+  assert.equal(result.counts.prefixLess, 0);
+  assert.equal(result.counts.unprefixedAnchors, 0);
+
+  // The unambiguous document beside it is still caught, so the guard narrows rather than disabling.
+  write("cites.md", "See README.md#overview and grammar.md:8 here.\n");
+  assert.equal(runOverTemp().counts.prefixLess, 1);
+
+  assert.deepEqual(
+    [
+      ...unambiguousSpecDocuments(join(TEMP_DIR, CONTRACT), [
+        join(TEMP_DIR, CONTRACT, "grammar.md"),
+        join(TEMP_DIR, CONTRACT, "README.md"),
+        join(TEMP_DIR, "README.md"),
+      ]),
+    ],
+    ["grammar.md"],
+  );
+});
+
+test("a DOUBLED directory prefix is rejected, not read as the valid citation inside it", () => {
+  // `<dir>/<dir>/x.md#y` names nothing. Without the lookbehind the scan fails at the first prefix,
+  // resumes one character later, and enumerates the inner substring as a perfectly good citation —
+  // so a path resolving nowhere passed the gate. A blanket search-and-replace produced exactly that
+  // shape in shipped source, and the gate could not see what the replace had done.
+  writeSections();
+  write(
+    "doubled.md",
+    `See ${CONTRACT}/${CONTRACT}/conformance.md#heritage here.\n`,
+  );
+  const doubled = runOverTemp();
+  assert.equal(doubled.ok, false, "a doubled prefix must not resolve");
+  assert.equal(
+    doubled.counts.sectionAnchors,
+    0,
+    "and must not be counted as a good anchor",
+  );
+
+  // A RELATIVE path carrying the directory segment is a different shape and stays matched, because
+  // it names a real document and resolving it beats ignoring it.
+  write("doubled.md", `See ../../${CONTRACT}/conformance.md#heritage here.\n`);
+  const relative = runOverTemp();
+  assert.equal(relative.ok, true);
+  assert.equal(relative.counts.sectionAnchors, 1);
 });
 
 test("the prefix-less rule is structural: a prose line, and a document that exists", () => {

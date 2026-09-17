@@ -857,7 +857,7 @@ export function findDuplicateBinderName(
  * Bind one iterated element against `binder`: a bare name binds the whole element, while a
  * destructuring pattern destructures it positionally (`spec/execution-model.md#records-and-destructuring`). A list
  * element destructures by index; an {@link OLRecord} element destructures by its declared field
- * order (`fields()`/`get()`, `spec/data-structures.md#nested-records-and-dictionaries`) — derived into a plain values array
+ * order (`fields()`/`get()`, `spec/data-structures.md#destructuring`) — derived into a plain values array
  * *before* the arity check below, so a record whose field count disagrees with the pattern's arity
  * fails the same length check a list would. Any other element (or a record/list whose length
  * disagrees with the pattern's arity) raises `ol-range` — a non-destructurable element's length is

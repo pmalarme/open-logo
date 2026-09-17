@@ -355,7 +355,7 @@ export interface InstructionPayload {
 /**
  * Payload for a `procedure-enter` event: the callee's canonical name and its evaluated argument
  * values, in parameter order — required arguments as supplied, trailing optional ones with their
- * default applied when the caller omitted them (`spec/execution-model.md#tutor-output-educational-profile, spec/execution-model.md#worked-traces, spec/execution-model.md#recursive-call`'s worked
+ * default applied when the caller omitted them (`spec/execution-model.md#worked-traces, spec/execution-model.md#recursive-call`'s worked
  * recursive-call trace, e.g. `{name:"countdown", args:[2]}`).
  */
 export interface ProcedureEnterPayload {
@@ -365,7 +365,7 @@ export interface ProcedureEnterPayload {
 
 /**
  * Payload for a `procedure-exit` event: the callee's canonical name and its result
- * (`spec/execution-model.md#tutor-output-educational-profile, spec/execution-model.md#worked-traces, spec/execution-model.md#recursive-call`, e.g. `{name:"countdown", result:0}`). `result` is `null`
+ * (`spec/execution-model.md#worked-traces, spec/execution-model.md#recursive-call`, e.g. `{name:"countdown", result:0}`). `result` is `null`
  * when the invocation is a command — it finished (or `stop`ped) without reaching `return`
  * (`spec/execution-model.md#variables-scoping-and-procedures`) — rather than `0`/`false`/an empty list, which are
  * themselves ordinary result values.
@@ -377,7 +377,7 @@ export interface ProcedureExitPayload {
 
 /**
  * Payload for a `return` event: the value supplied to `return`/`output`/`op`
- * (`spec/execution-model.md#tutor-output-educational-profile, spec/execution-model.md#worked-traces, spec/execution-model.md#recursive-call`, e.g. `{value:0}`). Emitted only when a procedure actually
+ * (`spec/execution-model.md#worked-traces, spec/execution-model.md#recursive-call`, e.g. `{value:0}`). Emitted only when a procedure actually
  * reaches a `return`; a command invocation (falls through, or `stop`s) never emits one.
  */
 export interface ReturnPayload {

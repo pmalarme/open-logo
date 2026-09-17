@@ -220,7 +220,7 @@ function isTurtleMoveCall(statement: StatementNode): boolean {
 
 /**
  * Move the turtle `distance` units along its current heading and emit the `move` effect-event
- * `spec/execution-model.md#numbers-and-math` requires, reporting the position change and heading. A
+ * `spec/execution-model.md#trace-and-event-registry` requires, reporting the position change and heading. A
  * `draw-segment` reporting the same endpoints plus the pen color/width active at the moment the
  * segment is created (`spec/rendering.md`'s "Line segments" section) follows it **only while the
  * pen is down** (the current turtle's `penDown`) — `spec/rendering.md`'s "Line segments" section: a segment
@@ -386,7 +386,7 @@ function isTurtleTurnCall(statement: StatementNode): boolean {
 /**
  * Turn the turtle by `deltaDegrees` (positive turns clockwise, i.e. `right`; negative turns
  * counter-clockwise, i.e. `left` — `spec/execution-model.md#turtle-and-canvas-state`) and emit the `turn` effect-event
- * `spec/execution-model.md#numbers-and-math` requires (`{from, to}`, both headings in degrees). The new heading
+ * `spec/execution-model.md#trace-and-event-registry` requires (`{from, to}`, both headings in degrees). The new heading
  * is normalized to `[0,360)` (`spec/execution-model.md#turtle-and-canvas-state`) — never left negative or `>= 360`.
  *
  * Turning has no `move`/`draw-segment` counterpart: it only rotates, never translates, so no
@@ -4083,7 +4083,7 @@ function isEducationalMetaCommandCall(
  * unconditionally) is what keeps a run of CONSECUTIVE meta-commands (e.g. `hint` called three
  * times in a row with nothing in between) all resolving to the SAME real target, rather than
  * each one targeting the previous meta-command's own call site — without that skip, `hint`'s
- * progression (`spec/execution-model.md#trace-and-event-registry`, "for the SAME target") could never observe two
+ * progression (`spec/execution-model.md#tutor-output-educational-profile`, where a different value starts its own) could never observe two
  * calls sharing one target.
  */
 function findPrecedingSiblingStatement(
@@ -4519,7 +4519,7 @@ type ProcedureOutcome =
  * but only on a clean or `return`/`stop` outcome (a `"halt"` outcome skips it, matching the
  * existing convention that a diagnostic stops the trace with no further events at all). This
  * ordering reproduces the spec's worked recursive-call trace exactly
- * (`spec/execution-model.md#tutor-output-educational-profile, spec/execution-model.md#worked-traces, spec/execution-model.md#recursive-call`).
+ * (`spec/execution-model.md#worked-traces, spec/execution-model.md#recursive-call`).
  *
  * Before any of that, the call is checked against `environment.callDepth`'s length — the current
  * procedure-call nesting depth — against {@link Environment.recursionDepthLimit}: exceeding it

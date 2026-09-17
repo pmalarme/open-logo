@@ -1,7 +1,7 @@
 /**
  * Feature-detection / conformance-claim metadata, per
- * [`spec/conformance.md`](../../../spec/conformance.md)'s "Conformance claims" (~L22-30) and
- * "Extensions and feature detection" (~L266-291) sections. Hosts (studio, CLIs, editor
+ * [`spec/conformance.md`](../../../spec/conformance.md)'s [Conformance claims](../../../spec/conformance.md#conformance-claims) and
+ * [Extensions and feature detection](../../../spec/conformance.md#extensions-and-feature-detection) sections. Hosts (studio, CLIs, editor
  * integrations, other tools) query {@link getHostMetadata} to learn, at runtime, the exact
  * spec version this build targets, which profiles it currently and correctly supports, which
  * vendor-namespaced extensions it adds, and which rendering targets it exposes when Turtle &
