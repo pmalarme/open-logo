@@ -31,8 +31,8 @@ spent several review rounds on which form a given sentence should teach.
 **The hedges preserve exactly the cost the saga exists to remove.** Churn is proportional to the
 line citations that remain, so converting a file only when someone happens to open it leaves the
 majority form fragile indefinitely. Measured at this tree with `npm run spec-citations`: the gate
-reports **2,861** line-form citations against **187** section anchors. Read the counters it prints
-rather than these numbers, which are a snapshot.
+reports **2,861** colon-form citations and **4** line fragments, against **187** section anchors.
+Read the counters it prints rather than these numbers, which are a snapshot.
 
 **An exception file institutionalises the unresolvable.** `scripts/spec-citations-exceptions.json`
 lets a citation that does not resolve stay in the tree, keyed by a hash and a tracking issue. That
@@ -50,8 +50,12 @@ record a defect instead of repairing it.
    deprecated-but-tolerated: it is **rejected**. There is no migration period to reason about, and
    no form a citation may fall back to.
 4. **The corpus converts in one sweep**, rather than file by file as files are touched.
-5. **The exception machinery is deleted outright** — the exceptions file and the code that reads it.
-   Under an absolute rule there is nothing left for it to hold.
+5. **The citation-exception machinery goes.** The exceptions manifest exists to keep a citation that
+   does not resolve in the tree; under an absolute rule there is no such state to record. One
+   caveat this record will not paper over: the manifest also carries a **status-claim** exception,
+   which is not a citation at all and which no citation sweep can remove — it sits inside an
+   Accepted, immutable ADR. Deleting the manifest wholesale therefore needs a decision about that
+   entry rather than an assumption; `@testing` owns it, under saga #1180.
 
 Where a claim genuinely rests on one production, one table row or one sentence, **quote the words it
 relies on** next to the anchor. ADR-0034 already recommended this; it now carries the weight the
@@ -69,8 +73,9 @@ run.
   `@testing`'s, under saga #1180.
 - The corpus is still overwhelmingly line-form. The counters the gate prints on every run are the
   live measure; the snapshot above is this record's date, not a claim about any later tree.
-- `scripts/spec-citations-exceptions.json` still exists. Deleting it, and the code that reads it, is
-  `@testing`'s under the same saga.
+- `scripts/spec-citations-exceptions.json` still exists. Removing it is `@testing`'s under the same
+  saga, and as decision 5 notes, one of its entries is a status claim rather than a citation, so
+  that removal is not a pure consequence of the sweep.
 
 A reader on the merge date should therefore expect a tree that does not yet match this record. The
 gap is deliberate and sequenced: the rule ships **first**, so sessions already in flight learn it in
@@ -90,20 +95,34 @@ by the same gate that verifies hand-written citations.
 
 ### The transform preserves correctness; it does not assert it
 
-The conversion is **mechanically derivable**: a citation naming line *N* becomes the anchor of the
-heading that encloses line *N*. The enclosing heading is a property of the document, not a judgement
-about the claim.
-
-This matters for what the sweep is allowed to be believed about. The section a citation lands on is
-the one that already contained the line it named, so:
+For a citation naming **one line**, the conversion is mechanically derivable: it becomes the anchor
+of the heading that encloses that line. The enclosing heading is a property of the document, not a
+judgement about the claim, so the section landed on is the one that already contained the line
+named:
 
 - a citation that pointed at the right passage still points at the right section;
 - a citation that pointed at the **wrong** passage still points at the wrong section.
 
-**The sweep changes the form, not the truth.** It repairs no stale citation and introduces no new
-one. The wrong-passage and misstating-prose modes of issue #934 survive it untouched, exactly as
-ADR-0034 and ADR-0035 say they survive an anchor. Nobody may read a green run after the sweep as
-evidence that the corpus was audited — it was re-pointed, and that is a strictly smaller claim.
+**For a single-line citation, the sweep changes the form, not the truth.** It repairs no stale
+citation and introduces no new one.
+
+**A range is not uniquely determined, and that is the sweep's real hazard.** A citation naming a
+span has two endpoints, and they need not sit under the same heading; worse, a span may begin on a
+blank line that still belongs to the *previous* section. There is a live instance in this tree:
+`packages/core/src/events.ts` cites a span of `spec/commands.md` for `print` whose first line is the
+blank separator closing the preceding command's section, while its body sits under the `print`
+heading. Mapping the start gives one anchor and mapping the body gives another — and **both headings
+exist, so both resolve and the gate stays green either way.**
+
+That is the bound on what resolution buys: it catches an anchor naming **no** heading. It cannot
+catch an anchor naming the **wrong** one. So the converter must state the rule it applies to a span
+and escalate rather than guess where the endpoints disagree; `@testing` owns it under saga #1180.
+For spans, the sweep changes the form and *may* change which section is named — a wrong-passage risk
+this record does not claim to close.
+
+Nobody may read a green run after the sweep as evidence that the corpus was audited — it was
+re-pointed, and that is a strictly smaller claim. The wrong-passage and misstating-prose modes of
+issue #934 survive it, exactly as ADR-0034 and ADR-0035 say they survive an anchor.
 
 One real loss: a section is coarser than a line, so a citation that genuinely depended on line
 precision now names a larger region. That is what the quotation rule above is for, and it is the

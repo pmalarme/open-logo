@@ -67,11 +67,10 @@ the measured churn and the rejected alternatives for *why* an anchor.
   clothing: it names a position, not a section, and drifts exactly the way a line number does.
   Rejected on the same terms.
 - **Never write a bare `:<number>` in a file that mentions a `spec/` document** — not in prose, not
-  in a comment, not as an incidental figure that was never meant as a citation. The gate attributes
-  the digits to the nearest preceding `spec/` mention and reads them as a line claim: today it must
-  then resolve like any other, and once the line form is rejected it fails outright. Spell the
-  number in words, or restructure so that a colon and digits are not adjacent — a literal line
-  number is never illustrative here.
+  in a comment, not as an incidental figure that was never meant as a citation. The gate reads such
+  a number as a line claim against a `spec/` document, so one you never intended as a citation is
+  caught by the rule above. Spell it in words, or restructure so that a colon and digits are not
+  adjacent — a literal line number is never illustrative here.
 
 **What the gate proves.** `npm run spec-citations` **resolves** anchors (#1181): it reads the
 headings of the file an anchor names — from a GFM parse, slugged the way GitHub slugs — and fails

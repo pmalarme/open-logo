@@ -219,7 +219,7 @@ jobs:
       # Issue #934: every `spec/` citation in the tree must resolve to text, a section anchor must
       # name a heading that exists in the file it cites (#1181, ADR-0035), a quoted EBNF production
       # must be inside the range cited, and a forward-looking status claim must name a tracking
-      # issue. The anchor is the only accepted form (ADR-0036); its limits are stated in the skill
+      # issue. The anchor is the only form to write (ADR-0036); its limits are stated in the skill
       # that owns the rule, `.github/skills/shared/spec-fidelity/SKILL.md`. Nothing checked any of
       # this before, so one spec edit silently invalidated line citations in bulk: #846 shifted 113
       # of them across 68 files. Unlike built-in-names it needs no build; it runs in seconds, so it

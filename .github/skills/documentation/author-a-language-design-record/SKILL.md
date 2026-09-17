@@ -38,8 +38,9 @@ originating motivation and the full seed list of LDRs.
      decision at hand.
    - **Consequences** — what the decision enables or forecloses, ending with the spec citation(s).
 4. **Cite the normative spec section(s).** Every LDR is a rationale layer over `spec/`, never a
-   replacement for it — it must cite the exact `spec/*.md` section(s) it explains (e.g.
-   `spec/grammar.md`'s place grammar, `spec/execution-model.md`'s evaluation order). An LDR with no
+   replacement for it — it must cite the exact `spec/*.md` section(s) it explains, by section
+   anchor (e.g. `spec/grammar.md#places-selectors-and-keys`,
+   `spec/execution-model.md#precedence-and-evaluation-order`). An LDR with no
    spec citation is incomplete: the doc must stay anchored to the contract, never drift from it.
 5. **Cross-link, don't duplicate.** Where it helps a reader discover the rationale layer, a
    maintainer-reviewed `spec/` PR may add a single "see also" backlink line pointing at the new
