@@ -40,31 +40,32 @@ matching it exactly and catching the common "classic Logo" mistakes.
 - Every feature belongs to exactly one **profile**; respect the dependency DAG and the minimal path
   **Core Language → Turtle & Rendering** (`spec/conformance.md`).
 
-## Citing the spec — by section anchor, not by line
+## Citing the spec — by section anchor, only
 
-**Write `spec/<file>.md#a-heading`.** A heading does not move when text is inserted above it; a line
-number does, so every `spec/` edit used to drag a mechanical re-pointing pass behind it. An anchor
-is not unbreakable — it breaks when its heading is renamed or removed, and where the file has
-duplicate headings another one can inherit your slug and retarget the citation **silently**, since
-it still resolves — but all of those are rarer and more deliberate than inserting a paragraph. The
-decision, the measured churn and the rejected alternatives are in
-[ADR-0034](../../../../docs/adr/0034-cite-the-spec-by-section-anchor.md).
+**Write `spec/<file>.md#a-heading`. Never a line number.** A heading does not move when text is
+inserted above it; a line number does, so every `spec/` edit used to drag a mechanical re-pointing
+pass behind it. An anchor is not unbreakable — it breaks when its heading is renamed or removed, and
+where the file has duplicate headings another one can inherit your slug and retarget the citation
+**silently**, since it still resolves — but all of those are rarer and more deliberate than
+inserting a paragraph. The rule is absolute; the reasoning is in
+[ADR-0036](../../../../docs/adr/0036-cite-the-spec-by-section-anchor-only.md), which supersedes
+[ADR-0034](../../../../docs/adr/0034-cite-the-spec-by-section-anchor.md) — that record still holds
+the measured churn and the rejected alternatives for *why* an anchor.
 
-- **Default:** the anchor alone — `spec/conformance.md#educational`.
-- **A line number only where line precision is genuinely required** (one production, one table row,
-  one sentence) — and then **write the anchor too**, so the durable half survives the next spec
-  edit. A bare `spec/<file>.md:<line>` citation is the legacy form: still valid, still gated, no
-  longer the default. Do not mass-convert existing ones; convert a file's citations when you are in
-  it for other work.
-- **Quote the words you rely on** where it is natural — the anchor, then the fragment your claim
-  rests on in quotation marks. Recommended, not required.
+- **The anchor is the whole citation** — `spec/conformance.md#educational`.
+- **Never a line number.** Not alone, not beside an anchor, not "where precision is genuinely
+  required". There is no carve-out, no exception and no grandfathering: the line form is
+  **rejected**, not tolerated, and there is no migration window in which it is acceptable.
+- **Quote the words you rely on** where a claim rests on one production, one table row or one
+  sentence — the anchor, then the fragment your claim rests on in quotation marks. This is what
+  replaces line precision, and unlike a line number a quotation is checkable.
 - **Keep a citation on one line**, even if the line runs long. Anchors are long, and an anchor split
   by a line wrap becomes a different, non-existent one — the site in this tree that read as
   `#collections-` was repaired by #1181, whose gate now **fails** on that shape rather than passing
   it unseen.
 - **`#L30` / `#L28-L84` is not an anchor.** GitHub's line fragment is a line claim in anchor
-  clothing: it names a position, not a section, and drifts exactly the way a line number does. Not
-  the durable form.
+  clothing: it names a position, not a section, and drifts exactly the way a line number does.
+  Rejected on the same terms.
 
 **What the gate proves.** `npm run spec-citations` **resolves** anchors (#1181): it reads the
 headings of the file an anchor names — from a GFM parse, slugged the way GitHub slugs — and fails
@@ -81,6 +82,13 @@ the escaping set, raw inline HTML, a numeric reference whose digit count CommonM
 renderer disagree about — is **refused** rather than answered. Read the coverage statement
 the gate prints; never read a green run as "every citation is right".
 
+**What is not yet true.** The rule above binds you **now**; the tooling is catching up behind it.
+Today `npm run spec-citations` still **accepts** a line citation, and the corpus is still
+overwhelmingly line-form — the counters the gate prints are the live measure. The gate change that
+rejects the line form, the sweep that converts the corpus, and the deletion of the exceptions file
+are `@testing`'s, under saga #1180. Do not read the gate's silence as permission: a rule is not a
+preference because nothing rejects it yet.
+
 ## Procedure
 
 1. **Before coding**, open the owning spec file(s) and the C3 row in `spec/commands.md`; note the
@@ -95,4 +103,4 @@ the gate prints; never read a green run as "every citation is right".
 - [ ] Feature assigned to the correct profile; dependencies honored.
 - [ ] No commas / lambda / arrays / hidden drawing shortcuts introduced.
 - [ ] Behavior matches the exact C3 signature and error cases.
-- [ ] New citations name a section anchor; any line number carries its anchor beside it.
+- [ ] Every citation written or touched names a section anchor; no line number, no line fragment.

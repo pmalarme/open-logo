@@ -242,14 +242,16 @@ tests, fixture prose, and docs. They are what binds the implementation to the no
 nothing checked a single one — so one `spec/` edit silently shifted 113 of them across 68 files
 (#846), and #885 merged green carrying ten that pointed at the wrong lines.
 
-**Cite the spec by section anchor — `spec/<file>.md#a-heading` — not by line.** A heading does not
-move when text is inserted above it. Use a line number only where line precision is genuinely
-required, and write the anchor beside it; never mass-convert existing citations — a file converts
-when you are in it for other work. The gate **resolves** anchors (#1181): a fragment naming no
-heading in the file it cites fails, with a did-you-mean that is reported and never acted on. It
-proves the heading exists and nothing more. The rule, its limits and the evidence live in
+**Cite the spec by section anchor — `spec/<file>.md#a-heading` — and never by line.** A heading does
+not move when text is inserted above it. There is no precision carve-out, no exception and no
+grandfathering: a line number and a `#L`-style line fragment are both **rejected**, and where a
+claim rests on one table row or one production you quote the words it relies on instead. The gate
+**resolves** anchors (#1181): a fragment naming no heading in the file it cites fails, with a
+did-you-mean that is reported and never acted on. It proves the heading exists and nothing more.
+Rejecting the line form, and sweeping the corpus onto anchors, are `@testing`'s under saga #1180 —
+so expect a tree that does not yet match the rule. The rule, its limits and the evidence live in
 [`shared/spec-fidelity`](.github/skills/shared/spec-fidelity/SKILL.md) and
-[ADR-0034](docs/adr/0034-cite-the-spec-by-section-anchor.md).
+[ADR-0036](docs/adr/0036-cite-the-spec-by-section-anchor-only.md).
 
 **Read the coverage statement it prints, which names what it does *not* check.** A stale citation
 fails in four ways and only two are mechanically detectable: it **does not resolve** (missing file,
