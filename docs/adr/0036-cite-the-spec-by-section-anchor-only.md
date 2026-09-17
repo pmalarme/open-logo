@@ -31,7 +31,7 @@ spent several review rounds on which form a given sentence should teach.
 **The hedges preserve exactly the cost the saga exists to remove.** Churn is proportional to the
 line citations that remain, so converting a file only when someone happens to open it leaves the
 majority form fragile indefinitely. Measured at this tree with `npm run spec-citations`: the gate
-reports **2,861** colon-form citations and **4** line fragments, against **187** section anchors.
+reports **2,861** colon-form citations and **4** line fragments, against **190** section anchors.
 Read the counters it prints rather than these numbers, which are a snapshot.
 
 **An exception file institutionalises the unresolvable.** `scripts/spec-citations-exceptions.json`
@@ -89,9 +89,9 @@ the way GitHub slugs, and fails when the fragment names none of them.
 
 That inverts the risk ADR-0034 was protecting against. A mass conversion to an **unchecked** form
 propagates its own mistakes silently, which is why it was refused. A mass conversion to a **checked**
-form cannot: every anchor the sweep writes is resolved on the next run, and one that lands on no
-heading fails loudly, naming the file, the anchor and the citing site. The sweep's output is verified
-by the same gate that verifies hand-written citations.
+form is caught wherever it invents an anchor: every anchor the sweep writes is resolved on the next
+run, and one that lands on no heading fails loudly, naming the file, the anchor and the citing site.
+That is a real guarantee but a **bounded** one — the next section states what it does not reach.
 
 ### The transform preserves correctness; it does not assert it
 

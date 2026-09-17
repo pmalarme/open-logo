@@ -46,8 +46,8 @@ and is authored by the product-owner/maintainer, not documentation).
 - Files are numbered sequentially starting at `0000`, matching the pattern used by `docs/adr/`.
   `0000` is this format-defining note.
 - Every LDR **must cite the normative `spec/` section(s) it explains** (e.g.
-  `spec/grammar.md#expressions-and-calls`, `spec/commands.md`). An LDR without a spec citation is
-  incomplete — the LDR explains the spec's *why*; it never states behavior the spec doesn't
+  `spec/grammar.md#expressions-and-calls`, `spec/commands.md#print`). An LDR without a spec citation
+  is incomplete — the LDR explains the spec's *why*; it never states behavior the spec doesn't
   already state. The sole intentional exception is this record (LDR-0000) itself: it defines the
   LDR format rather than explaining a language-design decision, so it cites no `spec/` section —
   every LDR numbered `0001` and above **must** carry a real citation, with no further exceptions.
