@@ -311,9 +311,8 @@ before any effect —
 + { node: node.value, rootIsRead: false }
 ```
 
-— and it survived the whole suite at that commit. PR #1176 records five such gaps found in that one
-slice, each beside a passing test; see its table for the enumeration and for which are walled by
-conformance fixtures versus unit assertions.
+— and it survived the whole suite at that commit. PR #1176 tabulates five such gaps found in that
+one slice, each beside a passing test.
 
 Three traps, each of which produced a wrong answer in that slice:
 
@@ -333,32 +332,30 @@ nothing about it.
 ### (h) Prose — audit it as prose, in its own pass
 
 Comments, fixture `description`s, and PR bodies are read *beside* the code they describe, so a false
-sentence next to correct code and a green fixture looks right. In issue #1155 several review rounds
-read the same defective sentences and passed them; PR #1176 records the rounds and their findings.
+sentence next to correct code and a green fixture looks right. PR #1176 records false prose
+surviving and reappearing across review rounds in issue #1155 — including replacement prose that
+introduced new false claims.
 
 So make a pass over **only the sentences this change adds or edits**, with the code out of view, and
 ask of each: **what measurement would falsify this, and did I run it?**
 
-The failure is not evenly distributed. Of three sentences written in one commit by one author, the
-two that **quantified** were both false and the one that did not was true — a count in living
-documentation goes stale silently, while a claim scoped to a measured revision does not. So:
+Keep a sentence only if it is a measurement with its scope, a rationale that asserts no universal,
+or a pointer. Otherwise:
 
 - **Delete rather than rewrite.** A sentence you cannot verify is removed, not hedged — deleted text
-  cannot be wrong. Keep only a measurement with its scope, a rationale that asserts no universal, or
-  a pointer.
+  cannot be wrong.
 - **Remove a derived number, don't update it.** An updated count is a defect with a longer fuse.
   Where a number must stay, anchor it to the revision it was measured at.
 - **No unenumerated absolutes** — *no*, *only*, *every*, *never*, *all*, *none* — unless the
   universe is finite, enumerable, and you enumerated it *where the reader can see it*.
 - **Prefer a pointer to a reconstructed cause.** Where deleting would invite a maintainer into a
-  trap, cite the mechanism's source instead of explaining it: a pointer asserts no causation, so it
-  cannot be wrong about causation. It can still be wrong about *location* — item (f) applies, so
-  prefer a stable symbol, an issue or PR number, or a commit-anchored reference over a bare
-  `file.ts:NN`. In #1155 three false claims in one commit came from reconstructing a cause from a
-  real measurement.
+  trap, cite the mechanism's source instead of explaining it: a pointer avoids restating a causal
+  story you would have to verify. It is still a citation, so item (f) applies — check that it
+  resolves *and* that it supports the sentence beside it, and prefer a stable symbol, an issue or PR
+  number, or a commit-anchored reference over a bare `file.ts:NN`.
 - **When you change what class something belongs to**, search for sentences citing the subject as an
-  example of the old class and revalidate them. Nothing links a class to its examples, so the
-  definition site is the one place the change is obvious and the citing sites are where it is not.
+  example of the old class, and revalidate them. The definition site is where the change is obvious;
+  the citing sites are where it is not.
 
 Unlike (g) this has no general oracle. Some prose does have one — runnable examples, the citation
 and ADR-numbering gates, format checks — but a fixture `description` has none: the harness **reads
@@ -446,7 +443,7 @@ ground out.
 - [ ] A11y / pedagogy checked where applicable.
 - [ ] Instructions / skills / docs / spec drift checked (in-PR if needed); every count and `file:line` citation the change touches was **re-derived**, not trusted.
 - [ ] **Mutation**: for each behaviour introduced, an edit that changes it was confirmed to turn a named test or fixture red, with the mutant verified live in `dist` — no-op and clean-direction-only mutations do not count.
-- [ ] **Prose audited as prose**: a separate pass over only the sentences this change adds or edits, each one either measured with its scope, asserting no unenumerated absolute, or deleted.
+- [ ] **Prose audited as prose**: a separate pass over only the sentences this change adds or edits, each one kept only as a verified measurement with its scope, a rationale asserting no unenumerated absolute, or a checked pointer — everything else deleted.
 - [ ] **Every finding resolved — blocking *and* non-blocking**: each one fixed, or declined with a one-line rationale (+ follow-up issue number when it is real work outside the write-set).
 - [ ] Converged within the **10-round cap** (otherwise: not opened — escalated to `@orchestrator`/maintainer with the open findings and per-round SHAs).
 - [ ] All verdicts `pass` on the **same final HEAD** (SHA-stamped) and attached; any later commit re-ran every reviewer; no self-merge.
