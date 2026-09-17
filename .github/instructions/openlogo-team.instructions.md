@@ -37,11 +37,12 @@ under `.github/workflows/`, security, labeler + label sync, releases).
 - **`spec/` is owned by the maintainer (@pmalarme).** No agent edits `spec/` directly. The
   **product-owner** agent proposes changes via a PR that a human reviews and merges. Everyone
   else raises ambiguities as issues/change-requests.
-- **Cite the spec by section anchor** — `spec/<file>.md#a-heading`, not `:<line>`. A line number is
-  only for a claim that genuinely needs line precision, and then it carries its anchor too. Never
-  mass-convert existing citations. The rule and its limits:
+- **Cite the spec by section anchor — only.** Write `spec/<file>.md#a-heading`. **Never** a line
+  number and **never** a `#L`-style line fragment: there is no precision carve-out, no exception and
+  no grandfathering. Where a claim rests on one table row or one production, **quote the words it
+  relies on** instead. The rule and its limits:
   [`shared/spec-fidelity`](../skills/shared/spec-fidelity/SKILL.md); the reasoning:
-  [ADR-0034](../../docs/adr/0034-cite-the-spec-by-section-anchor.md).
+  [ADR-0036](../../docs/adr/0036-cite-the-spec-by-section-anchor-only.md).
 - Key spec files agents must read before working in their area:
   [`conformance.md`](../../spec/conformance.md) (profiles + dependency DAG + minimal path),
   [`grammar.md`](../../spec/grammar.md), [`commands.md`](../../spec/commands.md) (C3 primitive

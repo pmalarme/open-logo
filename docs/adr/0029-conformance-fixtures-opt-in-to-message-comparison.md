@@ -8,7 +8,9 @@
   parser integration), whose decision #2 states the opposite of what the harness now does;
   [ADR-0007](0007-conformance-harness.md) (conformance harness);
   [`spec/error-model.md`](../../spec/error-model.md#localization-boundary) (the localization
-  boundary this opt-in is scoped by)
+  boundary this opt-in is scoped by); refined by
+  [ADR-0035](0035-parse-markdown-to-resolve-spec-anchors.md), which landed, in #1181, the
+  section-anchor resolution this record describes as absent
 
 ## Context
 

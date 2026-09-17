@@ -46,7 +46,7 @@ A change is "done" only when it is proven, documented, and green. This skill is 
    host, so the blind fraction stays visible.
 7. **Accessibility/pedagogy checks pass** where applicable (reduced-motion, keyboard, non-visual
    descriptions; progressive hints / no-spoilers).
-8. **Docs & spec cross-links updated** in the same PR (no drift). Any **count or `file:line`
+8. **Docs & spec cross-links updated** in the same PR (no drift). Any **count or `spec/`
    citation** the change writes or touches is re-derived against the current tree, or replaced by a
    pointer at what produces it (see "Derived counts in prose" below). **A change to any built-in
    name is machine-gated**: `npm run built-in-names` asserts `spec/built-in-names.json` — the
@@ -120,9 +120,10 @@ The rule, in priority order:
 3. **Treat `docs/adr/` and `docs/design-notes/` as the highest-cost place for a number.** Those
    records are **immutable once Accepted**, so a wrong count there can never be corrected in place,
    only superseded by a new record. Prefer a pointer there, always.
-4. **`file:line` citations are the same defect wearing a different hat.** Verify every
-   `spec/*.md:<line>` against the *current* file; a renumbering elsewhere in the saga silently
-   invalidates citations nobody touched.
+4. **Spec citations are the same defect wearing a different hat.** Verify every one the change
+   touches against the *current* tree — a stale citation goes wrong silently, in files nobody
+   edited. Cite by section anchor, never by line; the form and its limits belong to
+   [`shared/spec-fidelity`](../spec-fidelity/SKILL.md).
 
 Two measurement traps produce a *plausible wrong number* rather than an error, so re-derive with a
 command you have sanity-checked:
@@ -192,7 +193,7 @@ Sagas replaced GitHub milestones, so these gates operate on
 - [ ] `npm run built-in-names` green (any keyword/primitive change is a two-file change: registry + `spec/built-in-names.json`)
 - [ ] `npm run adr-numbering` green (adding or renaming an ADR: number unique, `# N.` heading agrees, every reference resolves)
 - [ ] docs + spec cross-links updated
-- [ ] every count and `file:line` citation re-derived against the current tree (or replaced by a pointer)
+- [ ] every count and `spec/` citation re-derived against the current tree (or replaced by a pointer)
 - [ ] self-review passed before PR (logic/spec reviewer + every domain QA, all ≠ author)
 - [ ] every finding resolved — blocking **and** non-blocking (fixed, or declined with rationale + follow-up issue); converged within 10 review rounds
 - [ ] one PR, write-set declared, shared files serialized

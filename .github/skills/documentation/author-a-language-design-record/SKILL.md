@@ -38,8 +38,9 @@ originating motivation and the full seed list of LDRs.
      decision at hand.
    - **Consequences** — what the decision enables or forecloses, ending with the spec citation(s).
 4. **Cite the normative spec section(s).** Every LDR is a rationale layer over `spec/`, never a
-   replacement for it — it must cite the exact `spec/*.md` section(s) it explains (e.g.
-   `spec/grammar.md`'s place grammar, `spec/execution-model.md`'s evaluation order). An LDR with no
+   replacement for it — it must cite the exact `spec/*.md` section(s) it explains, by section
+   anchor (e.g. `spec/grammar.md#places-selectors-and-keys`,
+   `spec/execution-model.md#precedence-and-evaluation-order`). An LDR with no
    spec citation is incomplete: the doc must stay anchored to the contract, never drift from it.
 5. **Cross-link, don't duplicate.** Where it helps a reader discover the rationale layer, a
    maintainer-reviewed `spec/` PR may add a single "see also" backlink line pointing at the new
@@ -65,10 +66,12 @@ originating motivation and the full seed list of LDRs.
   inline elsewhere if it aids the reader).
 - **An LDR is immutable once Accepted, so it is the worst place for an unverified number.** Prefer
   naming the source of a count (a spec section, a script, an exported constant) over copying its
-  current value, and verify every `spec/*.md:<line>` citation against the *current* file — a wrong
-  count or a stale line range in an immutable record can never be corrected in place, only
-  superseded. See [`shared/definition-of-done`](../../shared/definition-of-done/SKILL.md)'s
-  "Derived counts in prose".
+  current value, and verify every `spec/` citation against the *current* file — a wrong count or a
+  stale citation in an immutable record can never be corrected in place, only superseded. Cite by
+  section anchor, never by line; the form and its limits belong to
+  [`shared/spec-fidelity`](../../shared/spec-fidelity/SKILL.md). See
+  [`shared/definition-of-done`](../../shared/definition-of-done/SKILL.md)'s "Derived counts in
+  prose".
 
 ## Checklist
 
@@ -76,8 +79,8 @@ originating motivation and the full seed list of LDRs.
 - [ ] All five sections present, in order: Context, Decision, Rationale, How other languages do it,
       Consequences.
 - [ ] At least one normative `spec/` section cited.
-- [ ] Every count and `spec/*.md:<line>` citation re-derived against the current tree, or replaced
-      by a pointer at its source — the record is immutable once Accepted.
+- [ ] Every count and `spec/` citation re-derived against the current tree, or replaced by a
+      pointer at its source — the record is immutable once Accepted.
 - [ ] Added to `docs/design-notes/README.md` index.
 - [ ] Cross-links added to/from `docs/learn-how-its-built/` where helpful; any `spec/` backlink is a
       separate, maintainer-reviewed `spec/` PR, never part of the LDR PR itself.

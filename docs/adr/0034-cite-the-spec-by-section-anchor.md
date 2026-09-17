@@ -1,12 +1,16 @@
 # 34. Cite the spec by section anchor, not by line number
 
-- Status: Accepted
+- Status: Superseded by [ADR-0036](0036-cite-the-spec-by-section-anchor-only.md)
 - Date: 2026-09-14
 - Deciders: OpenLogo maintainer (@pmalarme) + `@devops`, on issue #1182 — saga #1180, recording the
   decision #1142 asked for
 - Related: sits beside [ADR-0022](0022-documentation-example-gate.md) (a prose surface is only as
   true as the gate under it) and [ADR-0030](0030-adr-numbering-is-gated.md) (references between our
-  own documents, and the same "one tree" trap that applies to this record's own number)
+  own documents, and the same "one tree" trap that applies to this record's own number);
+  [ADR-0035](0035-parse-markdown-to-resolve-spec-anchors.md) builds on this record and lands, in
+  #1181, the anchor resolution described as pending below; superseded by
+  [ADR-0036](0036-cite-the-spec-by-section-anchor-only.md), which removes this record's two
+  migration hedges and makes the anchor the only accepted form
 
 ## Context
 
