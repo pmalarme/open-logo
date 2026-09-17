@@ -1,5 +1,5 @@
 {
-  "description": "map's iterable source that is not a list raises ol-type at the iterable span, naming the map operation (spec/execution-model.md#variables-scoping-and-procedures, spec/execution-model.md#control-forms, spec/execution-model.md#comprehensions-map-filter-and-reduce, spec/execution-model.md#records-and-destructuring requires a list source). Issue #105.",
+  "description": "map's iterable source that is not a list raises ol-type at the iterable span, naming the map operation (spec/execution-model.md#comprehensions-map-filter-and-reduce requires a list source). Issue #105.",
   "profiles": ["core-language"],
   "execute": true,
   "events": [
