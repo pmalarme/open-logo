@@ -400,7 +400,7 @@ export type HostInputReader = (prompt: string) => string | undefined;
  *
  * A single root {@link Environment} (issue #94) is created once per `execute()` call and threaded
  * through every statement, so an assignment in one statement is visible to every later read in
- * the same program (`spec/execution-model.md#special-form-delimiter-rules`) — procedure call frames land with #97.
+ * the same program (`spec/execution-model.md#variables-scoping-and-procedures`) — procedure call frames land with #97.
  * `options` (issue #102) configures the three execution-safety gates
  * `spec/execution-model.md#execution-safety` requires: an instruction budget, a recursion-depth limit, and
  * external cancellation — see {@link ExecuteOptions}. Every `forever` loop is bounded by the

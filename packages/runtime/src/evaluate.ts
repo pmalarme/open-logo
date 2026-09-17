@@ -124,7 +124,7 @@ function fail(diagnostic: Diagnostic): EvalResult {
   return { ok: false, diagnostic };
 }
 
-// --- Environment: the variable binding model (spec/execution-model.md#special-form-delimiter-rules) --------------
+// --- Environment: the variable binding model (spec/execution-model.md#variables-scoping-and-procedures) --------------
 //
 // A frame is one lexical scope's name→value table. `Environment.frames` is nearest-first, and
 // the last frame is always the root/global frame — the top-level program runs directly in it.
@@ -140,7 +140,7 @@ export type Frame = Map<string, OLValue>;
  * The whole-program name→definition table issue #97's `execute-internal.ts` builds once, up
  * front, by scanning every {@link ProcedureDefNode} in the program (mirroring the static
  * checker's `collectProcedureArities`/`collectVisibleNames`) — so a procedure may be called
- * before its textual `define` (`spec/execution-model.md#special-form-delimiter-rules`). Keyed by the callee's
+ * before its textual `define` (`spec/execution-model.md#reader-pipeline`). Keyed by the callee's
  * lowercased name, matching every other case-insensitive command-name lookup in this package.
  */
 export type ProcedureRegistry = ReadonlyMap<string, ProcedureDefNode>;
@@ -771,7 +771,7 @@ function lookupVar(
 
 /**
  * `:name = value` / `set name to value`: mutate the nearest existing binding, or create one in
- * the root (last) frame when no frame binds `name` yet (`spec/execution-model.md#special-form-delimiter-rules`).
+ * the root (last) frame when no frame binds `name` yet (`spec/execution-model.md#variables-scoping-and-procedures`).
  * Assignment to an unbound name never fails — it always creates a global. `createEnvironment` is
  * the only way to build an {@link Environment} and always seeds at least the root frame, so the
  * cast below (rather than a defensive throw no caller could ever trigger) is safe.

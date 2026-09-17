@@ -1,5 +1,5 @@
 {
-  "description": "`:size` reads the value bound by `:size = 50` on the previous statement — the colon-place sugar for `thing \"size\"` (issue #94, spec/execution-model.md#special-form-delimiter-rules).",
+  "description": "`:size` reads the value bound by `:size = 50` on the previous statement — the colon-place sugar for `thing \"size\"` (issue #94, spec/execution-model.md#variables-scoping-and-procedures).",
   "profiles": ["core-language"],
   "execute": true,
   "events": [

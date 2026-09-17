@@ -540,7 +540,7 @@ test("a parameter, local+assign, for (with and without by), and both comprehensi
   assert.deepEqual(checkSource(source).filter(isUndefinedVar), []);
 });
 
-test("assigning an undeclared name always declares it — a later read is never flagged (spec/execution-model.md#special-form-delimiter-rules)", () => {
+test("assigning an undeclared name always declares it — a later read is never flagged (spec/execution-model.md#variables-scoping-and-procedures)", () => {
   assert.deepEqual(
     checkSource(":brandNew = 1\nprint :brandNew").filter(isUndefinedVar),
     [],

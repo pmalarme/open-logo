@@ -172,7 +172,7 @@
  */
 
 import { execFileSync } from "node:child_process";
-import { existsSync, readFileSync, readdirSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, realpathSync } from "node:fs";
 import { join, resolve, sep } from "node:path";
 import GithubSlugger from "github-slugger";
 import { marked } from "marked";
@@ -309,19 +309,28 @@ export function specDocuments(root) {
 export function unambiguousSpecDocuments(root, trackedFiles) {
   const published = specDocuments(root);
   const elsewhere = new Set();
-  // Compared as RESOLVED absolute paths. `root` may be absolute (a `--spec-root` override) while
-  // `git ls-files` always reports repository-relative paths, and comparing the two as strings made
-  // every specification document look like a collision — which emptied the oracle and silently
-  // disabled the whole prefix-less rule under a perfectly valid configuration.
-  const specRootPath = resolve(root);
+  // Compared through the FILESYSTEM's own idea of identity, not string equality. `root` may be
+  // absolute (a `--spec-root` override) while `git ls-files` reports repository-relative paths, and
+  // on Windows the same directory can be spelled with a lowercase drive letter, a different-cased
+  // segment, or reached through a junction. Any of those made every specification document look
+  // like a collision, which emptied the oracle and switched the whole prefix-less rule off under a
+  // perfectly valid configuration.
+  const canonical = (path) => {
+    try {
+      return realpathSync.native(path).toLowerCase();
+    } catch {
+      return resolve(path).toLowerCase();
+    }
+  };
+  const specRootPath = canonical(root);
   for (const file of trackedFiles) {
     const path = toPosixPath(file);
     const basename = path.slice(path.lastIndexOf("/") + 1);
     if (!published.has(basename)) {
       continue;
     }
-    const directory = toPosixPath(resolve(file).slice(0, -basename.length - 1));
-    if (directory !== toPosixPath(specRootPath)) {
+    const directory = canonical(resolve(file, ".."));
+    if (directory !== specRootPath) {
       elsewhere.add(basename);
     }
   }
@@ -1356,6 +1365,60 @@ export function collectCitations(
   return { citations, anchors, unattributed, unprefixedAnchors };
 }
 
+/**
+ * Every link destination a markdown document contains, taken from the **parser** rather than by
+ * pattern.
+ *
+ * A markdown link may carry a title after its destination, so `[t](x.md#frag. "Title")` puts a quote
+ * exactly where a closing string quote sits — and the real href is `x.md#frag.`, with the full stop
+ * inside it. Prose punctuation trimming cannot tell that from the corpus's ordinary cite-then-quote
+ * idiom (`…#anchor: "quoted spec text"`), and two earlier reviewers defeated a hand-rolled
+ * destination parser twice. `marked` already parses these documents for headings, so the hrefs come
+ * from the same parse: inside a destination there is no prose to trim, and an anchor that ends in a
+ * character no slug can hold is simply malformed.
+ */
+export function linkDestinations(text) {
+  const found = new Set();
+  const walk = (tokens) => {
+    if (!Array.isArray(tokens)) {
+      return;
+    }
+    for (const token of tokens) {
+      if (token.type === "link" && typeof token.href === "string") {
+        found.add(token.href);
+      }
+      walk(token.tokens);
+      walk(token.items);
+      walk(token.header);
+      for (const row of Array.isArray(token.rows) ? token.rows : []) {
+        for (const cell of row) {
+          walk(cell.tokens);
+        }
+      }
+    }
+  };
+  walk(marked.lexer(text, { gfm: true }));
+  return found;
+}
+
+/**
+ * Whether `anchor` sits inside a markdown link destination that ends in a character no heading slug
+ * can hold — the shape prose trimming reads as a clean fragment and a markdown reader does not.
+ */
+function insideMalformedDestination(destinations, specDirectory, anchor) {
+  const prefix = `${specDirectory}/${anchor.file}#${anchor.fragment}`;
+  for (const href of destinations) {
+    if (href.endsWith(prefix)) {
+      continue;
+    }
+    const at = href.indexOf(prefix);
+    if (at !== -1 && at + prefix.length < href.length) {
+      return true;
+    }
+  }
+  return false;
+}
+
 /** Collapse whitespace and drop markdown emphasis so a quotation matches the text it came from. */
 export function normalizeQuotation(text) {
   return text.replace(/[*_`]/g, "").replace(/\s+/g, " ").trim();
@@ -1757,11 +1820,23 @@ export function runSpecCitationsGate({
       continue;
     }
     counts.files += 1;
+    // Link destinations come from the PARSER, and only for markdown — in a `.ts` or `.json` file
+    // there is no markdown link to mis-read, and lexing one would be answering a question nobody
+    // asked.
+    const destinations = file.endsWith(".md")
+      ? linkDestinations(text)
+      : new Set();
     // Which prose runs carry a RESOLVING anchor, and which section each names — the input the
     // quotation check reads now that no citation carries a line range.
     const anchoredByRun = new Map();
 
     for (const anchor of anchors) {
+      // An anchor sitting inside a link destination that ends in a character no slug can hold is
+      // malformed however clean the prose trimming made it look. Marked on the anchor itself, so
+      // `resolveAnchor` reports it the same way as any other truncated fragment.
+      if (insideMalformedDestination(destinations, specDirectory, anchor)) {
+        anchor.malformed = true;
+      }
       const subject = formatAnchor(anchor);
       const context = fileLines[anchor.line - 1];
       // A fragment that is empty, or truncated by a character no slug can hold, is neither a heading

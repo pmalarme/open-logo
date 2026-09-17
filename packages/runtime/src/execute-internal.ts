@@ -4732,7 +4732,7 @@ function callProcedureAsValue(
  * execution core for both the top-level program body ({@link runProgram}), a procedure's own body
  * ({@link runProcedure}), and a control form's block body (the `If`/`While`/`Repeat`/`Forever`
  * handling below) — a block is just another list of statements run against the same threaded
- * {@link Environment} (`spec/execution-model.md#special-form-delimiter-rules`), so nested control forms, further-nested
+ * {@link Environment} (`spec/execution-model.md#variables-scoping-and-procedures`), so nested control forms, further-nested
  * blocks, and procedure bodies all recurse through this same function without their own copy of
  * the dispatch logic.
  *

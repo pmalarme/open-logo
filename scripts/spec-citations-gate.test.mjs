@@ -49,6 +49,7 @@ import {
   formatCitation,
   isProseLine,
   lineLookup,
+  linkDestinations,
   listCitationFiles,
   normalizeQuotation,
   parseArgs,
@@ -2200,6 +2201,50 @@ test("a file carrying ONLY prefix-less references is still scanned, and its cita
   );
   assert.match(report, /only-bare\.md:1: grammar\.md:13 names a LINE/);
   assert.match(report, /only-bare\.md:3: grammar\.md:5 names a LINE/);
+});
+
+test("a link DESTINATION is judged by the parser, so a title cannot disguise a broken href", () => {
+  // The shape prose trimming cannot see. A markdown link may carry a title after its destination, so
+  // `[t](x.md#frag. "Title")` puts a quote exactly where a closing string quote sits — and the real
+  // href is `x.md#frag.`, with the full stop inside it. Telling that from the corpus's ordinary
+  // cite-then-quote idiom needs to know whether the citation sits in a destination, which is what
+  // two earlier reviewers deleted a HAND-ROLLED parser for. `marked` already parses these documents
+  // for headings, so the hrefs come from the same parse.
+  writeGrammar();
+  const run = (body) => {
+    write("probe.md", body);
+    return runOverTemp();
+  };
+  assert.equal(
+    run(`[t](${CONTRACT}/grammar.md#ebnf-notation. "Title")\n`).ok,
+    false,
+    "a spaced title must not disguise an href ending in punctuation",
+  );
+  assert.equal(
+    run(`[t](${CONTRACT}/grammar.md#ebnf-notation."Title")\n`).ok,
+    false,
+    "nor the unspaced spelling",
+  );
+  // And the shapes that must keep passing — a clean link, and the prose idiom that made rejecting
+  // punctuation-space-quote by pattern a false positive in four live places.
+  assert.equal(run(`[t](${CONTRACT}/grammar.md#ebnf-notation)\n`).ok, true);
+  assert.equal(
+    run(`see ${CONTRACT}/grammar.md#ebnf-notation: "quoted spec text"\n`).ok,
+    true,
+  );
+  assert.equal(run(`see ${CONTRACT}/grammar.md#ebnf-notation.\n`).ok, true);
+
+  // The destination reader itself, pinned on the hrefs marked actually reports.
+  assert.deepEqual(
+    [...linkDestinations(`[t](${CONTRACT}/grammar.md#ebnf-notation. "T")\n`)],
+    [`${CONTRACT}/grammar.md#ebnf-notation.`],
+  );
+  // A table cell and a list item are walked too, so a link cannot hide in one.
+  assert.deepEqual(
+    [...linkDestinations("| a |\n|---|\n| [t](x.md#y) |\n")],
+    ["x.md#y"],
+  );
+  assert.deepEqual([...linkDestinations("- [t](z.md#w)\n")], ["z.md#w"]);
 });
 
 test("an anchor naming a real heading passes and is counted on its own counter", () => {
