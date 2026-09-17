@@ -1,5 +1,5 @@
 // Unit tests for the dict-literal grammar production `{ key: value … }` (Data profile, issue
-// #149): `spec/grammar.md`'s `dict-literal ::= "{" { dict-entry } "}"` and
+// #149): `spec/grammar.md#expressions-and-calls`'s `dict-literal ::= "{" { dict-entry } "}"` and
 // `dict-entry ::= dict-key ":" expression`, with `dict-key ::= identifier | number`. This slice
 // is parse/lex/highlight only — no runtime evaluation (see @openlogo/runtime's
 // `isSupportedExpression`, which always reports a `DictLit` unsupported). Entries are separated
@@ -152,7 +152,7 @@ test("reports ol-bad-token, not ol-unmatched-brace, when a dict entry has neithe
 });
 
 test("reports exactly one ol-bad-token, not ol-unmatched-brace, when a dict key is a nested dict literal", () => {
-  // `dict-key ::= identifier | number` (`spec/grammar.md`) — a nested `{ … }` is not a legal key.
+  // `dict-key ::= identifier | number` (`spec/grammar.md#expressions-and-calls`) — a nested `{ … }` is not a legal key.
   // Per `spec/error-model.md` and `spec/data-structures.md#dictionaries` (issue #520), this is a
   // grammar-position error, not a brace-matching one: the inner `{` and its balanced nested
   // literal, plus its `: 2` trailing entry, are all skipped as one malformed entry, so exactly
@@ -191,7 +191,7 @@ test("a glued colon-to-name after a malformed nested-dict-key entry still parses
 });
 
 test("a nested list literal used as a dict key raises ol-bad-token, not ol-unmatched-bracket", () => {
-  // `dict-key ::= identifier | number` (`spec/grammar.md`) excludes list literals exactly like
+  // `dict-key ::= identifier | number` (`spec/grammar.md#expressions-and-calls`) excludes list literals exactly like
   // dict literals (`spec/data-structures.md#dictionaries`, issue #546): a `[` opening a nested
   // list where a key was expected is a grammar-position error, not a bracket-matching one, so
   // `print { [ 1 2 ]: 3 }` (list literals are whitespace-separated, never comma-separated) still

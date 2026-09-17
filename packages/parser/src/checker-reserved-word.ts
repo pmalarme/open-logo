@@ -6,7 +6,7 @@
  * `ol-reserved-word` with `params: { name, namespace }` (`spec/error-model.md#normative-code-registry`). Issue #405
  * extends this to the Data profile: a Data primitive (`dict`, `keys`, …) collides the same way a
  * Core primitive does when `"data"` is active, and `struct` type-name registrations — which
- * declare a same-named constructor reporter, `spec/data-structures.md#dictionary-writes-and-upserts, spec/data-structures.md#dictionary-operations` — are now checked
+ * declare a same-named constructor reporter, `spec/data-structures.md#records-and-structs, spec/data-structures.md#record-operations` — are now checked
  * the same way `define` is, including against each other and against `define`d procedure names
  * (mirroring `@openlogo/runtime`'s own phase-1 registration guard, `execute-internal.ts`'s
  * `collectStructs`).

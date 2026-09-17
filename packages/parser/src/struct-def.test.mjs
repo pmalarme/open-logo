@@ -1,7 +1,7 @@
 // Unit tests for the Data-profile struct declaration grammar (issue #321):
 // `spec/grammar.md#ebnf-notation`'s `struct-declaration ::= "struct" declared-type-name field-list` and
 // `field-list ::= "[" identifier { identifier } "]"`; the struct semantics those shapes carry are
-// `spec/data-structures.md#dictionary-writes-and-upserts, spec/data-structures.md#dictionary-operations`. This
+// `spec/data-structures.md#records-and-structs, spec/data-structures.md#record-operations`. This
 // slice is parse/AST only — the constructor call and field access/mutation are a later
 // Data-profile slice. A `struct` declaration parses into its own `StructDef` statement node (never
 // a `Call`), the type name and field names are carried as spanned metadata, and a malformed

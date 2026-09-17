@@ -497,6 +497,9 @@ test("a tree of anchor citations passes, and the report states what it does not 
     summary,
     /rejection above is exhaustive only over the forms this gate enumerates/,
   );
+  // And the bound is stated in both directions: a prefix-less LINE reference survives the rule, so
+  // a green run must not be read as "the line form is gone from the repository".
+  assert.match(summary, /a\s+prefix-less LINE reference survives it/);
   assert.match(summary, /does NOT prove the section supports the claim/);
   assert.match(summary, /wrong-passage and misstating-prose modes/);
   assert.match(summary, /names a heading that exists in the file it cites/);

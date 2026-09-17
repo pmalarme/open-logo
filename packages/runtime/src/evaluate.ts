@@ -149,7 +149,7 @@ export type ProcedureRegistry = ReadonlyMap<string, ProcedureDefNode>;
  * The whole-program struct-type table the Data profile's `execute-internal.ts` builds once, up
  * front, by scanning every {@link StructDefNode} in the program (mirroring
  * {@link ProcedureRegistry} and the phase-1 procedure pre-scan) — so a `struct` type can be used
- * as a constructor before its textual declaration (`spec/data-structures.md#dictionary-writes-and-upserts, spec/data-structures.md#dictionary-operations, spec/data-structures.md#records-and-structs, spec/data-structures.md#record-operations`, issue #329).
+ * as a constructor before its textual declaration (`spec/data-structures.md#records-and-structs, spec/data-structures.md#record-operations, spec/data-structures.md#records-and-structs, spec/data-structures.md#record-operations`, issue #329).
  * Keyed by the struct type's lowercased name, matching every other case-insensitive command-name
  * lookup in this package. The stored {@link StructDefNode} supplies the declared field list (in
  * order) that the constructor fills and that `:record.field` accesses and `is_a?` validate
@@ -3452,7 +3452,7 @@ function evaluateComparisonChain(
  * does not (both are "unknown", not a type mismatch). `dict` joined as of issue #322; `record`
  * joins as of issue #329 (the `record` value now exists — {@link OLRecord}). A record value is
  * still never *of* the generic `record` type under `is_a?` — it matches only its own struct type
- * name (`spec/data-structures.md#dictionary-operations`, see {@link valueMatchesIsAWord}) — but `record` is a known
+ * name (`spec/data-structures.md#record-operations`, see {@link valueMatchesIsAWord}) — but `record` is a known
  * type *word*, so `is_a? :p "record"` is a well-formed `false`, not `ol-unknown-type`. `turtle`
  * joins as of issue #665 (the `turtle` value now exists — {@link OLTurtle}): it is a Sprites-profile
  * type word, so `is_a? :t "turtle"` is a well-formed boolean (`true` for a turtle, `false` for any
@@ -3492,7 +3492,7 @@ function isKnownIsAWord(word: string, structs: StructRegistry): boolean {
 /**
  * Whether `value` is of the (already known-to-be-valid) `is_a?` type named by `word`. A record
  * matches its own struct type name and nothing else — never the generic `"record"`
- * (`spec/data-structures.md#dictionary-operations`) — so `is_a? (point 3 4) "point"` is `true` but
+ * (`spec/data-structures.md#record-operations`) — so `is_a? (point 3 4) "point"` is `true` but
  * `is_a? (point 3 4) "record"` is `false`. Every non-record value matches its {@link typeNameOf}.
  */
 function valueMatchesIsAWord(value: OLValue, word: string): boolean {
@@ -4411,7 +4411,7 @@ function evaluateValues(
 }
 
 /**
- * `type_of <record>` (issue #329, `spec/data-structures.md#dictionary-operations`): reports a record's struct type
+ * `type_of <record>` (issue #329, `spec/data-structures.md#record-operations`): reports a record's struct type
  * name as a word (e.g. `person "tom" 8` → `"person"`). Records are the only values that carry a
  * struct type name, so `type_of` reads {@link OLRecord.type} directly rather than
  * {@link typeNameOf} (which reports the generic `"record"` for every record). A non-record
@@ -4441,7 +4441,7 @@ function evaluateTypeOf(
 }
 
 /**
- * A `struct` type name used as a constructor (issue #329, `spec/data-structures.md#dictionary-operations`):
+ * A `struct` type name used as a constructor (issue #329, `spec/data-structures.md#record-operations`):
  * `point 3 4` builds a fresh mutable {@link OLRecord} of type `point` binding each declared field
  * to the argument at the same position. Arity is exactly the declared field count — too few inputs
  * raise `ol-not-enough-inputs`, too many `ol-too-many-inputs` — mirroring a fixed-arity procedure

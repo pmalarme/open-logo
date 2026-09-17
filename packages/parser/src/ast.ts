@@ -474,7 +474,7 @@ export interface AddNode extends NodeBase {
 
 /**
  * `remove value from target` — remove `value` from the list `target` (Data profile,
- * `spec/grammar.md`'s `remove-statement ::= "remove" expression "from" expression`). Distinct
+ * `spec/grammar.md#ebnf-notation`'s `remove-statement ::= "remove" expression "from" expression`). Distinct
  * from {@link RemoveKeyNode}, which drops a dictionary entry by key rather than a list element by
  * value.
  */
@@ -522,9 +522,9 @@ export interface ClearNode extends NodeBase {
 /**
  * `struct type-name "[" identifier { identifier } "]"` — declares a record type, its fixed field
  * set, and a same-named constructor reporter (Data profile, `spec/grammar.md#ebnf-notation`'s
- * `struct-declaration`/`field-list`; `spec/data-structures.md#dictionary-writes-and-upserts, spec/data-structures.md#dictionary-operations`). Both `name` and each
+ * `struct-declaration`/`field-list`; `spec/data-structures.md#records-and-structs, spec/data-structures.md#record-operations`). Both `name` and each
  * `field` are {@link SpannedName} metadata, not walkable nodes: the bracketed field list contains
- * bare field names that perform no evaluation (`spec/data-structures.md#dictionary-operations`), so a `StructDef` has
+ * bare field names that perform no evaluation (`spec/data-structures.md#record-operations`), so a `StructDef` has
  * no expression children (its own `childrenOf` case returns none). Grammar/AST only — the
  * constructor-call and field mutation semantics land in a later Data-profile slice.
  */

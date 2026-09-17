@@ -294,7 +294,7 @@ export function turtlePrimitiveArity(name: string): number | undefined {
  * `spec/data-structures.md#mutating-list-operations`, is not a fixed arity and so is not represented in this table, the
  * same way `dict` has no parenthesized variadic form to register); `dict` takes none (the
  * empty-constructor reporter); `keys`/`values` each take one `dict` argument; `type_of` takes one
- * `record` argument and reports its struct type name (`spec/data-structures.md#dictionary-operations`). Kept as its
+ * `record` argument and reports its struct type name (`spec/data-structures.md#record-operations`). Kept as its
  * own table rather than folded into {@link CORE_PRIMITIVE_ARITY} for the same reason
  * {@link TURTLE_PRIMITIVE_ARITY} is separate: the two profiles have independent visibility (the
  * Layer-2 checker gates each on its own active profile, `spec/tooling.md#layer-2-semantic-checking`), while the

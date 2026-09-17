@@ -41,7 +41,7 @@
  *   only be supplied via the parenthesized form, so both too-few and too-many are checked in
  *   either call form. A `struct`'s constructor (issue #405) is likewise exact and non-variadic —
  *   its declared field count is both floor and ceiling, always
- *   (`spec/data-structures.md#dictionary-writes-and-upserts, spec/data-structures.md#dictionary-operations`) — checked identically in either call form.
+ *   (`spec/data-structures.md#records-and-structs, spec/data-structures.md#record-operations`) — checked identically in either call form.
  *
  * A callee that is none of these is *not* statically known — that is `ol-unknown-command`'s job
  * (issue #117); this rule does nothing for it, so the two rules never double-report. Since #874
@@ -152,7 +152,7 @@ function isStructDef(node: AnyNode): node is StructDefNode {
 /**
  * Every `struct` type's constructor arity, keyed by its canonical lowercase name — the required
  * floor and ceiling are both its declared field count, since a constructor call is always exact
- * (`spec/data-structures.md#dictionary-writes-and-upserts, spec/data-structures.md#dictionary-operations`), never optional/variadic. Mirrors
+ * (`spec/data-structures.md#records-and-structs, spec/data-structures.md#record-operations`), never optional/variadic. Mirrors
  * {@link collectProcedureArities} exactly, including "a later `struct` of the same name overwrites
  * the earlier one here" (redefinition collisions are `ol-duplicate-definition`'s concern,
  * `checker-reserved-word.ts`, not this rule's) — and mirrors `@openlogo/runtime`'s own phase-1

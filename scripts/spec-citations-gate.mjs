@@ -142,10 +142,13 @@
  * Every citation — line form and anchor alike — is found by the literal `<spec-dir>/` prefix, so a
  * **relatively-written** reference is invisible to this gate. `docs/adr/0029-…md` already records
  * that for the line form; the anchor form inherits it, which matters more now that #1180 makes the
- * anchor the *only* accepted form. Such references exist today, nearly all of them inside `spec/`
- * itself, and nothing checks any of them — so the rejection this gate performs is exhaustive **only
- * over the forms it enumerates**, which is the qualification every claim about it has to carry.
- * Write the prefix.
+ * anchor the *only* accepted form. The two forms are distributed **oppositely**, which is worth
+ * knowing before reading a green run as "the line form is gone": prefix-less *anchors* sit almost
+ * entirely inside `spec/` itself, where documents cite each other relatively, while prefix-less
+ * *line* references sit almost entirely **outside** it, in package prose that names a document
+ * without its directory. The rejection this gate performs is therefore exhaustive **only over the
+ * forms it enumerates**, which is the qualification every claim about it has to carry. Write the
+ * prefix.
  *
  * `roots` narrows the scan to a filesystem walk instead of the tracked set, and narrowing what an
  * instrument looks at while its report still reads as authoritative is the recurring defect of this
@@ -1735,8 +1738,9 @@ export function runSpecCitationsGate({
       "and demotes the original, and removing or renaming an earlier duplicate promotes a later one into " +
       "the slug it vacated; both retarget a citation silently and both leave this gate green. A renamed " +
       "heading therefore fails loudly only when the rename leaves its slug unclaimed. A citation written " +
-      "without the spec-directory prefix — a relative `../../<dir>/<file>.md#y` — is not seen at all, so the " +
-      "rejection above is exhaustive only over the forms this gate enumerates. Headings come from a GFM " +
+      "without the spec-directory prefix — a relative `../../<dir>/<file>.md#y`, or a bare `<file>.md:12` — is " +
+      "not seen at all, so the rejection above is exhaustive only over the forms this gate enumerates, and a " +
+      "prefix-less LINE reference survives it. Headings come from a GFM " +
       "parse and slugs from github-slugger (ADR-0035), so block structure and rendered text are no longer " +
       "approximated; where GitHub can still resolve something this reader does not — an entity reference " +
       "outside the escaping set, raw inline HTML, an emoji shortcode shape, or a numeric reference whose " +

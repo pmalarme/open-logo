@@ -1723,7 +1723,7 @@ export function parse(source: string, document = "<input>"): ParseResult {
   }
 
   /**
-   * Parse a dictionary literal `{ key: value … }` (`spec/grammar.md`'s `dict-literal ::= "{"
+   * Parse a dictionary literal `{ key: value … }` (`spec/grammar.md#expressions-and-calls`'s `dict-literal ::= "{"
    * { dict-entry } "}"`) — entries are separated only by whitespace/newlines, never commas, so
    * `{ }` (matched, no entries) is a valid empty dict, not an error (`spec/error-model.md`'s
    * `ol-unmatched-brace` fires only for a genuinely unmatched `{`/`}`).
@@ -1853,7 +1853,7 @@ export function parse(source: string, document = "<input>"): ParseResult {
   }
 
   /**
-   * A dict-key position accepts only `dict-key ::= identifier | number` (`spec/grammar.md`), so a
+   * A dict-key position accepts only `dict-key ::= identifier | number` (`spec/grammar.md#expressions-and-calls`), so a
    * `{` or `[` opening a nested dict/list literal there is unexpected — but its own delimiters
    * are still balanced, and the enclosing dict literal's braces are unaffected: this is a
    * grammar-position error, not a brace/bracket-matching one (`spec/error-model.md` and
@@ -1884,7 +1884,7 @@ export function parse(source: string, document = "<input>"): ParseResult {
   }
 
   /**
-   * Parse one `dict-entry ::= dict-key ":" expression` (`spec/grammar.md`). `dict-key` is only
+   * Parse one `dict-entry ::= dict-key ":" expression` (`spec/grammar.md#expressions-and-calls`). `dict-key` is only
    * `identifier | number` — narrower than {@link parseKeyTerm}'s selector `key-term`, which also
    * accepts `:name` reads, word literals, and parenthesized expressions — because a dict key is
    * always a literal, never evaluated (`spec/data-structures.md#dictionaries`). A bare identifier
