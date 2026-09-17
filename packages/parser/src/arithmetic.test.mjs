@@ -3,7 +3,7 @@
 // do not change it. `parse.test.mjs` already covers "binds multiplication tighter than
 // addition" and "reads a negative numeric literal", so this file covers only what that one
 // doesn't: `-`/`/`/`mod` left-associativity, parenthesized grouping, a full precedence chain,
-// and the negative-literal-vs-subtraction distinction from grammar.md:226.
+// and the negative-literal-vs-subtraction distinction from spec/grammar.md#expressions-and-calls.
 //
 // Spans are half-open `[start, end)` with 1-based `[line, column]` positions, per
 // @openlogo/core, matching the conventions in parse.test.mjs.
@@ -132,7 +132,7 @@ test("distinguishes a negative literal from subtraction, per grammar.md:226", ()
 });
 
 test("a `-` separated from its numeral by a gap is a stray token, not a negative literal", () => {
-  // Per grammar.md:226, only a `-` written directly against a numeral is a negative literal.
+  // Per spec/grammar.md#expressions-and-calls, only a `-` written directly against a numeral is a negative literal.
   // `- 3` has a gap and no left operand for subtraction, so it is an unreadable stray token.
   const { diagnostics } = OL.parse("print - 3", doc);
   assert.equal(diagnostics.length, 1);

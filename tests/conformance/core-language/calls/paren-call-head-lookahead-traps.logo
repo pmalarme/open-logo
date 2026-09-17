@@ -1,5 +1,5 @@
 # Issue #1021, the other direction: the one-token lookahead that makes `(pi == pi)` a parenthesized
-# expression must NOT swallow a genuine `parenthesized-call` (grammar.md:215). Each line here is a
+# expression must NOT swallow a genuine `parenthesized-call` (spec/grammar.md#expressions-and-calls). Each line here is a
 # trap for a naive "an operator follows, so this is an expression" rule, and each fails differently
 # if the rule is wrong:
 #   - `and`/`or` are the variadic logic HEADS here, not infix uses, so the lookahead must look PAST

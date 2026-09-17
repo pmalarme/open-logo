@@ -26,15 +26,15 @@
  *    expression-blocks only"), so no `set`/`=` assignment statement can ever appear there — the
  *    binder is provably never reassigned within that scope. This is a positional, name-matching
  *    heuristic (like `highlight.ts`'s own field-name resolution): it does not model nested
- *    same-named shadowing, which the spec's "MAY defer … precision" allowance (`tooling.md:66-68`)
+ *    same-named shadowing, which the spec's "MAY defer … precision" allowance (`spec/tooling.md#disambiguating-identifiers`)
  *    permits, and does not change the correctness of the modifier for the common (non-shadowed)
  *    case, since a nested comprehension that re-shadows the name would itself just as validly
  *    mark those inner reads `readonly` again for its own binder.
  *  - `primitive` — every Core primitive/alias call is a call into the standard library, so it
- *    always gets `defaultLibrary` (`tooling.md:279`'s literal example).
+ *    always gets `defaultLibrary` (`spec/tooling.md#informative-lsp-style-editor-integration`'s literal example).
  *  - any class — a `[`/`]` carrying {@link Token.role} `"list"`, `"instruction-block"`, or
  *    `"selector"` gets `listRole`, `blockRole`, or `selectorRole` respectively; `"pattern"` and
- *    `"field-list"` have no named LSP modifier in `tooling.md:278-280` and so contribute none.
+ *    `"field-list"` have no named LSP modifier in `spec/tooling.md#informative-lsp-style-editor-integration` and so contribute none.
  *  - every other class (`keyword`, `number`, `word/string`, `comment`, `bracket`, `brace`,
  *    `paren`, `operator`, `index/dot`, `dict-key`) gets no declaration/reference/readonly
  *    modifier — there is no binding/use distinction for a literal, delimiter, or operator.

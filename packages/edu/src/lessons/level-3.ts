@@ -4,7 +4,7 @@
  * reading and when writing a target; `=` assigns a value (`:size = 80`); the worded form
  * `set size to value` reads like a sentence and connects to Logo heritage; `==` compares while
  * `=` assigns. Only Level 1-3 vocabulary appears here — no `if`/comparison-as-condition
- * (Level 4) and no `define`/procedures (Level 5), per educational-model.md:37's discovery
+ * (Level 4) and no `define`/procedures (Level 5), per spec/educational-model.md#the-8-progressive-levels's discovery
  * guardrail.
  */
 

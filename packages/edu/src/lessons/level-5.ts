@@ -9,7 +9,7 @@
  * issue #327, which also moves any *recursive* exercise (the "tree"/"xmas tree" idea) out to
  * Level 6 (Geometry): this slice's payoff is procedure reuse, not recursion.
  *
- * Per the discovery guardrail (educational-model.md:541), `polygon` is always **built up** from
+ * Per the discovery guardrail (spec/educational-model.md#educational-conformance-notes), `polygon` is always **built up** from
  * `repeat` here — it is never handed to the learner as an opaque primitive — and the
  * `triangle`/`house` composition reuses `spec/examples/06-geometry.logo`'s validated `house 70`
  * program verbatim, so the lesson never drifts from that normative example.

@@ -850,6 +850,108 @@ function runTree(options = {}) {
   });
 }
 
+test("a PREFIX-LESS reference converts to the FULL prefixed anchor, never to another blind form", () => {
+  // Outside the specification directory an unprefixed anchor is checked by nothing at all, so
+  // converting a form the gate can see into another it cannot would trade a loud defect for a
+  // silent one. The replacement therefore carries the prefix the original omitted.
+  const plan = planFile(
+    "a.ts",
+    "// grammar.md:5 defines the selector.\n",
+    CONTRACT,
+    headingsFor,
+    linesFor,
+    new Set(["grammar.md"]),
+  );
+  assert.deepEqual(plan.problems, []);
+  assert.equal(plan.sites, 1);
+  assert.equal(
+    applyEdits("// grammar.md:5 defines the selector.\n", plan.edits),
+    "// contract/grammar.md#ebnf-notation defines the selector.\n",
+  );
+});
+
+test("a prefix-less reference is invisible without the document set, so the gate must supply it", () => {
+  // The enumeration is driven by which documents the specification directory actually publishes.
+  // Passing no set means no prefix-less form is recognised — which is correct for a caller that has
+  // no directory to read, and is exactly why the gate's own run is pinned separately.
+  const blind = planFile(
+    "a.ts",
+    "// grammar.md:5 defines the selector.\n",
+    CONTRACT,
+    headingsFor,
+    linesFor,
+  );
+  assert.equal(blind.sites, 0);
+  assert.deepEqual(blind.edits, []);
+});
+
+test("an en- or em-dash range is REFUSED rather than half-converted", () => {
+  // `<file>.md:193–194` written with an en dash: the range pattern reads `:193` and stops, so
+  // converting the visible half strands `–194` against the new anchor and produces
+  // `#style-linter-codes–194`, which resolves nowhere. One site in this corpus had that shape and
+  // it did produce exactly that broken anchor before this guard existed.
+  for (const dash of ["\u2013", "\u2014"]) {
+    const source = `// grammar.md:5${dash}13 covers both.\n`;
+    const plan = planFile(
+      "a.ts",
+      source,
+      CONTRACT,
+      headingsFor,
+      linesFor,
+      new Set(["grammar.md"]),
+    );
+    const kinds = plan.problems.map((problem) => problem.kind);
+    assert.ok(kinds.includes("dash-range"), `${dash} must be refused`);
+    // Refusing mid-line leaves this module's count short of the gate's, and it says so rather than
+    // rewriting a file the two instruments enumerated differently — the same discipline the
+    // hard-wrap refusal follows.
+    assert.ok(kinds.includes("enumeration-disagreement"));
+    assert.deepEqual(plan.edits, [], "and nothing is rewritten");
+  }
+  // A plain hyphen is the range separator this module reads, and converts normally.
+  const hyphen = planFile(
+    "a.ts",
+    "// grammar.md:5-13 covers both.\n",
+    CONTRACT,
+    headingsFor,
+    linesFor,
+    new Set(["grammar.md"]),
+  );
+  assert.deepEqual(hyphen.problems, []);
+});
+
+test("a prefix-less scan never re-counts text already inside a prefixed mention", () => {
+  // A prefixed citation CONTAINS its own prefix-less substring, so a second sweep over the same
+  // line would count one citation twice — and the converter would then try to rewrite overlapping
+  // spans. The overlap guard is what stops that, and it only fires when both forms share a line.
+  const tokens = lineTokens(
+    "a.ts",
+    "// contract/grammar.md:5 and grammar.md:13 both matter.",
+    CONTRACT,
+    new Set(["grammar.md"]),
+  );
+  assert.deepEqual(
+    tokens.map((token) => `${token.kind}:${token.start}`),
+    ["mention:5", "prefix-less:13"],
+  );
+
+  // End to end: the line converts once, both halves, with no double rewrite.
+  const source = "// contract/grammar.md:5 and grammar.md:13 both matter.\n";
+  const plan = planFile(
+    "a.ts",
+    source,
+    CONTRACT,
+    headingsFor,
+    linesFor,
+    new Set(["grammar.md"]),
+  );
+  assert.deepEqual(plan.problems, []);
+  assert.equal(
+    applyEdits(source, plan.edits),
+    "// contract/grammar.md#ebnf-notation and contract/grammar.md#debug both matter.\n",
+  );
+});
+
 test("a dry run reports exactly what a sweep would do, and writes nothing", () => {
   write(`${CONTRACT}/grammar.md`, GRAMMAR);
   const source =

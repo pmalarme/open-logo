@@ -158,7 +158,7 @@ const KEYWORDS = new Set<string>(OL_KEYWORDS);
  *   their profile is active"). {@link isKeyword}'s two-argument form answers this one and stays
  *   profile-gated, because here the gate is what the spec asks for.
  *
- * Issue #855 aligned the rest of the spec with the `spec/grammar.md#keywords-primitives-and-built-in-names` ruling, so `turtles-and-sprites.md:154`,
+ * Issue #855 aligned the rest of the spec with the `spec/grammar.md#keywords-primitives-and-built-in-names` ruling, so `spec/turtles-and-sprites.md#reserved-words-in-this-profile`,
  * `interaction-events.md#profiles-and-reservation`, and `spec/tooling.md#reserved-words-for-tooling` state the
  * unconditional rule too.
  */

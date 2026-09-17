@@ -1,5 +1,5 @@
 {
-  "description": "Parenthesized grouping (issue #1021): the discriminating pair for `-`, whose two meanings share a character and LEX identically as `op(-)` then `number(1)`. Adjacency separates them per grammar.md:60,230 — glued `-1` is a negative ARGUMENT, so `(round -1)` stays a parenthesized call and prints -1; spaced `- 1` continues the expression, so `(six - 1)` is a parenthesized expression and prints 5. No arity is consulted, which is what keeps the reader profile-blind. Executed because both readings parse clean: only the values distinguish them.",
+  "description": "Parenthesized grouping (issue #1021): the discriminating pair for `-`, whose two meanings share a character and LEX identically as `op(-)` then `number(1)`. Adjacency separates them per spec/grammar.md#ebnf-notation, spec/grammar.md#expressions-and-calls — glued `-1` is a negative ARGUMENT, so `(round -1)` stays a parenthesized call and prints -1; spaced `- 1` continues the expression, so `(six - 1)` is a parenthesized expression and prints 5. No arity is consulted, which is what keeps the reader profile-blind. Executed because both readings parse clean: only the values distinguish them.",
   "profiles": ["core-language"],
   "execute": true,
   "events": [

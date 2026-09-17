@@ -47,6 +47,7 @@ import {
   isProseLine,
   listCitationFiles,
   readTextFile,
+  specDocuments,
   splitLines,
 } from "./spec-citations-gate.mjs";
 
@@ -273,12 +274,26 @@ export function applyEdits(text, edits) {
 }
 
 /**
+ * A **prefix-less** reference to a specification document, the one line-form spelling written
+ * without the `<spec-dir>/` prefix. Mirrors the gate's own pattern, so the two sweeps enumerate the
+ * same corpus and {@link planFile}'s cross-check stays meaningful.
+ */
+const PREFIX_LESS =
+  /(?<![A-Za-z0-9._/#-])([a-z][a-z0-9-]*\.md):(\d+)(?:-(\d+))?((?:,\d+(?:-\d+)?)+)?/g;
+
+/**
  * Every token on one line that names a document, in the order they are written.
  *
- * Mentions are found anywhere on the line; a bare `:<line>` counts only on a prose line, which is
- * the same structural rule the gate applies — a formatted ratio in live code is not a citation.
+ * Mentions are found anywhere on the line; a bare `:<line>` and a prefix-less `<file>.md:<line>`
+ * count only on a prose line, which is the same structural rule the gate applies — a formatted ratio
+ * in live code is not a citation, and neither is a `file:line:form` assertion string.
  */
-export function lineTokens(path, lineText, specDirectory) {
+export function lineTokens(
+  path,
+  lineText,
+  specDirectory,
+  knownDocuments = new Set(),
+) {
   const tokens = [];
   MENTION.lastIndex = 0;
   let match = MENTION.exec(lineText);
@@ -302,6 +317,27 @@ export function lineTokens(path, lineText, specDirectory) {
     match = MENTION.exec(lineText);
   }
   if (isProseLine(path, lineText)) {
+    PREFIX_LESS.lastIndex = 0;
+    let bareDocument = PREFIX_LESS.exec(lineText);
+    while (bareDocument !== null) {
+      const inside = tokens.some(
+        (token) =>
+          bareDocument.index >= token.from && bareDocument.index < token.to,
+      );
+      if (!inside && knownDocuments.has(bareDocument[1])) {
+        tokens.push({
+          kind: "prefix-less",
+          from: bareDocument.index,
+          to: bareDocument.index + bareDocument[0].length,
+          file: bareDocument[1],
+          start: Number(bareDocument[2]),
+          end:
+            bareDocument[3] === undefined ? undefined : Number(bareDocument[3]),
+          tail: bareDocument[4],
+        });
+      }
+      bareDocument = PREFIX_LESS.exec(lineText);
+    }
     BARE.lastIndex = 0;
     let bare = BARE.exec(lineText);
     while (bare !== null) {
@@ -339,13 +375,21 @@ export function planFile(
   specDirectory,
   headingsFor,
   linesFor = () => null,
+  knownDocuments = new Set(),
 ) {
-  const collected = collectCitations(path, text, specDirectory);
+  const collected = collectCitations(path, text, specDirectory, knownDocuments);
   const bareByLine = new Map();
   let expectedSites = 0;
   for (const citation of collected.citations) {
     expectedSites += 1;
-    if (citation.form === "explicit" || citation.form === "comma-tail") {
+    // Only a BARE reference needs attribution from the gate. An explicit citation, a comma tail and
+    // a prefix-less reference all name their own document, so putting them in this queue would make
+    // the next bare token shift the wrong entry off it.
+    if (
+      citation.form === "explicit" ||
+      citation.form === "comma-tail" ||
+      citation.form === "prefix-less"
+    ) {
       continue;
     }
     if (!bareByLine.has(citation.line)) {
@@ -376,7 +420,7 @@ export function planFile(
 
   for (const [index, lineText] of lines.entries()) {
     const number = index + 1;
-    const tokens = lineTokens(path, lineText, specDirectory);
+    const tokens = lineTokens(path, lineText, specDirectory, knownDocuments);
     const pending = [...(bareByLine.get(number) ?? [])];
     const emitted = new Set();
 
@@ -412,6 +456,26 @@ export function planFile(
         });
         continue;
       }
+      // The same claim, continued on the SAME line by a dash the range pattern does not recognise:
+      // `<file>.md:193–194` written with an en dash rather than a hyphen. Converting the visible
+      // half strands the remainder against the new anchor — `#style-linter-codes–194`, an anchor
+      // that resolves nowhere — so the site is refused for a human instead. Only one such site
+      // existed in this corpus, and it is exactly the shape that produced a broken anchor before
+      // this guard was added.
+      if (
+        token.start !== undefined &&
+        /^[\u2013\u2014]\d/.test(lineText.slice(token.to))
+      ) {
+        problems.push({
+          kind: "dash-range",
+          site: `${path}:${number}`,
+          detail:
+            "the line spec continues after an en or em dash, which is not the range separator this " +
+            "module reads — rewrite the range with a plain hyphen, or cite both sections by hand",
+          context: lineText.trim(),
+        });
+        continue;
+      }
       let file = token.file;
       let specs = [];
       if (token.kind === "bare") {
@@ -434,6 +498,18 @@ export function planFile(
         // and each comma-appended line in its tail as separate citations, so counting the token once
         // made every bare tail disagree with the gate and refuse a file that was perfectly
         // convertible.
+        seenSites += specs.filter((spec) => spec.gateVisible).length;
+        invisible +=
+          specs.length - specs.filter((spec) => spec.gateVisible).length;
+      } else if (token.kind === "prefix-less") {
+        // A prefix-less reference is converted to the FULL prefixed anchor, never to a prefix-less
+        // one: outside the specification directory an unprefixed anchor is checked by nothing, so
+        // converting one form the gate can see into another it cannot would trade a loud defect for
+        // a silent one.
+        specs = [
+          { start: token.start, end: token.end, gateVisible: true },
+          ...expandTail(token.tail),
+        ];
         seenSites += specs.filter((spec) => spec.gateVisible).length;
         invisible +=
           specs.length - specs.filter((spec) => spec.gateVisible).length;
@@ -624,6 +700,7 @@ export function convertTree({
 }) {
   const cache = new Map();
   const linesCache = new Map();
+  const knownDocuments = specDocuments(specRoot ?? specDirectory);
   const linesFor = (file) => {
     if (!linesCache.has(file)) {
       let documentLines = null;
@@ -662,10 +739,23 @@ export function convertTree({
   };
   for (const path of listCitationFiles(roots)) {
     const text = readTextFile(path);
-    if (text === null || !text.includes(`${specDirectory}/`)) {
+    // A file carrying no prefixed mention may still carry a prefix-less reference, so the cheap
+    // skip test has to name every specification document rather than the prefix alone.
+    if (
+      text === null ||
+      (!text.includes(`${specDirectory}/`) &&
+        ![...knownDocuments].some((document) => text.includes(document)))
+    ) {
       continue;
     }
-    const plan = planFile(path, text, specDirectory, headingsFor, linesFor);
+    const plan = planFile(
+      path,
+      text,
+      specDirectory,
+      headingsFor,
+      linesFor,
+      knownDocuments,
+    );
     if (plan.sites === 0) {
       continue;
     }

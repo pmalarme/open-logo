@@ -60,6 +60,7 @@ import {
   runSpecCitationsGate,
   sectionRange,
   SLUG_CHARACTER,
+  specDocuments,
   splitLines,
   suggestionDistance,
   toPosixPath,
@@ -495,11 +496,11 @@ test("a tree of anchor citations passes, and the report states what it does not 
   );
   assert.match(
     summary,
-    /rejection above is exhaustive only over the forms this gate enumerates/,
+    /rejection above is\s+exhaustive over every LINE spelling this gate can name/,
   );
-  // And the bound is stated in both directions: a prefix-less LINE reference survives the rule, so
-  // a green run must not be read as "the line form is gone from the repository".
-  assert.match(summary, /a\s+prefix-less LINE reference survives it/);
+  // And the bound is stated in both directions: the relative ANCHOR form is still unresolved, so a
+  // green run must not be read as "every reference to the spec is checked".
+  assert.match(summary, /anchor resolution remains blind to the relative form/);
   assert.match(summary, /does NOT prove the section supports the claim/);
   assert.match(summary, /wrong-passage and misstating-prose modes/);
   assert.match(summary, /names a heading that exists in the file it cites/);
@@ -1860,6 +1861,168 @@ function writeSections() {
   write(`${CONTRACT}/conformance.md`, SECTIONS);
   return `${CONTRACT}/conformance.md`;
 }
+
+test("THE PREFIX-LESS LINE FORM is enumerated and rejected, and a relative ANCHOR is not", () => {
+  // The hole saga #1180 would otherwise have left open. A `<file>.md:12` written without the
+  // directory prefix is a line claim like any other, and until it was enumerated the gate could
+  // report zero line citations while 67 of them sat in the tree — an instrument reporting success
+  // over a corpus it could not see.
+  writeGrammar();
+  write("bare.md", `See grammar.md:8 for the selector production.\n`);
+  const rejected = runOverTemp();
+  assert.equal(rejected.ok, false);
+  const report = rejected.lines.join("\n");
+  assert.match(
+    report,
+    /grammar\.md:8 names a LINE, and omits the contract\/ prefix/,
+  );
+  // The remedy names BOTH corrections — the section AND the prefix — because fixing only the form
+  // would leave an anchor that nothing checks.
+  assert.match(
+    report,
+    /Cite the section, WITH the prefix — contract\/grammar\.md#ebnf-notation/,
+  );
+  assert.equal(rejected.counts.prefixLess, 1);
+  assert.match(report, /0 bare, 1 prefix-less/);
+
+  // The other half, which must keep working: a relative ANCHOR is not a line claim, and inside the
+  // specification directory it is the normal way one document links to a sibling. Rejecting it
+  // would break 71 legitimate references to fix none.
+  write(
+    "bare.md",
+    `See grammar.md#ebnf-notation for the selector production.\n`,
+  );
+  const accepted = runOverTemp();
+  assert.equal(accepted.ok, true, "a relative anchor must not be rejected");
+  assert.equal(accepted.counts.prefixLess, 0);
+  // It is also not COUNTED as a resolved anchor, because the gate does not resolve the relative
+  // form — stated rather than implied, so the counter cannot be read as coverage it does not have.
+  assert.equal(accepted.counts.sectionAnchors, 0);
+});
+
+test("the prefix-less rule is structural: a prose line, and a document that exists", () => {
+  // Both guards are rules rather than lists, which is what the no-exemptions instruction requires.
+  writeGrammar();
+
+  // (a) A document the specification directory does not publish is not adopted.
+  write("other.md", `See changelog.md:8 and notes.md:3 for context.\n`);
+  assert.equal(runOverTemp().ok, true, "an unknown document is not a citation");
+
+  // (b) LIVE CODE is not prose, so a `file:line:form` assertion string is not a citation. This is
+  // the gate's own test suite in miniature, where such a triple means nothing of the kind — and an
+  // enumerator that rejected it would be worse than no enumerator.
+  write(
+    "assertions.mjs",
+    [
+      "const expected = [",
+      '  "grammar.md:4:explicit",',
+      '  "grammar.md:9:comma-tail",',
+      "];",
+      "",
+    ].join("\n"),
+  );
+  assert.equal(
+    runOverTemp().ok,
+    true,
+    "a file:line:form assertion string is test data, not a citation",
+  );
+
+  // And the same characters IN A COMMENT are a citation, which is what makes (b) a structural rule
+  // rather than a blanket exemption for the shape.
+  write("assertions.mjs", "// grammar.md:4 is the selector production.\n");
+  assert.equal(runOverTemp().ok, false);
+  assert.match(runOverTemp().lines.join("\n"), /omits the contract\/ prefix/);
+});
+
+test("a prefix-less reference carries its own document, so it never consumes a bare attribution", () => {
+  // `collectCitations` queues only BARE references for attribution. A prefix-less reference names
+  // its own document, so letting it into that queue would make the next bare `:N` shift the wrong
+  // entry off and silently adopt the wrong file.
+  writeGrammar();
+  write(
+    "mixed.ts",
+    "// contract/grammar.md:6 and grammar.md:13 and later :8 as well.\n",
+  );
+  const { citations } = collectCitations(
+    "mixed.ts",
+    "// contract/grammar.md:6 and grammar.md:13 and later :8 as well.\n",
+    CONTRACT,
+    new Set(["grammar.md"]),
+  );
+  assert.deepEqual(
+    citations.map(
+      (citation) => `${citation.file}:${citation.start}:${citation.form}`,
+    ),
+    [
+      "grammar.md:6:explicit",
+      "grammar.md:13:prefix-less",
+      // Attributed to the nearest preceding mention, which is the prefixed one — NOT shifted off a
+      // queue the prefix-less reference had joined.
+      "grammar.md:8:context-reference",
+    ],
+  );
+});
+
+test("a fragment may be closed by punctuation before a QUOTE, but not before a bracket", () => {
+  // A sentence inside a JSON string ends `…#a-heading."`, where the `.` is prose and the `"` closes
+  // the string — nothing inside a URL can follow a quote. A markdown link destination runs to its
+  // `)`, so there the `.` really does belong to the fragment. That asymmetry is what lets the gate
+  // accept the first without ever parsing a link destination, and it is pinned in both directions
+  // because conversion produced six of the first shape.
+  const malformedIn = (text) =>
+    collectCitations("a.md", text, CONTRACT).anchors[0].malformed;
+  assert.equal(
+    malformedIn(`{"d": "see ${CONTRACT}/d.md#real-heading."}`),
+    false,
+  );
+  assert.equal(malformedIn(`'see ${CONTRACT}/d.md#real-heading.'`), false);
+  assert.equal(malformedIn(`[bad](${CONTRACT}/d.md#real-heading.)`), true);
+  assert.equal(malformedIn(`[bad](${CONTRACT}/d.md#real-heading.]`), true);
+});
+
+test("specDocuments reads the directory, so the prefix-less rule needs no maintained list", () => {
+  // Shared with the converter rather than written twice: the two modules keep their deliberately
+  // different site-finding, but disagreeing about which documents EXIST would let one enumerate a
+  // citation the other could not see.
+  write(`${CONTRACT}/grammar.md`, "# Grammar\n");
+  write(`${CONTRACT}/commands.md`, "# Commands\n");
+  write(`${CONTRACT}/notes.txt`, "not markdown\n");
+  assert.deepEqual([...specDocuments(join(TEMP_DIR, CONTRACT))].sort(), [
+    "commands.md",
+    "grammar.md",
+  ]);
+  // A directory that is not there yields an empty set rather than throwing, so a caller pointed at
+  // a tree with no specification directory simply recognises no prefix-less form.
+  assert.deepEqual([...specDocuments(join(TEMP_DIR, "absent"))], []);
+});
+
+test("a file carrying ONLY prefix-less references is still scanned, and its citations ordered", () => {
+  // The skip test used to key on the `<dir>/` prefix alone, so a file with no prefixed mention was
+  // never opened — which is precisely how 67 prefix-less references stayed invisible while the gate
+  // reported zero line citations. Two references, so the ordering of the early-return path is
+  // exercised rather than assumed.
+  writeGrammar();
+  write(
+    "only-bare.md",
+    [
+      "Later prose cites grammar.md:13.",
+      "",
+      "Earlier prose cites grammar.md:5.",
+    ].join("\n"),
+  );
+  const result = runOverTemp();
+  assert.equal(result.ok, false);
+  assert.equal(result.counts.prefixLess, 2);
+  assert.equal(result.counts.files, 1);
+  const report = result.lines.join("\n");
+  // Reported in FILE order, so a maintainer reads them the way the file reads.
+  assert.ok(
+    report.indexOf("only-bare.md:1") < report.indexOf("only-bare.md:3"),
+    "findings must follow the order of the file",
+  );
+  assert.match(report, /only-bare\.md:1: grammar\.md:13 names a LINE/);
+  assert.match(report, /only-bare\.md:3: grammar\.md:5 names a LINE/);
+});
 
 test("an anchor naming a real heading passes and is counted on its own counter", () => {
   writeSections();

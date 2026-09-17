@@ -4,7 +4,7 @@
  * block for its effects and keeps no value, a count says how many times the block runs, and
  * `repcount` lets a learner see which turn of the repeat they are on. Only Level 1 vocabulary
  * (movement, turning, pen, color, width) plus `repeat`/`repcount` appears here — no variables,
- * conditions, or procedures (educational-model.md:37's discovery guardrail).
+ * conditions, or procedures (spec/educational-model.md#the-8-progressive-levels's discovery guardrail).
  */
 
 import type { Lesson } from "../lesson.js";

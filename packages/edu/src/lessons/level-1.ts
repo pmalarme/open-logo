@@ -4,7 +4,7 @@
  * heading, pen, color, and width; `forward`/`back` move, `right`/`left` turn in degrees,
  * `pen_up`/`pen_down` decide whether movement draws, and `clear_screen`/`home` reset the
  * drawing/turtle. No variables, procedures, or control forms beyond straight-line sequencing
- * appear here — those are later levels (educational-model.md:37's discovery guardrail).
+ * appear here — those are later levels (spec/educational-model.md#the-8-progressive-levels's discovery guardrail).
  */
 
 import type { Lesson } from "../lesson.js";

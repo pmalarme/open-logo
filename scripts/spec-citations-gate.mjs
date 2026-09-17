@@ -139,16 +139,16 @@
  *
  * ## Known blind spots, stated rather than hidden
  *
- * Every citation — line form and anchor alike — is found by the literal `<spec-dir>/` prefix, so a
- * **relatively-written** reference is invisible to this gate. `docs/adr/0029-…md` already records
- * that for the line form; the anchor form inherits it, which matters more now that #1180 makes the
- * anchor the *only* accepted form. The two forms are distributed **oppositely**, which is worth
- * knowing before reading a green run as "the line form is gone": prefix-less *anchors* sit almost
- * entirely inside `spec/` itself, where documents cite each other relatively, while prefix-less
- * *line* references sit almost entirely **outside** it, in package prose that names a document
- * without its directory. The rejection this gate performs is therefore exhaustive **only over the
- * forms it enumerates**, which is the qualification every claim about it has to carry. Write the
- * prefix.
+ * Every citation is found by the literal `<spec-dir>/` prefix **except** the prefix-less line form,
+ * which {@link PREFIX_LESS_REFERENCE} enumerates and the gate rejects like any other line claim. A
+ * relatively-written **anchor** is still invisible: `docs/adr/0029-…md` records that blind spot for
+ * the line form, and the anchor form inherits it. That asymmetry is deliberate rather than an
+ * oversight, and the corpus is why. Measured when the hole was closed, every prefix-less *line*
+ * reference sat outside `spec/`, while prefix-less *anchors* sat almost entirely inside it — one
+ * specification document linking to a sibling relatively, which is the normal and correct way to
+ * write that link. Rejecting the line form there costs nothing; resolving the anchor form would mean
+ * this gate adjudicating links inside a maintainer-owned directory it must never edit. Write the
+ * prefix anyway: outside `spec/`, an unprefixed anchor is checked by nothing at all.
  *
  * `roots` narrows the scan to a filesystem walk instead of the tracked set, and narrowing what an
  * instrument looks at while its report still reads as authoritative is the recurring defect of this
@@ -266,6 +266,29 @@ export const STATUS_CLAIM_PHRASES = Object.freeze([
   "will be implemented",
   "will be added",
 ]);
+
+/**
+ * Every `.md` document the specification directory publishes, or an empty set when that directory is
+ * not there.
+ *
+ * This is what makes the prefix-less form enumerable as a **rule** rather than a list: a bare
+ * `<file>.md:213` is a citation because that document is a real one, and a bare `notes.md:4` is not
+ * because no such document exists. Read from the filesystem, so it needs no maintenance and cannot
+ * drift from the corpus it describes.
+ *
+ * Exported and shared with the converter rather than written twice. The two modules keep their
+ * deliberately different **site-finding** — the gate sweeps a document, the converter works per
+ * line, and that independence has caught real defects — but which documents exist is not a
+ * judgement either of them should make separately, because disagreeing about it would make one
+ * sweep enumerate a citation the other could not see.
+ */
+export function specDocuments(root) {
+  return new Set(
+    existsSync(root)
+      ? readdirSync(root).filter((entry) => entry.endsWith(".md"))
+      : [],
+  );
+}
 
 /** Convert a native path to the `/`-separated form used on every platform. */
 export function toPosixPath(path) {
@@ -405,6 +428,29 @@ export const SLUG_CHARACTER = "[\\p{L}\\p{N}\\p{M}\\p{Pc}\\p{So}-]";
  * — an anchor hard-wrapped immediately after its `#` — and matching `+` made the one live instance in
  * this tree invisible to the very check meant to catch it.
  */
+/**
+ * A **prefix-less** reference to a specification document — `<file>.md:213`, written without the
+ * `<spec-dir>/` prefix that every other form in this module carries.
+ *
+ * This form was invisible to the gate until saga #1180 finished, and invisibility is the whole
+ * problem: the rejection of the line form could be honestly described as exhaustive only over the
+ * shapes the gate enumerated, so a prefix-less line number was a hole the corpus would refill.
+ * Measured before it was closed, the two prefix-less forms were distributed **oppositely** — every
+ * prefix-less *line* reference sat outside `spec/`, while prefix-less *anchors* sat almost entirely
+ * inside it, where one specification document referring to a sibling relatively is the normal and
+ * correct way to write a link. So this pattern matches the **line form only**; a relative anchor is
+ * not a line claim and is left exactly alone.
+ *
+ * Two guards keep it from firing on text that is not a citation, and both are rules rather than
+ * lists. The document must **actually exist** in the specification directory, so `readme.md:10` or a
+ * stray `notes.md:4` is not silently adopted. And it counts only on a **prose line**, which is the
+ * same structural rule {@link isProseLine} already applies to a bare `:N` — without it the gate's own
+ * test suite is the counter-example, where `"<file>.md:4:explicit"` is a `file:line:form` assertion
+ * string built by live code and means nothing of the kind.
+ */
+const PREFIX_LESS_REFERENCE =
+  /(?<![A-Za-z0-9._/#-])([a-z][a-z0-9-]*\.md):(\d+)(?:-(\d+))?((?:,\d+(?:-\d+)?)+)?/g;
+
 function mentionPattern(specDirectory) {
   return new RegExp(
     `${specDirectory.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\/([A-Za-z0-9._-]+\\.md)(?::(\\d+)(?:-(\\d+))?((?:,\\d+(?:-\\d+)?)+)?)?(?:#(${SLUG_CHARACTER}*))?`,
@@ -437,8 +483,15 @@ function mentionPattern(specDirectory) {
  * fragment genuinely ending in `_`. Underscore emphasis around a citation therefore fails — loudly,
  * and this corpus emphasises with `*`. The cited side has no such ambiguity any more: the parser
  * resolves emphasis before the slug is computed, so `## _Text_` correctly publishes `#text`.
+ *
+ * Punctuation may also be closed by a **quote**, which is the one delimiter that cannot be part of a
+ * URL: `"… see <dir>/<file>.md#a-heading."` is a sentence inside a JSON string, and the `.` is prose.
+ * A closing **bracket** is deliberately NOT admitted there, because a markdown link destination runs
+ * to its `)` and the `.` really does belong to the fragment — which is the asymmetry that makes
+ * `[bad](x.md#a-heading.)` fail without this module ever parsing a link destination.
  */
-const FRAGMENT_BOUNDARY = /^(?:[\s`'"“”‘’)\]}>|]|$)|^[.,:;!?*~+=…—–]+(?:\s|$)/u;
+const FRAGMENT_BOUNDARY =
+  /^(?:[\s`'"“”‘’)\]}>|]|$)|^[.,:;!?*~+=…—–]+(?:\s|["'`]|$)/u;
 
 /**
  * GitHub's **line fragment** (`#L30`, `#L28-L84`), which names lines rather than a heading.
@@ -977,7 +1030,8 @@ const BARE_REFERENCE =
   /(?<![A-Za-z0-9._\-/]):(\d+)(?:-(\d+))?((?:,\d+(?:-\d+)?)+)?/g;
 
 /**
- * The extra line specs in a comma-appended tail such as the `,139` of `grammar.md:119-129,139`.
+ * The extra line specs in a comma-appended tail such as the `,139` of a `<file>.md:119-129,139`
+ * citation.
  *
  * This form is neither an explicit citation nor a bare `:N`, and a sweep built from either pattern
  * alone misses it silently — the summary's `comma-appended` counter is how many there are, rather
@@ -1006,6 +1060,7 @@ const CITATION_FORM_COUNTS = Object.freeze({
   "comma-tail": "tails",
   "back-reference": "bare",
   "context-reference": "bare",
+  "prefix-less": "prefixLess",
 });
 
 /**
@@ -1032,7 +1087,12 @@ export function formatCitation(citation) {
  *
  * @returns `{ citations, anchors, unattributed }`.
  */
-export function collectCitations(path, text, specDirectory = SPEC_DIRECTORY) {
+export function collectCitations(
+  path,
+  text,
+  specDirectory = SPEC_DIRECTORY,
+  knownDocuments = new Set(),
+) {
   const lines = splitLines(text);
   const lineAt = lineLookup(lines);
   const citations = [];
@@ -1087,7 +1147,52 @@ export function collectCitations(path, text, specDirectory = SPEC_DIRECTORY) {
     }
     match = pattern.exec(text);
   }
+
+  // The prefix-less line form, enumerated from the same pass so the two can never disagree about
+  // what the file says. It is collected BEFORE the early return below, because a file may carry a
+  // prefix-less reference and no prefixed mention at all — which is precisely how 67 of them stayed
+  // invisible while the gate reported zero line citations.
+  PREFIX_LESS_REFERENCE.lastIndex = 0;
+  let bareDocument = PREFIX_LESS_REFERENCE.exec(text);
+  while (bareDocument !== null) {
+    const index = bareDocument.index;
+    const line = lineAt(index);
+    const inside = mentions.some(
+      (mention) => index >= mention.index && index < mention.end,
+    );
+    if (
+      !inside &&
+      knownDocuments.has(bareDocument[1]) &&
+      isProseLine(path, lines[line - 1])
+    ) {
+      citations.push({
+        specDirectory,
+        file: bareDocument[1],
+        start: Number(bareDocument[2]),
+        end:
+          bareDocument[3] === undefined ? undefined : Number(bareDocument[3]),
+        line,
+        form: "prefix-less",
+        // The written token, kept so a rejection can quote back exactly what the author typed
+        // rather than a reconstruction carrying a prefix they never wrote.
+        written: bareDocument[0],
+      });
+      for (const extra of expandCommaTail(bareDocument[4])) {
+        citations.push({
+          specDirectory,
+          file: bareDocument[1],
+          start: extra.start,
+          end: extra.end,
+          line,
+          form: "comma-tail",
+        });
+      }
+    }
+    bareDocument = PREFIX_LESS_REFERENCE.exec(text);
+  }
+
   if (mentions.length === 0) {
+    citations.sort((left, right) => left.line - right.line);
     return { citations, anchors, unattributed };
   }
 
@@ -1410,6 +1515,7 @@ export function runSpecCitationsGate({
     explicit: 0,
     tails: 0,
     bare: 0,
+    prefixLess: 0,
     sectionAnchors: 0,
     lineFragments: 0,
     quotations: 0,
@@ -1435,6 +1541,9 @@ export function runSpecCitationsGate({
     fail(finding.describe);
   };
   const specCache = new Map();
+
+  const knownDocuments = specDocuments(specRoot ?? specDirectory);
+
   const specLinesFor = (file) => {
     if (!specCache.has(file)) {
       const path = join(specRoot ?? specDirectory, file);
@@ -1512,13 +1621,22 @@ export function runSpecCitationsGate({
           "no tracking issue, so nothing will ever re-check it — name the issue it waits on",
       });
     }
-    if (!text.includes(`${specDirectory}/`)) {
+    // A file carrying NO prefixed mention may still carry a prefix-less line reference, and skipping
+    // it on the prefix alone is how 67 of them stayed invisible while the gate reported zero line
+    // citations. The cheap prefix test is kept as a fast path and widened to name any specification
+    // document, so the scan still skips the overwhelming majority of files without reading them
+    // twice.
+    if (
+      !text.includes(`${specDirectory}/`) &&
+      ![...knownDocuments].some((document) => text.includes(document))
+    ) {
       continue;
     }
     const { citations, anchors, unattributed } = collectCitations(
       file,
       text,
       specDirectory,
+      knownDocuments,
     );
     if (
       citations.length === 0 &&
@@ -1608,7 +1726,10 @@ export function runSpecCitationsGate({
       counts.citations += 1;
       counts[CITATION_FORM_COUNTS[citation.form]] += 1;
       const context = fileLines[citation.line - 1];
-      const subject = formatCitation(citation);
+      // A prefix-less reference is quoted back exactly as written, because telling an author to fix
+      // `<dir>/<file>.md:213` when they wrote `<file>.md:213` names a string their file does not
+      // contain.
+      const subject = citation.written ?? formatCitation(citation);
       // The rule, in one place: a citation that names a line is rejected, whether or not it
       // currently resolves. Resolution was the old question — does this line still hold text — and
       // the answer stopped mattering when the line form stopped being allowed. What the author is
@@ -1623,9 +1744,12 @@ export function runSpecCitationsGate({
         file,
         context,
         subject,
-        observed: "line-form",
+        observed: citation.form === "prefix-less" ? "prefix-less" : "line-form",
         describe:
-          `${file}:${citation.line}: ${subject} names a LINE. Cite the section instead — ` +
+          `${file}:${citation.line}: ${subject} names a LINE` +
+          (citation.form === "prefix-less"
+            ? `, and omits the ${specDirectory}/ prefix. Cite the section, WITH the prefix — `
+            : ". Cite the section instead — ") +
           (heading === null
             ? `${specDirectory}/${citation.file}#a-heading`
             : `${specDirectory}/${citation.file}#${heading}`) +
@@ -1691,7 +1815,8 @@ export function runSpecCitationsGate({
 
   lines.push(
     `spec citations: ${counts.citations} line-form citation(s) REJECTED across ${counts.files} citing file(s) ` +
-      `(${counts.explicit} explicit, ${counts.tails} comma-appended, ${counts.bare} bare), ` +
+      `(${counts.explicit} explicit, ${counts.tails} comma-appended, ${counts.bare} bare, ` +
+      `${counts.prefixLess} prefix-less), ` +
       `${counts.sectionAnchors} section anchor(s), ${counts.lineFragments} line fragment(s) rejected, ` +
       `${counts.quotations} quoted production(s), ` +
       `${counts.statusClaims} status claim(s) — ${counts.failed} failed`,
@@ -1722,8 +1847,9 @@ export function runSpecCitationsGate({
   }
   lines.push(
     "  This gate REJECTS every citation that names a line — a `<file>.md` carrying a line number, a " +
-      "comma-appended tail, a bare colon-and-number attributed to a document, and GitHub's `#L` line " +
-      "fragment. The only accepted form is the " +
+      "comma-appended tail, a bare colon-and-number attributed to a document, GitHub's `#L` line " +
+      "fragment, and a prefix-less `<file>.md:12` naming a document the specification directory " +
+      "publishes. The only accepted form is the " +
       "section anchor `<file>.md#a-heading`, and there is no exception manifest, no baseline and no " +
       "grandfathering: a line citation fails, and nowhere records that it may. Beyond that it checks that an " +
       "anchor names a heading that exists in the file it cites, that a quoted EBNF production is inside the " +
@@ -1738,9 +1864,12 @@ export function runSpecCitationsGate({
       "and demotes the original, and removing or renaming an earlier duplicate promotes a later one into " +
       "the slug it vacated; both retarget a citation silently and both leave this gate green. A renamed " +
       "heading therefore fails loudly only when the rename leaves its slug unclaimed. A citation written " +
-      "without the spec-directory prefix — a relative `../../<dir>/<file>.md#y`, or a bare `<file>.md:12` — is " +
-      "not seen at all, so the rejection above is exhaustive only over the forms this gate enumerates, and a " +
-      "prefix-less LINE reference survives it. Headings come from a GFM " +
+      "without the spec-directory prefix is now enumerated too, but only in its LINE form and only on a " +
+      "prose line naming a document this directory publishes: a relative `../../<dir>/<file>.md#y` " +
+      "ANCHOR is still unchecked, and inside the specification directory itself that relative form is " +
+      "the normal way one document links to a sibling. So the rejection above is exhaustive over every " +
+      "LINE spelling this gate can name, while anchor resolution remains blind to the relative form. " +
+      "Headings come from a GFM " +
       "parse and slugs from github-slugger (ADR-0035), so block structure and rendered text are no longer " +
       "approximated; where GitHub can still resolve something this reader does not — an entity reference " +
       "outside the escaping set, raw inline HTML, an emoji shortcode shape, or a numeric reference whose " +

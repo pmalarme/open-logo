@@ -20,7 +20,7 @@ bracket roles from [`tooling.md`](../../spec/tooling.md#normative-token-class-mo
 options)` (`src/semantic-tokens.ts`) layers an LSP `textDocument/semanticTokens`-shaped response on
 top of that: each returned token keeps `highlight()`'s `class`/`role`/span fields and adds a
 `modifiers` array drawn from the modifier vocabulary in
-[`tooling.md:278-280`](../../spec/tooling.md#informative-lsp-style-editor-integration) — `declaration`, `reference`, `readonly`,
+[`spec/tooling.md#informative-lsp-style-editor-integration`](../../spec/tooling.md#informative-lsp-style-editor-integration) — `declaration`, `reference`, `readonly`,
 `defaultLibrary`, `listRole`, `blockRole`, `selectorRole`.
 
 `options` is optional on both (`HighlightOptions`); `document` is **required** on both, and that is
@@ -40,7 +40,7 @@ point in `@openlogo/runtime` already has that shape.
 `options`' one field, `profiles`, is the **active profile set**, in the same vocabulary `check()`
 uses. It decides a single thing: a profile block-head — Sprites' `ask`/`each` and its mode-switch
 command `tell`, Interaction's `when`/`every`/`on_key`/`on_click` — is `keyword` while its profile
-is active ([`tooling.md:30`](../../spec/tooling.md#normative-token-class-model)) and `primitive` without it
+is active ([`spec/tooling.md#normative-token-class-model`](../../spec/tooling.md#normative-token-class-model)) and `primitive` without it
 ([`spec/tooling.md#normative-token-class-model`](../../spec/tooling.md#normative-token-class-model)). Profile *primitives* (the Sound commands, `wait`, `input`,
 the Sprites reporters) are `primitive` under every profile set. Omit `options` and both APIs read
 as Core Language alone, which is exactly what callers saw before the option existed.

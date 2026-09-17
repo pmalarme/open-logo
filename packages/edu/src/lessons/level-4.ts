@@ -5,7 +5,7 @@
  * `==`/`!=`/`<`/`>`/`<=`/`>=` are the comparisons that build a boolean; `and`/`or`/`not` combine
  * booleans; worded predicates such as `is between` read like English and still make a strict
  * boolean. Only Level 1-4 vocabulary appears here — no `define`/procedures (Level 5), per
- * educational-model.md:37's discovery guardrail.
+ * spec/educational-model.md#the-8-progressive-levels's discovery guardrail.
  */
 
 import type { Lesson } from "../lesson.js";

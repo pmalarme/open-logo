@@ -34,7 +34,7 @@ Replace the placeholder `produce()` with a real parser integration for M1.
    diagnostic must have a `message` field. `produce()` validates this requirement by calling
    `validateDiagnostics(diagnostics)` after parsing, which throws if any diagnostic is missing the
    field. This enforces the wire contract without coupling fixtures to English prose — fixtures omit
-   `message` (they assert identity via `code` + `params` per error-model.md:193-194), and comparison
+   `message` (they assert identity via `code` + `params` per spec/error-model.md#did-you-mean), and comparison
    excludes `message` value, but actual emitted diagnostics are validated for spec conformance.
 
 3. **Wire format is pass-through.** The parser already emits diagnostics with `source_span`
@@ -59,6 +59,6 @@ Replace the placeholder `produce()` with a real parser integration for M1.
   the fixtures to assert its behavior via the now-real `produce()`.
 - The validation layer (`validateDiagnostics()`) enforces spec/error-model.md wire requirements
   while keeping fixtures independent of localizable prose, honoring the "diagnostic identity is code
-  + params, not message" design (error-model.md:191–194).
+  + params, not message" design (spec/error-model.md#style-linter-codes, spec/error-model.md#did-you-mean).
 - ADR-0007's mechanics (discovery, profile-DAG selection, self-tests, diffing, exit codes) are
   unchanged; only `produce()` evolved from placeholder to real parser integration.
