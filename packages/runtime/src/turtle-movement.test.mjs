@@ -150,7 +150,7 @@ test("execute raises ol-range for a forward distance that overflows to Infinity,
   // `power 10 1000` overflows IEEE 754 double precision to `Infinity` (a legitimately reachable
   // `number` OLValue elsewhere in this codebase — see `comparison-equality.test.mjs`), but
   // `moveTurtle`'s `d·sin h`/`d·cos h` turns `Infinity * sin(0)` (`0`) into `NaN` — a defect this
-  // guard prevents by halting instead of emitting a corrupted event (spec/execution-model.md#collections-and-uniform-access:
+  // guard prevents by halting instead of emitting a corrupted event (spec/execution-model.md#numbers-and-math:
   // "OpenLogo never exposes NaN or Infinity as learner-facing results").
   const result = execute("forward power 10 1000", "main.logo");
   assert.equal(result.events.length, 1);

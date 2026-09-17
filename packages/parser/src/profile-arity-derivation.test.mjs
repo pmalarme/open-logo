@@ -322,7 +322,7 @@ test("params.callable is the canonical lowercase name for every profile, not the
   // display. OpenLogo identifiers are case-insensitive, so `(REVERSE 1 2)` and `(reverse 1 2)` are
   // one condition. Pinned as a unit assertion rather than in a fixture because this wording does
   // not opt into conformance message comparison (`"compareMessages": true`, issue #1025): the spec
-  // prescribes what an arity message must CONVEY — `spec/error-model.md#normative-code-registry` "say what the callable still needs"
+  // prescribes what an arity message must CONVEY — `spec/error-model.md#normative-code-registry` "say what the callable still needs", `spec/error-model.md#normative-code-registry`
   // "mention wrapping the call in `( … )`" — but not the exact English, and `spec/error-model.md#localization-boundary` positively
   // permits a template author to reorder, inflect, or soften it. Freezing our exact wording in a
   // stack-neutral fixture would oblige every conforming implementation to emit these sentences.

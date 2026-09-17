@@ -1,5 +1,6 @@
-// Unit tests for the Data-profile record/struct runtime (issue #329, spec/data-structures.md:
-// 252-327): phase-1 `struct` registration + `ol-reserved-word` collisions, the type-name
+// Unit tests for the Data-profile record/struct runtime (issue #329,
+// spec/data-structures.md#records-and-structs, spec/data-structures.md#record-operations): phase-1
+// `struct` registration + `ol-reserved-word` collisions, the type-name
 // constructor (arity == declared field count), `:record.field` read/write, `type_of`, `is_a?` on
 // records, and structural record equality. Conformance fixtures under
 // tests/conformance/data/struct-runtime/ prove the primary end-to-end shapes; these unit tests

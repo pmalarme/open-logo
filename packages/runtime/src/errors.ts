@@ -120,7 +120,7 @@ export interface ArithmeticTypeErrorParams {
  * {@link ArithmeticTypeErrorParams}, but `expected` widens to the ordering concepts: a mismatched
  * operand names the other operand's concept (`"number"`/`"word"`), and a wholly non-orderable
  * operand (boolean/list) names `"number or word"` — the two categories ordering is defined for
- * (`spec/execution-model.md#collections-and-uniform-access`).
+ * (`spec/execution-model.md#equality-and-ordering`).
  */
 export interface OrderingTypeErrorParams {
   readonly expected: "number" | "word" | "number or word";
@@ -184,7 +184,7 @@ export interface UnknownKeyParams {
 
 /**
  * Params for an `ol-type` raised by a list-mutator statement (`add`/`remove`/`insert`/`clear`,
- * `spec/data-structures.md#mutating-list-operations`, `spec/execution-model.md#records-and-destructuring`) whose target is not a list,
+ * `spec/data-structures.md#mutating-list-operations`, `spec/execution-model.md#collections-and-uniform-access`) whose target is not a list,
  * or by `insert`'s position argument that is not a number. Issue #322 widens this for the dict
  * half of `clear` (target may be a list or dict) and for `remove key … from`, whose target must
  * be a dict specifically (`spec/data-structures.md#dictionary-reads, spec/data-structures.md#dictionary-writes-and-upserts`). Same `{expected, actual, value,
@@ -241,7 +241,7 @@ export interface NegativeCountParams {
 /**
  * Params for an `ol-range` raised by a `forward`/`back` distance that is not finite
  * (`Infinity`/`-Infinity`, reachable via arithmetic overflow — e.g. `power 10 1000` —
- * `spec/execution-model.md#collections-and-uniform-access` — "OpenLogo never exposes NaN or Infinity as learner-facing
+ * `spec/execution-model.md#numbers-and-math` — "OpenLogo never exposes NaN or Infinity as learner-facing
  * results"). Movement math (`x + d·sin h`) would otherwise silently corrupt the turtle's
  * position with a non-finite or `NaN` coordinate (`0 · Infinity` is `NaN` in IEEE 754) instead of
  * raising a diagnostic.
@@ -286,7 +286,7 @@ export interface NonFiniteHeadingParams {
  * (`Infinity`/`-Infinity`, reachable via arithmetic overflow). Unlike {@link NonFiniteDistanceParams}
  * (where a finite distance can still corrupt movement math via `0 · Infinity === NaN`), a
  * non-finite `set_xy` coordinate is set directly onto the turtle's position with no arithmetic in
- * between — but `spec/execution-model.md#collections-and-uniform-access` ("OpenLogo never exposes NaN or Infinity as
+ * between — but `spec/execution-model.md#numbers-and-math` ("OpenLogo never exposes NaN or Infinity as
  * learner-facing results") still forbids handing the turtle an infinite position outright, so the
  * guard is the same. `axis` names which argument was non-finite for the diagnostic's `params`.
  */
@@ -526,7 +526,7 @@ export interface BadColorParams {
  * number that is not a positive finite value — `spec/commands.md`'s `set_width` entry: "The width
  * MUST be a positive number." `0`/negative widths fail that requirement directly; `Infinity`
  * technically satisfies "positive" but would hand `@openlogo/turtle`'s reducer/renderer an
- * infinite stroke width for every subsequent `draw-segment` (`spec/execution-model.md#collections-and-uniform-access` —
+ * infinite stroke width for every subsequent `draw-segment` (`spec/execution-model.md#numbers-and-math` —
  * "OpenLogo never exposes NaN or Infinity as learner-facing results"), so it is folded into the
  * same `ol-range` guard rather than treated as valid. Only reached once {@link requireNumber} has
  * already confirmed the argument is a number at all (a non-number raises `ol-type` first, per
@@ -1002,7 +1002,7 @@ export const runtimeDiag = {
 
   /**
    * `ol-range`: a `forward`/`back` distance is `Infinity`/`-Infinity` (reachable via arithmetic
-   * overflow, e.g. `forward power 10 1000` — `spec/execution-model.md#collections-and-uniform-access`). Only reached once
+   * overflow, e.g. `forward power 10 1000` — `spec/execution-model.md#numbers-and-math`). Only reached once
    * {@link requireNumber} has already confirmed the value is a number; a finite `distance` never
    * reaches this check.
    */
@@ -1020,7 +1020,7 @@ export const runtimeDiag = {
 
   /**
    * `ol-range`: a `left`/`right` turn angle is `Infinity`/`-Infinity` (reachable via arithmetic
-   * overflow, e.g. `right power 10 1000` — `spec/execution-model.md#collections-and-uniform-access`, same rationale as
+   * overflow, e.g. `right power 10 1000` — `spec/execution-model.md#numbers-and-math`, same rationale as
    * {@link nonFiniteDistance}: `Infinity % 360` is `NaN`, which would otherwise corrupt the
    * turtle's heading instead of raising a diagnostic). Only reached once {@link requireNumber} has
    * already confirmed the value is a number; a finite `angle` never reaches this check.
@@ -1039,7 +1039,7 @@ export const runtimeDiag = {
 
   /**
    * `ol-range`: a `set_heading` angle is `Infinity`/`-Infinity` (reachable via arithmetic
-   * overflow, e.g. `set_heading power 10 1000` — `spec/execution-model.md#collections-and-uniform-access`, same rationale as
+   * overflow, e.g. `set_heading power 10 1000` — `spec/execution-model.md#turtle-and-canvas-state`, same rationale as
    * {@link nonFiniteAngle}: `Infinity % 360` is `NaN`, which would otherwise corrupt the turtle's
    * heading instead of raising a diagnostic). Only reached once {@link requireNumber} has already
    * confirmed the value is a number; a finite `angle` never reaches this check.
@@ -1059,7 +1059,7 @@ export const runtimeDiag = {
   /**
    * `ol-range`: a `set_xy` `x`/`y` argument is `Infinity`/`-Infinity` (reachable via arithmetic
    * overflow, e.g. `set_xy power 10 1000 0`). Unlike {@link nonFiniteDistance}, no arithmetic
-   * turns this into `NaN` — the coordinate is set directly — but `spec/execution-model.md#collections-and-uniform-access`
+   * turns this into `NaN` — the coordinate is set directly — but `spec/execution-model.md#numbers-and-math`
    * still forbids an infinite learner-facing position. Only reached once {@link requireNumber}
    * has already confirmed the value is a number; a finite coordinate never reaches this check.
    */

@@ -860,18 +860,35 @@ test("a scoped run SAYS it is scoped, so its numbers cannot read as the reposito
   assert.equal(scoped.ok, true);
   const banner = scoped.lines.find((line) => line.includes("SCOPED RUN"));
   assert.ok(banner !== undefined, "a run given overrides must announce them");
-  assert.match(banner, /did NOT scan the tracked set/);
+  assert.match(banner, /did NOT use the production configuration/);
   assert.match(banner, /are not this repository's Definition-of-Done result/);
   // Every override actually in effect is named, so the banner describes this run rather than
   // restating a fixed sentence.
   assert.match(banner, /roots=\[/);
   assert.match(banner, new RegExp(`spec-dir=${CONTRACT}`));
   assert.match(banner, /spec-root=/);
+  // This run DID narrow the file set, and says so.
+  assert.match(banner, /narrowed to those roots rather than the tracked set/);
   // And it repeats that the RULE is not what narrowed.
   assert.match(
     banner,
     /a citation naming a line fails inside a scope exactly as it does outside/,
   );
+});
+
+test("the banner distinguishes a narrowed FILE SET from an overridden contract", () => {
+  // A banner that misreports the instrument's scope is the very defect the banner exists to
+  // prevent. `roots` is the only override that changes WHICH FILES are read; `--spec-dir` changes
+  // which citation token is recognised and `--spec-root` where documents are resolved, and under
+  // both the tracked set is still scanned in full.
+  const tokenOverride = runSpecCitationsGate({
+    specDirectory: "no-such-directory",
+  });
+  const banner = tokenOverride.lines.find((line) =>
+    line.includes("SCOPED RUN"),
+  );
+  assert.match(banner, /the tracked set was still scanned/);
+  assert.doesNotMatch(banner, /narrowed to those roots/);
 });
 
 test("the default run is the authoritative one, and carries no scope banner", () => {

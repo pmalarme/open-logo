@@ -1,5 +1,5 @@
 // Unit tests for worded `is`-predicate and prefix `?`-predicate evaluation (issue #99,
-// spec/execution-model.md#precedence-and-evaluation-order, spec/commands.md#empty, spec/commands.md#is_a). Conformance fixtures under
+// spec/execution-model.md#precedence-and-evaluation-order, spec/commands.md#empty, spec/commands.md#member, spec/commands.md#is_a). Conformance fixtures under
 // tests/conformance/core-language/execution/{is-*,prefix-*}.expected.json cover the primary
 // literal-observable positive/negative cases end to end. These unit tests fill in what a fixture
 // cannot: every dynamically-reachable diagnostic path exercised directly (not via

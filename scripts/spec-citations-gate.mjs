@@ -1700,16 +1700,20 @@ export function runSpecCitationsGate({
   // itself is unaffected: every check below is applied per citation, never per scope, so a line
   // citation inside a narrowed scan fails exactly as it does in CI. What the banner removes is the
   // other half, where a green line is mistaken for a claim about the whole repository.
-  const scope = [
+  const scanNarrowed = roots !== undefined;
+  const overrides = [
     roots === undefined ? null : `roots=[${roots.join(", ")}]`,
     specDirectory === SPEC_DIRECTORY ? null : `spec-dir=${specDirectory}`,
     specRoot === undefined ? null : `spec-root=${specRoot}`,
   ].filter((part) => part !== null);
-  if (scope.length > 0) {
+  if (overrides.length > 0) {
     lines.push(
-      `  SCOPED RUN (${scope.join(", ")}) — this did NOT scan the tracked set, so the numbers above ` +
-        "describe only what it scanned and are not this repository's Definition-of-Done result. The " +
-        "rule is unchanged: a citation naming a line fails inside a scope exactly as it does outside " +
+      `  SCOPED RUN (${overrides.join(", ")}) — this did NOT use the production configuration, so the ` +
+        "numbers above are not this repository's Definition-of-Done result" +
+        (scanNarrowed
+          ? ", and the set of files scanned was narrowed to those roots rather than the tracked set"
+          : "; the tracked set was still scanned, but which citations are recognised, or where they are resolved, was overridden") +
+        ". The rule is unchanged: a citation naming a line fails inside a scope exactly as it does outside " +
         "one.",
     );
   }

@@ -119,26 +119,34 @@ export function enclosingHeading(headings, line) {
  * the only thing standing between a range and a confidently wrong anchor.
  *
  * A range that is blank from end to end names no content at all. There is nothing to trim towards,
- * so it keeps its enclosing section and is reported by {@link planFile} rather than silently
- * attributed.
+ * so it keeps its enclosing section and is reported by {@link planFile} when that landing sits on a
+ * section boundary, rather than being silently attributed.
  *
- * A range spanning two sections is not unexpressible — it is two citations that the line form let an
- * author write as one, because line numbers are terse. Anchors are not obliged to inherit that
- * terseness, so the range becomes both anchors rather than losing half its claim. Like the collapse
- * above, how often it happens is counted and printed rather than written down here; on the #1180
- * sweep the tool printed **133**.
+ * **Every section crossed, not just the two ends.** An inclusive line range claims every line
+ * between its endpoints, so a range crossing three sections claims all three. Emitting only the
+ * first and last dropped the middle one — and the middle is often the section the claim actually
+ * rests on, which is the same silent-wrong-anchor failure one step further in. A range spanning
+ * several sections is not unexpressible: it is several citations the line form let an author write
+ * as one, because line numbers are terse. How often it happens is counted and printed by the CLI
+ * rather than written down here.
  */
 export function anchorsForSpec(headings, spec, lines = null) {
   const bounds = contentBounds(spec, lines);
-  const slugs = [];
   const head = enclosingHeading(headings, bounds.start);
   if (head === null) {
     return null;
   }
-  slugs.push(head.slug);
-  const tail = enclosingHeading(headings, bounds.end);
-  if (tail !== null && tail.slug !== head.slug) {
-    slugs.push(tail.slug);
+  const slugs = [head.slug];
+  for (const heading of headings) {
+    // Every heading that OPENS inside the content is a section the range crosses. Headings are in
+    // document order, so this walks them once and keeps that order in the output.
+    if (
+      heading.line > bounds.start &&
+      heading.line <= bounds.end &&
+      !slugs.includes(heading.slug)
+    ) {
+      slugs.push(heading.slug);
+    }
   }
   return slugs.every((slug) => slug !== "") ? slugs : null;
 }
@@ -241,16 +249,18 @@ export function redundantSpan(text, start, end) {
  * full.
  *
  * A list element has **both** properties. Its separator was a comma the span absorbed — so removing
- * it cannot weld two words together — and what follows it immediately closes the list: a bracket, a
- * further comma, or the end of the sentence or line. `(a, b, c)` therefore collapses and
- * `, :31 the inactive one` does not, although both are comma-separated.
+ * it cannot weld two words together — and what follows it immediately **closes a bracketed list**: a
+ * closing bracket, or a further comma inside one. Sentence punctuation is deliberately NOT enough:
+ * `contract/x.md:3 states it; for the counterexample, contract/x.md:4.` is comma-separated and ends
+ * in a period, yet deleting the second reference removes the object of "for the counterexample".
+ * When in doubt the anchor is repeated, because a repeated anchor is verbose and a deleted word is
+ * wrong.
  */
 export function isListElement(text, span) {
   if (!span.absorbedComma) {
     return false;
   }
-  const rest = text.slice(span.to);
-  return rest.trimEnd() === "" || /^[)\]},.;]/.test(rest);
+  return /^[)\]},]/.test(text.slice(span.to));
 }
 
 /** Apply non-overlapping `edits` (each `{ from, to, text }`) to `text`, last first. */
@@ -420,8 +430,13 @@ export function planFile(
           { start: token.start, end: token.end, gateVisible: true },
           ...expandTail(token.tail),
         ];
-        // One bare token is one site to the gate however many line specs it carries.
-        seenSites += 1;
+        // Counted per gate-visible SPEC, not per token: `collectCitations` records a bare reference
+        // and each comma-appended line in its tail as separate citations, so counting the token once
+        // made every bare tail disagree with the gate and refuse a file that was perfectly
+        // convertible.
+        seenSites += specs.filter((spec) => spec.gateVisible).length;
+        invisible +=
+          specs.length - specs.filter((spec) => spec.gateVisible).length;
       } else if (token.start !== undefined) {
         specs = [
           { start: token.start, end: token.end, gateVisible: true },
@@ -467,14 +482,22 @@ export function planFile(
       const slugs = [];
       let blocked = null;
       let blankRange = false;
-      let pastEof = false;
+      let unusableRange = false;
       for (const spec of specs) {
-        // A line past end-of-file names nothing at all, so no section follows from it. Converting it
-        // would invent an anchor for a citation that is already stale — and the anchor would
-        // RESOLVE, making the staleness permanent and invisible.
-        if (documentLines !== null && spec.start > documentLines.length) {
+        // A line spec that cannot name real text at all: before line 1, past end-of-file, or a range
+        // that ends before it starts. Converting one would invent an anchor for a citation that is
+        // already broken — and the anchor would RESOLVE, making the breakage permanent and
+        // invisible. The old gate caught these as `past-eof`/`inverted-range`; with the line form
+        // rejected outright that check has no caller, so the converter has to carry it.
+        const lastLine = spec.end ?? spec.start;
+        if (
+          documentLines !== null &&
+          (spec.start < 1 ||
+            lastLine < spec.start ||
+            lastLine > documentLines.length)
+        ) {
           blocked = spec;
-          pastEof = true;
+          unusableRange = true;
           break;
         }
         // A range that holds no text anywhere names no content, so there is nothing for the span
@@ -505,14 +528,14 @@ export function planFile(
         }
       }
       if (blocked !== null) {
-        const detail = pastEof
-          ? `${specDirectory}/${file}:${blocked.start} is past end-of-file, so it names no text and no section follows from it — this citation was already stale`
+        const detail = unusableRange
+          ? `${specDirectory}/${file}:${blocked.start}${blocked.end === undefined ? "" : `-${blocked.end}`} names no real text — it starts before line 1, ends before it starts, or runs past end-of-file, so this citation was already broken`
           : blankRange
             ? `${specDirectory}/${file}:${blocked.start} is blank and sits on a section boundary, so the section above it and the text below it are equally defensible — decide by hand`
             : `${specDirectory}/${file}:${blocked.start} has no enclosing heading that publishes a slug`;
         problems.push({
-          kind: pastEof
-            ? "past-eof"
+          kind: unusableRange
+            ? "unusable-range"
             : blankRange
               ? "blank-range"
               : "no-usable-heading",

@@ -353,7 +353,7 @@ function executeTurtleMoveCall(
     // `power 10 1000` — see `comparison-equality.test.mjs`), but `moveTurtle`'s `d·sin h`/`d·cos h`
     // can turn that into `NaN` whenever `sin`/`cos` of the heading is exactly `0` (IEEE 754
     // `0 * Infinity` is `NaN`), silently corrupting the emitted position instead of raising a
-    // diagnostic (`spec/execution-model.md#collections-and-uniform-access` — "OpenLogo never exposes NaN or Infinity as
+    // diagnostic (`spec/execution-model.md#numbers-and-math` — "OpenLogo never exposes NaN or Infinity as
     // learner-facing results").
     return halt(
       runtimeDiag.nonFiniteDistance(arg.source_span, {
@@ -385,7 +385,7 @@ function isTurtleTurnCall(statement: StatementNode): boolean {
 
 /**
  * Turn the turtle by `deltaDegrees` (positive turns clockwise, i.e. `right`; negative turns
- * counter-clockwise, i.e. `left` — `spec/execution-model.md#collections-and-uniform-access`) and emit the `turn` effect-event
+ * counter-clockwise, i.e. `left` — `spec/execution-model.md#turtle-and-canvas-state`) and emit the `turn` effect-event
  * `spec/execution-model.md#numbers-and-math` requires (`{from, to}`, both headings in degrees). The new heading
  * is normalized to `[0,360)` (`spec/execution-model.md#turtle-and-canvas-state`) — never left negative or `>= 360`.
  *
@@ -413,7 +413,7 @@ function turnTurtle(
  * Validate and run a `left`/`right` statement matched by {@link isTurtleTurnCall}: exactly one
  * numeric argument (`ol-not-enough-inputs`/`ol-too-many-inputs`/`ol-type` otherwise, via
  * {@link requireNumber}), negated for `left` (turning counter-clockwise is a negative heading
- * delta, since `right`/clockwise is positive — `spec/execution-model.md#collections-and-uniform-access`), then delegated to
+ * delta, since `right`/clockwise is positive — `spec/execution-model.md#turtle-and-canvas-state`), then delegated to
  * {@link turnTurtle}. Returns an {@link ExecSignal} to halt on, or `undefined` for
  * {@link executeStatements} to `continue` on success (including the "left un-evaluated" case for
  * an unsupported argument expression, mirroring `forward`/`back`'s handling).
@@ -465,7 +465,7 @@ function executeTurtleTurnCall(
     // Same rationale as `executeTurtleMoveCall`'s non-finite-distance guard: `requireNumber`
     // accepts `Infinity`/`-Infinity` (reachable via arithmetic overflow), but `Infinity % 360` is
     // `NaN`, which would otherwise corrupt the turtle's heading instead of raising a diagnostic
-    // (`spec/execution-model.md#collections-and-uniform-access`).
+    // (`spec/execution-model.md#numbers-and-math`).
     return halt(
       runtimeDiag.nonFiniteAngle(arg.source_span, {
         operation: callableName.toLowerCase() as "left" | "right",
@@ -1532,7 +1532,7 @@ function setHeadingTo(
  * (via {@link requireNumber}), `ol-range` ({@link runtimeDiag.nonFiniteCoordinate}) for a
  * `set_xy` argument that is `Infinity`/`-Infinity` (same "never expose a non-finite learner-facing
  * result" rationale as {@link executeTurtleMoveCall}'s non-finite-distance guard —
- * `spec/execution-model.md#collections-and-uniform-access`). Returns an {@link ExecSignal} to halt on, or `undefined` for
+ * `spec/execution-model.md#numbers-and-math`). Returns an {@link ExecSignal} to halt on, or `undefined` for
  * {@link executeStatements} to `continue` on success (including the "left un-evaluated" case for
  * an unsupported argument expression, mirroring `forward`/`back`'s handling).
  *
@@ -1692,7 +1692,7 @@ function executeTurtleHeadingCall(
   if (!Number.isFinite(angle.value)) {
     // Same rationale as `executeTurtleTurnCall`'s non-finite-angle guard: `requireNumber` accepts
     // `Infinity`/`-Infinity`, but `Infinity % 360` is `NaN`, which would otherwise corrupt the
-    // turtle's heading instead of raising a diagnostic (`spec/execution-model.md#collections-and-uniform-access`).
+    // turtle's heading instead of raising a diagnostic (`spec/execution-model.md#turtle-and-canvas-state`).
     return halt(
       runtimeDiag.nonFiniteHeading(arg.source_span, {
         operation: callableName.toLowerCase() as "set_heading" | "seth",
@@ -4519,7 +4519,7 @@ type ProcedureOutcome =
  * but only on a clean or `return`/`stop` outcome (a `"halt"` outcome skips it, matching the
  * existing convention that a diagnostic stops the trace with no further events at all). This
  * ordering reproduces the spec's worked recursive-call trace exactly
- * (`spec/execution-model.md#tutor-output-educational-profile, spec/execution-model.md#recursive-call`).
+ * (`spec/execution-model.md#tutor-output-educational-profile, spec/execution-model.md#worked-traces, spec/execution-model.md#recursive-call`).
  *
  * Before any of that, the call is checked against `environment.callDepth`'s length — the current
  * procedure-call nesting depth — against {@link Environment.recursionDepthLimit}: exceeding it

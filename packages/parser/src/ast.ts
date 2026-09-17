@@ -463,7 +463,7 @@ export interface ThrowNode extends NodeBase {
 /**
  * `add value to target` — append `value` to the list `target` (Data profile,
  * `spec/grammar.md#ebnf-notation`'s `add-statement ::= "add" expression "to" expression`;
- * `spec/execution-model.md#records-and-destructuring`). A statement, never a reporter — it mutates in place and
+ * `spec/execution-model.md#collections-and-uniform-access`). A statement, never a reporter — it mutates in place and
  * returns nothing. Runtime evaluation lands in its own Data-profile slice.
  */
 export interface AddNode extends NodeBase {

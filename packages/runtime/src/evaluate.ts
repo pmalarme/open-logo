@@ -149,7 +149,7 @@ export type ProcedureRegistry = ReadonlyMap<string, ProcedureDefNode>;
  * The whole-program struct-type table the Data profile's `execute-internal.ts` builds once, up
  * front, by scanning every {@link StructDefNode} in the program (mirroring
  * {@link ProcedureRegistry} and the phase-1 procedure pre-scan) — so a `struct` type can be used
- * as a constructor before its textual declaration (`spec/data-structures.md#dictionary-writes-and-upserts, spec/data-structures.md#record-operations`, issue #329).
+ * as a constructor before its textual declaration (`spec/data-structures.md#dictionary-writes-and-upserts, spec/data-structures.md#dictionary-operations, spec/data-structures.md#records-and-structs, spec/data-structures.md#record-operations`, issue #329).
  * Keyed by the struct type's lowercased name, matching every other case-insensitive command-name
  * lookup in this package. The stored {@link StructDefNode} supplies the declared field list (in
  * order) that the constructor fills and that `:record.field` accesses and `is_a?` validate
@@ -1493,7 +1493,7 @@ type DictSegmentResolution =
  * Resolve one postfix place segment — a dotted `.field` (a dict or record read, its key a
  * parse-time literal) or a bracketed `[key]` selector (a list index or a dict key, decided by
  * `container`'s actual runtime type) — against `container` (issue #322,
- * `spec/data-structures.md#dictionaries, spec/data-structures.md#dictionary-reads`).
+ * `spec/data-structures.md#dictionaries, spec/data-structures.md#malformed-dictionary-literal-entries, spec/data-structures.md#dictionary-reads`).
  *
  * `allowMissingDictKey` controls only the dict branch: `false` (every read, and every
  * *intermediate* write segment) requires the key to already exist — `ol-unknown-key` otherwise,
@@ -1665,7 +1665,7 @@ function resolveDictSegment(
 
 /**
  * The `.field` tail of {@link resolvePlaceSegment} when `container` is an {@link OLRecord}
- * (issue #329, `spec/data-structures.md#dictionary-writes-and-upserts, spec/data-structures.md#record-operations`). A record has a fixed field set and never grows
+ * (issue #329, `spec/data-structures.md#dictionary-writes-and-upserts, spec/data-structures.md#dictionary-operations, spec/data-structures.md#records-and-structs, spec/data-structures.md#record-operations`). A record has a fixed field set and never grows
  * new fields, so an unknown field is `ol-unknown-field` on both read and write — `allowMissingDictKey`
  * (set only for a write's *final* segment) selects the `write: true` param/message variant rather
  * than granting the dict-style upsert vivification records never allow. A known field always
@@ -1889,7 +1889,7 @@ function writeIndexedPlace(
  * TARGET`, `insert … in TARGET at …`) to the shared list it must mutate in place. Evaluating a
  * supported target (`:name`, a postfix `:l[i]`, or any list-valued reporter) yields the *same*
  * array reference the binding holds, so a `push`/`splice`/`length = 0` on it is observed through
- * every alias (`spec/data-structures.md#the-uniform-collection-access-idiom`, `spec/execution-model.md#records-and-destructuring`). A target that
+ * every alias (`spec/data-structures.md#the-uniform-collection-access-idiom`, `spec/execution-model.md#collections-and-uniform-access`). A target that
  * does not evaluate to a list raises `ol-type` (`spec/data-structures.md#mutating-list-operations`). `OLValue`'s list
  * arm is `readonly`, so the cast to a mutable array mirrors {@link writeIndexedPlace}'s own
  * in-place write. `clear`'s target may also be a dict (issue #322), so it uses its own sibling
@@ -1922,7 +1922,7 @@ function evaluateListTarget(
 }
 
 /**
- * Execute `add value to target` (`spec/data-structures.md#mutating-list-operations`, `spec/execution-model.md#records-and-destructuring`):
+ * Execute `add value to target` (`spec/data-structures.md#mutating-list-operations`, `spec/execution-model.md#collections-and-uniform-access`):
  * append `value` to the list `target` in place. `value` then `target` are evaluated left to right;
  * either operand being an expression kind this profile does not yet evaluate leaves the whole
  * statement a deferred no-op — matching {@link executeAssign}/`print`, so an unimplemented operand
@@ -2696,11 +2696,11 @@ function evaluateLogical(
 
 // --- Comparisons: equality (`== !=`), ordering (`< > <= >=`), and chains --------------------
 //
-// spec/execution-model.md#records-and-destructuring, spec/execution-model.md#collections-and-uniform-access. `==`/`!=` compare any two values to a boolean and never
+// spec/execution-model.md#equality-and-ordering, spec/execution-model.md#equality-and-ordering. `==`/`!=` compare any two values to a boolean and never
 // raise; ordering is defined only for two numbers or two words and raises `ol-type` otherwise.
 
 /**
- * The canonical printed form of a number (`spec/execution-model.md#value-and-type-model, spec/execution-model.md#records-and-destructuring`): whole values
+ * The canonical printed form of a number (`spec/execution-model.md#value-and-type-model`): whole values
  * print without a decimal, non-whole values are trimmed to at most 10 significant digits. So
  * `5 == "5"` is `true`, `5 == "05"` is `false` (5 prints as `"5"`, not `"05"`), and a word
  * carrying more than 10 significant digits cannot equal the number it looks like.
@@ -3067,7 +3067,7 @@ export function snapshotValue(
 }
 
 /**
- * Normative `==` for OpenLogo's value types (`spec/execution-model.md#records-and-destructuring, spec/execution-model.md#collections-and-uniform-access` matrix): numeric
+ * Normative `==` for OpenLogo's value types (`spec/execution-model.md#equality-and-ordering, spec/execution-model.md#equality-and-ordering` matrix): numeric
  * equality for two numbers; number↔word by canonical printed form; case-sensitive word equality;
  * boolean identity; structural list equality; structural dict equality (same key set, pairwise
  * `==`, order-independent — issue #322); every other cross-type pair is `false`. List/dict
@@ -3130,7 +3130,7 @@ function equalRec(a: OLValue, b: OLValue, inProgress: EqualityMemo): boolean {
 
 /**
  * Structural list equality that terminates on cyclic or shared structure
- * (`spec/execution-model.md#collections-and-uniform-access`). `inProgress` holds the reference pairs currently on the
+ * (`spec/execution-model.md#equality-and-ordering`). `inProgress` holds the reference pairs currently on the
  * comparison stack; re-encountering a pair while it is still in progress is the cyclic back-edge,
  * treated as equal for that branch (bisimulation, not identity short-circuiting). Each pair is
  * removed once its comparison completes, so `inProgress` stays a faithful stack rather than a
@@ -3169,7 +3169,7 @@ function listEqual(
 }
 
 /**
- * Structural dict equality (issue #322, `spec/execution-model.md#records-and-destructuring`): same key set and pairwise
+ * Structural dict equality (issue #322, `spec/execution-model.md#equality-and-ordering`): same key set and pairwise
  * `==`, order-independent. Sibling of {@link listEqual} — same cyclic/shared-structure memoization
  * strategy, reusing the same `inProgress` stack since a dict can nest lists and vice versa.
  */
@@ -3249,7 +3249,7 @@ function recordEqual(
 
 /**
  * Lexicographic comparison of two words by Unicode code point
- * (`spec/execution-model.md#collections-and-uniform-access`). `Array.from` iterates by code point (not UTF-16 code unit),
+ * (`spec/execution-model.md#equality-and-ordering`). `Array.from` iterates by code point (not UTF-16 code unit),
  * so astral characters sort by their true scalar value. Returns a negative number, `0`, or a
  * positive number when `a` sorts before, equal to, or after `b`.
  */
@@ -3306,7 +3306,7 @@ function numberOrdering(
 /**
  * Ordering (`< > <= >=`) is defined only for two numbers (compared numerically) or two words
  * (compared lexicographically); every other pair raises `ol-type`
- * (`spec/execution-model.md#collections-and-uniform-access`). When the left operand is itself non-orderable
+ * (`spec/execution-model.md#equality-and-ordering`). When the left operand is itself non-orderable
  * (boolean/list) the diagnostic points at it and names the expected concept `"number or word"`;
  * otherwise the right operand does not match the left's type and the diagnostic points at the
  * right, naming the left's concept.
@@ -3808,12 +3808,12 @@ function evaluatePrefixIsA(
 }
 
 // --- Core list reporters: first/last/butfirst/butlast/fput/lput/sentence/word/count (issue #101,
-// #234; spec/commands.md "Words and lists", spec/execution-model.md#records-and-destructuring) ---------------------
+// #234; spec/commands.md "Words and lists", spec/execution-model.md#collections-and-uniform-access) ---------------------
 //
 // Every reporter below is a plain `Call`/`ParenCall` — no dedicated AST node — dispatched by
 // lowercased callee name, same as the is-predicates above. `fput`/`lput`/`sentence`/`word` always
 // return a *fresh* value (never mutate an argument list in place); nested element references
-// are shared, only the outer array is copied (`spec/execution-model.md#records-and-destructuring`'s
+// are shared, only the outer array is copied (`spec/execution-model.md#collections-and-uniform-access`'s
 // mutation-vs-copy distinction). `reverse`/`pick`/`sort` are Data-profile derived reporters
 // (`spec/data-structures.md#derived-list-reporters-in-the-data-profile`), not Core — they are evaluated just below `count`, sharing
 // this section's `isWordOrList`/`listReporterType` helpers, but kept in their own issue #190 doc
@@ -3968,7 +3968,7 @@ function evaluateButlast(
 
 /**
  * `fput`/`lput` — a *fresh* list with `value` prepended/appended to `list`
- * (`spec/commands.md` "fput"/"lput"; `spec/execution-model.md#records-and-destructuring` — never mutates `list`).
+ * (`spec/commands.md` "fput"/"lput"; `spec/execution-model.md#collections-and-uniform-access` — never mutates `list`).
  * A non-list second argument raises `ol-type`.
  */
 function evaluateFputOrLput(
@@ -4810,8 +4810,9 @@ function evaluateInput(
   const promptText = promptResult.value;
   const answer = readInputAnswer(promptText, environment);
   if (answer === undefined) {
-    // The read can never finish, so it takes the only other ending `spec/interaction-events.md:
-    // 110-111` allows — "until the read finishes or the program is cancelled" — through the SHARED
+    // The read can never finish, so it takes the only other ending
+    // `spec/interaction-events.md#input-prompt-word` allows — "until the read finishes or the program is
+    // cancelled" — through the SHARED
     // cancellation diagnostic, not a lookalike of its own. Identity is code + params and prose is
     // presentation (`spec/error-model.md#localization-boundary`), so what a second builder would risk is a drift
     // in the half the spec actually fixes; reusing this one keeps `ol-limit` / `{ limit:
@@ -4942,7 +4943,7 @@ function evaluateRandom(
   );
 }
 
-// --- Comprehensions: map / filter / reduce (spec/execution-model.md#variables-scoping-and-procedures, spec/execution-model.md#records-and-destructuring, issue #105) ------
+// --- Comprehensions: map / filter / reduce (spec/execution-model.md#comprehensions-map-filter-and-reduce, issue #105) ------
 //
 // Comprehensions are value-producing *expressions* usable anywhere an expression is
 // (`spec/execution-model.md#variables-scoping-and-procedures`), so — unlike a procedure body, which can contain arbitrary
@@ -5278,7 +5279,7 @@ function comprehensionDuplicateBinder(
 }
 
 /**
- * Evaluate a `map`/`filter`/`reduce` comprehension (`spec/execution-model.md#variables-scoping-and-procedures, spec/execution-model.md#records-and-destructuring`, worked
+ * Evaluate a `map`/`filter`/`reduce` comprehension (`spec/execution-model.md#comprehensions-map-filter-and-reduce`, worked
  * examples `spec/execution-model.md#trace-and-event-registry, spec/execution-model.md#tutor-output-educational-profile`): binder-duplicate check first ({@link comprehensionDuplicateBinder}), then
  * the iterable (must be a list — `ol-type` otherwise, mirroring `ForIn`'s own `forInNotList`),
  * then one {@link runComprehensionBody} pass per element (each in its own fresh body-local frame,

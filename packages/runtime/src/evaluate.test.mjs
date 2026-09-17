@@ -529,7 +529,7 @@ test("`value of <dict> for key <key>` is byte-identical to the Core runtime-key 
 // The one container type with NO Core twin, pinned deliberately rather than left to be rediscovered
 // as a bug. The reader's operand is typed `dictExpr` (`spec/data-structures.md#dictionary-operations`), so a record is
 // out of range and rejected — while the Core `.key` selector it otherwise twins ACCEPTS records
-// (`spec/data-structures.md#dictionary-writes-and-upserts, spec/data-structures.md#record-operations`) and reports `ol-unknown-field` instead. The divergence
+// (`spec/data-structures.md#dictionary-writes-and-upserts, spec/data-structures.md#dictionary-operations, spec/data-structures.md#records-and-structs, spec/data-structures.md#record-operations`) and reports `ol-unknown-field` instead. The divergence
 // predates issue #784 (the reader rejected records before it too, just with `expected: "list or
 // dict"`) and is spec-mandated, so closing it either way is a `spec/` decision, not a runtime one.
 // Uses execute() rather than evalExpr() because a record needs a `struct` declaration and a binding.

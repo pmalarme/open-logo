@@ -15,7 +15,8 @@ and the syntax + semantic **checker** (parse/semantic lint + `ol-style-*` style 
 ## Semantic tokens (LSP contract) for studio
 
 `highlight(source, document, options)` classifies tokens into the 15 normative token classes + 5
-bracket roles from [`tooling.md`](../../spec/tooling.md#normative-token-class-model, spec/tooling.md#delimiter-roles). `semanticTokens(source, document,
+bracket roles from [`tooling.md`](../../spec/tooling.md#normative-token-class-model) — see also
+`spec/tooling.md#disambiguating-identifiers` and `spec/tooling.md#delimiter-roles`. `semanticTokens(source, document,
 options)` (`src/semantic-tokens.ts`) layers an LSP `textDocument/semanticTokens`-shaped response on
 top of that: each returned token keeps `highlight()`'s `class`/`role`/span fields and adds a
 `modifiers` array drawn from the modifier vocabulary in

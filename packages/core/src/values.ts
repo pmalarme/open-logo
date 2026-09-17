@@ -29,9 +29,9 @@ interface OLDictEntry {
 }
 
 /**
- * The Data-profile `dict` value (`spec/data-structures.md#dictionaries, spec/data-structures.md#dictionary-writes-and-upserts`): a mutable, insertion-ordered
+ * The Data-profile `dict` value (`spec/data-structures.md#dictionaries, spec/data-structures.md#malformed-dictionary-literal-entries, spec/data-structures.md#dictionary-reads, spec/data-structures.md#dictionary-writes-and-upserts`): a mutable, insertion-ordered
  * key/value collection. Keys are words or numbers, compared under OpenLogo's number↔word equality
- * (`spec/execution-model.md#records-and-destructuring`, e.g. `5` and `"5"` name the same slot, `5` and `"05"` do
+ * (`spec/execution-model.md#equality-and-ordering`, e.g. `5` and `"5"` name the same slot, `5` and `"05"` do
  * not). {@link set} on an existing canonical key updates the stored value in place rather than
  * reinserting, so "last-duplicate-wins value, first-insertion-position iteration"
  * (`spec/data-structures.md#dictionaries`) falls directly out of the backing `Map`'s own
@@ -112,13 +112,13 @@ export class OLDict {
 }
 
 /**
- * The Data-profile `record` value (`spec/data-structures.md#dictionary-writes-and-upserts, spec/data-structures.md#record-operations`): a mutable aggregate whose
+ * The Data-profile `record` value (`spec/data-structures.md#dictionary-writes-and-upserts, spec/data-structures.md#dictionary-operations, spec/data-structures.md#records-and-structs, spec/data-structures.md#record-operations`): a mutable aggregate whose
  * field set is FIXED at construction from its `struct` declaration. Unlike an {@link OLDict}, a
  * record can never grow or shrink — its fields are exactly the ones the `struct` declared, in
  * declared order, so writing an undeclared field is an error the runtime raises
  * (`ol-unknown-field`), never a silent insert. `type` is the struct type name the constructor was
- * named after: `type_of` reports it and `is_a?` matches against it (`spec/data-structures.md:
- * 286-287`). Assigning a record copies the reference, not the contents
+ * named after: `type_of` reports it and `is_a?` matches against it
+ * (`spec/data-structures.md#records-and-structs`). Assigning a record copies the reference, not the contents
  * (`spec/execution-model.md#value-and-type-model`), same as a list or dict — aliases observe in-place mutation.
  */
 export class OLRecord {

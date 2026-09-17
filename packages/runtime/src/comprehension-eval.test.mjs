@@ -1,5 +1,5 @@
 // Unit tests for comprehension evaluation: map/filter/reduce (issue #105,
-// spec/execution-model.md#variables-scoping-and-procedures, spec/execution-model.md#records-and-destructuring, worked examples spec/execution-model.md#for--in-with-destructuring, spec/execution-model.md#reduce). Conformance fixtures under
+// spec/execution-model.md#variables-scoping-and-procedures, spec/execution-model.md#control-forms, spec/execution-model.md#comprehensions-map-filter-and-reduce, spec/execution-model.md#records-and-destructuring, worked examples spec/execution-model.md#for--in-with-destructuring, spec/execution-model.md#map, spec/execution-model.md#reduce). Conformance fixtures under
 // tests/conformance/core-language/comprehensions/*.expected.json cover the primary
 // event/diagnostic shapes end to end (the spec's own worked map/reduce traces, destructuring item
 // binders, and the headline diagnostics). These unit tests fill in what a fixture cannot: every

@@ -158,9 +158,7 @@ test("enclosingHeading puts the line OF a heading in that heading, and the line 
   assert.equal(enclosingHeading([], 5), null);
 });
 
-test("anchorsForSpec gives one anchor per section a range touches — and two when it spans two", () => {
-  // A range crossing a section boundary is not unexpressible: it is two citations the line form let
-  // an author write as one. Losing the second half would silently narrow the claim.
+test("anchorsForSpec gives one anchor per section a range touches", () => {
   assert.deepEqual(anchorsForSpec(HEADINGS, { start: 5 }), ["ebnf-notation"]);
   assert.deepEqual(anchorsForSpec(HEADINGS, { start: 5, end: 6 }), [
     "ebnf-notation",
@@ -168,12 +166,6 @@ test("anchorsForSpec gives one anchor per section a range touches — and two wh
   assert.deepEqual(anchorsForSpec(HEADINGS, { start: 5, end: 10 }), [
     "ebnf-notation",
     "expressions-and-calls",
-  ]);
-  // A range spanning THREE sections still yields the two ENDS, which is what the line form claimed:
-  // where it starts and where it stops.
-  assert.deepEqual(anchorsForSpec(HEADINGS, { start: 5, end: 14 }), [
-    "ebnf-notation",
-    "debug",
   ]);
   // No enclosing heading at all.
   assert.equal(anchorsForSpec(documentHeadings(["text"]), { start: 1 }), null);
@@ -187,14 +179,14 @@ test("anchorsForSpec gives one anchor per section a range touches — and two wh
   );
 });
 
-test("THE SPAN RULE: a range's anchors come from its CONTENT, not its raw endpoints", () => {
-  // The defect this exists to stop, and the sharpest one in the saga: a range whose first line is
-  // the blank separator closing the previous section yields an anchor to a section the claim never
-  // relied on — and because that section exists, the anchor RESOLVES and the gate stays green.
-  // Anchor resolution catches an anchor that names no heading; it never catches one that names the
-  // wrong heading, so nothing downstream can correct this.
+test("THE SPAN RULE: a range's anchors come from its CONTENT, and cover EVERY section crossed", () => {
+  // Two defects in one rule, both of which produce anchors that RESOLVE and so are invisible to
+  // every gate. Anchor resolution catches an anchor that names no heading; it never catches one that
+  // names the wrong heading, so nothing downstream can correct either.
   //
-  // Line 7 is the blank line closing #ebnf-notation; line 8 opens #expressions-and-calls.
+  // (a) A range whose first line is the blank separator closing the previous section gained an
+  // anchor to a section the claim never relied on. Line 7 closes #ebnf-notation; line 8 opens
+  // #expressions-and-calls.
   assert.equal(GRAMMAR_LINES[6].trim(), "");
   assert.deepEqual(
     anchorsForSpec(HEADINGS, { start: 7, end: 10 }, GRAMMAR_LINES),
@@ -213,11 +205,27 @@ test("THE SPAN RULE: a range's anchors come from its CONTENT, not its raw endpoi
     anchorsForSpec(HEADINGS, { start: 5, end: 7 }, GRAMMAR_LINES),
     ["ebnf-notation"],
   );
-  // And a range whose content genuinely spans two sections still yields both.
+
+  // (b) An inclusive range claims EVERY line between its endpoints, so it claims every section those
+  // lines fall in. Emitting only the first and last dropped the middle one — and the middle is often
+  // the section the claim actually rests on.
+  assert.deepEqual(
+    anchorsForSpec(HEADINGS, { start: 5, end: 14 }, GRAMMAR_LINES),
+    ["ebnf-notation", "expressions-and-calls", "debug"],
+    "a range crossing three sections must name all three",
+  );
   assert.deepEqual(
     anchorsForSpec(HEADINGS, { start: 5, end: 10 }, GRAMMAR_LINES),
     ["ebnf-notation", "expressions-and-calls"],
   );
+  // A range inside one section still names exactly one.
+  assert.deepEqual(
+    anchorsForSpec(HEADINGS, { start: 5, end: 6 }, GRAMMAR_LINES),
+    ["ebnf-notation"],
+  );
+  assert.deepEqual(anchorsForSpec(HEADINGS, { start: 5 }, GRAMMAR_LINES), [
+    "ebnf-notation",
+  ]);
 });
 
 test("contentBounds trims blanks off both ends, and says when there is nothing to trim towards", () => {
@@ -359,20 +367,37 @@ test("redundantSpan takes the separator out with the token it removes, and repor
 
 test("isListElement tells a citation LIST from a word of a sentence", () => {
   // The single judgement a converter can get wrong in a way no gate will ever see. BOTH properties
-  // are needed: a comma was absorbed, and what follows closes the list. Comma-separation alone is
-  // not enough, which is exactly the mistake that produced "— states the active half the inactive
+  // are needed: a comma was absorbed, and what follows closes a BRACKETED list. Comma-separation
+  // alone is not enough, which is the mistake that produced "— states the active half the inactive
   // one" in the first sweep.
   const listElement = (text, start, end) =>
     isListElement(text, redundantSpan(text, start, end));
   assert.equal(listElement("see (a, b) here", 8, 9), true, "closing bracket");
   assert.equal(listElement("see (a, b, c) here", 8, 9), true, "further comma");
-  assert.equal(listElement("see a, b", 7, 8), true, "end of line");
-  assert.equal(listElement("see a, b.", 7, 8), true, "end of sentence");
+  assert.equal(listElement("see [a, b] here", 8, 9), true, "square bracket");
   // Comma-separated but followed by PROSE: removing it welds two clauses together.
   assert.equal(
     listElement("a states the half, b the other one", 18, 19),
     false,
     "a referring expression, not a list element",
+  );
+  // SENTENCE punctuation is deliberately not enough. `x states it; for the counterexample, y.` is
+  // comma-separated and ends in a period, yet deleting `y` removes the object of the clause. When
+  // the evidence is weak the anchor is repeated, because verbose beats wrong.
+  assert.equal(
+    listElement("a states it; for the counterexample, b.", 36, 37),
+    false,
+    "a period is not evidence of a list",
+  );
+  assert.equal(
+    listElement("a states it; for the counterexample, b", 36, 37),
+    false,
+    "nor is end-of-line",
+  );
+  assert.equal(
+    listElement("a states it; for the counterexample, b;", 36, 37),
+    false,
+    "nor is a semicolon",
   );
   // No comma at all: the token is joined by a word, so removing it leaves a hole.
   assert.equal(listElement("the rule a and b now state it", 15, 16), false);
@@ -588,22 +613,44 @@ test("a bare reference may name a RANGE, and the half already on the line is not
   );
 });
 
-test("a citation past end-of-file is REFUSED, not given an anchor it would keep forever", () => {
-  // A stale citation naming a line the document no longer has. Converting it would invent an anchor
-  // that RESOLVES, so the staleness would become permanent and invisible — exactly the trade this
-  // saga must not make by accident.
+test("a citation that names no real text is REFUSED, not given an anchor it would keep forever", () => {
+  // A stale or malformed citation: past end-of-file, before line 1, or a range that ends before it
+  // starts. Converting one would invent an anchor that RESOLVES, so the breakage would become
+  // permanent and invisible — exactly the trade this saga must not make by accident. The old gate
+  // caught these; with the line form rejected outright it has no caller, so the converter carries it.
   assert.deepEqual(contentBounds({ start: 99 }, GRAMMAR_LINES), {
     start: 99,
     end: 99,
     allBlank: true,
   });
+  for (const [citation, why] of [
+    ["contract/grammar.md:99", "past end-of-file"],
+    ["contract/grammar.md:5-99", "a range whose end is past end-of-file"],
+    ["contract/grammar.md:10-5", "an inverted range"],
+    ["contract/grammar.md:0", "before line 1"],
+  ]) {
+    const { plan, text } = convert(`// ${citation} is cited here.\n`);
+    assert.equal(plan.problems.length, 1, why);
+    assert.equal(plan.problems[0].kind, "unusable-range", why);
+    assert.match(plan.problems[0].detail, /already broken/, why);
+    assert.equal(text, `// ${citation} is cited here.\n`, why);
+  }
+});
+
+test("a bare reference carrying a comma tail agrees with the gate, site for site", () => {
+  // `collectCitations` records a bare reference and each comma-appended line in its tail as separate
+  // citations. Counting the token once instead made every bare tail look like a disagreement, and
+  // the cross-check then refused a file that was perfectly convertible — an enumeration guard
+  // firing on its own arithmetic rather than on either sweep being blind.
   const { plan, text } = convert(
-    "// contract/grammar.md:99 is past the end.\n",
+    "// contract/grammar.md and later :5,13 both matter.\n",
   );
-  assert.equal(plan.problems.length, 1);
-  assert.equal(plan.problems[0].kind, "past-eof");
-  assert.match(plan.problems[0].detail, /already stale/);
-  assert.equal(text, "// contract/grammar.md:99 is past the end.\n");
+  assert.deepEqual(plan.problems, []);
+  assert.equal(plan.sites, 2);
+  assert.equal(
+    text,
+    "// contract/grammar.md and later contract/grammar.md#ebnf-notation, contract/grammar.md#debug both matter.\n",
+  );
 });
 
 test("a mention with no line spec and no fragment is left exactly as written", () => {

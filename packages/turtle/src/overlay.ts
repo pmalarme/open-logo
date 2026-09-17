@@ -2,7 +2,7 @@
  * The turtle-overlay reducer: folds the normative trace/event stream (`@openlogo/core`'s
  * `TraceEvent`/`EventKind` registry) into deterministic, render-agnostic **overlay** state — the
  * Geometry profile's `grid`/`axes`/`measure` renderer-backed primitives
- * (`spec/geometry-module.md#grid, spec/geometry-module.md#measure`, `spec/rendering.md#grid-axes-and-measure-overlays`). This module is overlay-only:
+ * (`spec/geometry-module.md#grid, spec/geometry-module.md#axes, spec/geometry-module.md#measure`, `spec/rendering.md#grid-axes-and-measure-overlays`). This module is overlay-only:
  * per-turtle state (`state.ts`) and the retained drawing scene (`scene.ts`) are separate, sibling
  * reducers so all three can be layered side by side without any of them needing to know about
  * the other's kinds.
