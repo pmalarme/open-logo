@@ -34,7 +34,7 @@ export type TutorLearnerLevel =
 
 /**
  * Known metadata about the primitive or procedure a target instruction calls, when the target
- * is a call the tutor can identify (`spec/educational-model.md#concept-to-command-map, spec/educational-model.md#baseline-meta-commands`'s "known command
+ * is a call the tutor can identify (`spec/educational-model.md#baseline-meta-commands`'s "known command
  * metadata" input). Absent when the target is not a call, or no target is selected.
  */
 export interface TutorCommandMetadata {
@@ -60,7 +60,7 @@ export interface TutorCommandMetadata {
 
 /**
  * The shared input contract for a baseline meta-command invocation
- * (`spec/educational-model.md#concept-to-command-map, spec/educational-model.md#baseline-meta-commands`: "the parsed program, source spans, trace events,
+ * (`spec/educational-model.md#baseline-meta-commands`: "the parsed program, source spans, trace events,
  * diagnostics, and known command metadata"), plus the hint-stage progression state the spec
  * requires a host to track itself (`spec/execution-model.md#trace-and-event-registry` — progression state "is a
  * property of the host implementation, not the wire event itself").

@@ -1407,7 +1407,7 @@ function evaluateValueOfKey(
  * Resolve a {@link PlaceNode} read (`:l[i]`, `:d.key`, `:m[1][2]`): look up the base variable,
  * then walk every postfix segment against the value so far via {@link resolvePlaceSegment}. Every
  * segment on a read requires its key/field to already exist — a read never upserts (issue #322,
- * `spec/data-structures.md#malformed-dictionary-literal-entries`).
+ * `spec/data-structures.md#dictionary-reads`).
  */
 function readPlace(node: PlaceNode, environment: Environment): EvalResult {
   const base = lookupVar(environment, node.base.name);
@@ -1493,11 +1493,11 @@ type DictSegmentResolution =
  * Resolve one postfix place segment — a dotted `.field` (a dict or record read, its key a
  * parse-time literal) or a bracketed `[key]` selector (a list index or a dict key, decided by
  * `container`'s actual runtime type) — against `container` (issue #322,
- * `spec/data-structures.md#dictionaries, spec/data-structures.md#malformed-dictionary-literal-entries, spec/data-structures.md#dictionary-reads`).
+ * `spec/data-structures.md#dictionaries, spec/data-structures.md#dictionary-reads`).
  *
  * `allowMissingDictKey` controls only the dict branch: `false` (every read, and every
  * *intermediate* write segment) requires the key to already exist — `ol-unknown-key` otherwise,
- * with no auto-vivification of a missing intermediate dict (`spec/data-structures.md#malformed-dictionary-literal-entries`).
+ * with no auto-vivification of a missing intermediate dict (`spec/data-structures.md#dictionary-writes-and-upserts`).
  * `true` (a write's *final* segment only) lets a missing dict key resolve anyway, so the caller
  * can upsert it. List indexing never upserts regardless of this flag — an out-of-range index is
  * always `ol-range`, matching the pre-existing list-only behavior byte-for-byte.
@@ -1841,7 +1841,7 @@ export function executeAssign(
  * value with no auto-vivification (`ol-range`/`ol-type`/`ol-unknown-key` per
  * {@link resolvePlaceSegment}), and only the *final* segment's slot is mutated in place — so an
  * aliased reference to the same list/dict observes the write (`spec/execution-model.md#assignable-places-and-mutation`).
- * A missing final *dict* key upserts (`spec/data-structures.md#malformed-dictionary-literal-entries`); a missing final list
+ * A missing final *dict* key upserts (`spec/data-structures.md#dictionary-writes-and-upserts`); a missing final list
  * index is still always `ol-range` (lists never upsert).
  */
 function writeIndexedPlace(
@@ -2770,9 +2770,12 @@ function primitivePrintedForm(value: OLValue): string | undefined {
     return value ? "true" : "false";
   }
   if (value instanceof OLTurtle) {
-    // A turtle's printed form is its stable, deterministic identity tag `turtle #<id>`
-    // (`spec/turtles-and-sprites.md#profile-status-and-dependency`, `spec/execution-model.md#equality-and-ordering`): a turtle is an opaque
-    // identity, not a container, so it renders as a single leaf token — never its (mutable) drawing
+    // A turtle's printed form is the stable, deterministic identity tag `turtle #<id>` — a
+    // spelling this implementation chooses, since the spec gives turtle printing no normative
+    // literal syntax, over a rule it does state: a turtle is an opaque identity, not a container
+    // (`spec/turtles-and-sprites.md#profile-status-and-dependency` "Turtle values compare by
+    // identity, not by position or shape", `spec/execution-model.md#equality-and-ordering` "Same
+    // turtle identity"), so it renders as a single leaf token — never its (mutable) drawing
     // state, which would make `print :t` non-deterministic across movement/pen changes.
     return `turtle #${formatNumber(value.id)}`;
   }
@@ -4350,7 +4353,7 @@ function evaluateDict(
 
 /**
  * `keys` — a fresh list of `dict`'s keys, in insertion order (issue #322,
- * `spec/data-structures.md#dictionary-writes-and-upserts`). A non-dict argument raises `ol-type`.
+ * `spec/data-structures.md#dictionary-operations`). A non-dict argument raises `ol-type`.
  */
 function evaluateKeys(
   node: ArithmeticCallNode,
@@ -4381,7 +4384,7 @@ function evaluateKeys(
 
 /**
  * `values` — a fresh list of `dict`'s values, in the same insertion order as {@link evaluateKeys}
- * (issue #322, `spec/data-structures.md#dictionary-writes-and-upserts`). A non-dict argument raises `ol-type`.
+ * (issue #322, `spec/data-structures.md#dictionary-operations`). A non-dict argument raises `ol-type`.
  */
 function evaluateValues(
   node: ArithmeticCallNode,
