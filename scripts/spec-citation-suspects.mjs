@@ -15,17 +15,20 @@
  * **It is a ranked report for a human, never a gate verdict**, and that is not modesty. It is
  * measured. Two facts decide it:
  *
- * 1. **It detects only about half of the mutations it plants in itself, and that figure is
- *    unlabelled.** The seeded control repoints a citation at a random *other real section* of the
- *    same document and re-scores; the live figure is printed on every run and interpolated into the
- *    report, never written down here. It measures **sensitivity to random retargeting** and nothing
- *    more. It is not recall, precision or negative predictive value: the sample is drawn from the
- *    citations this same heuristic did not flag, so the baseline is unlabelled, and a random repoint
- *    can land on a section that supports the claim just as well, so an unknown share of the "misses"
- *    were never wrong. **Which direction those two effects net out to is not established** — the
- *    honest statement is that the figure is unlabelled, not that it is optimistic or pessimistic.
- *    What follows for a reader is only this: it cannot be converted into a claim about how much a
- *    clean row list proves, so do not treat silence as evidence.
+ * 1. **The seeded control does not establish how much its silence is worth.** It repoints a citation
+ *    at a random *other real section* of the same document and re-scores; the live figure is printed
+ *    on every run and interpolated into the report, never written down here. It measures
+ *    **sensitivity to random retargeting** and nothing else. It is not recall, precision or negative
+ *    predictive value: the sample is drawn from the citations this same heuristic did not flag, so
+ *    the baseline is unlabelled, and a random repoint can land on a section that supports the claim
+ *    just as well, so an unknown share of the "misses" were never wrong. **Neither the magnitude nor
+ *    the direction of that bias is established**, so no statement about evidentiary weight can be
+ *    derived from this experiment at all — in either direction.
+ *
+ *    What *is* evidence about silence comes from the field and is reported as such: across four
+ *    review batches, defects were repeatedly found that this tool had not ranked, including seven in
+ *    a single batch. That is an observation about particular reviews, not a rate, and it is the only
+ *    basis on which this module says silence is weak.
  * 2. **The flag rate is a property of the instrument, not of the corpus.** Two implementations
  *    written from the same prose description — differing only in tokenizer and stop-list — produced
  *    rates 2.3× apart on the same tree. So this module never publishes a rate as a measurement of
@@ -207,8 +210,9 @@ export function bodyScore(claim, body, idf, mass) {
  * Whether the claim names the cited section's own heading.
  *
  * A claim that spells out the heading it cites is strong evidence the citation was deliberate, and
- * flagging it is noise. Measured at a 13% reduction in findings, removing an entire class where a
- * one-entry section loses to the table that lists it.
+ * flagging it is noise. It removes an entire class where a one-entry section loses to the table that
+ * lists it. No reduction figure is recorded here: the one that used to be is exactly the kind of
+ * derived count this saga treats as an unenforced assertion, and nothing recomputes it.
  */
 export function claimNamesHeading(claim, heading) {
   const tokens = contentWords(heading);
@@ -616,9 +620,14 @@ export function reportSuspects(options = {}) {
   // saga polices. Both reviewers caught it independently.
   const overrides = [];
   const effectiveSpecDirectory = options.specDirectory ?? SPEC_DIRECTORY;
-  const roots = options.roots === undefined ? null : [].concat(options.roots);
-  if (roots !== null && (roots.length !== 1 || roots[0] !== ".")) {
-    overrides.push(`roots=[${roots.join(", ")}]`);
+  // `roots` has no "equal to the default" case. Undefined means the TRACKED set via `git ls-files`;
+  // any defined value means a filesystem walk, which is a different enumerator reaching different
+  // files — measured at 2,550 tracked against 2,558 walked on a clean tree, the extra being ignored
+  // build artefacts. An earlier fix here treated `["."]` as the default and so suppressed the banner
+  // on precisely the `--root=.` invocation this saga opened with. The other two options DO have a
+  // meaningful default, so they are compared by effective value.
+  if (options.roots !== undefined) {
+    overrides.push(`roots=[${[].concat(options.roots).join(", ")}]`);
   }
   if (effectiveSpecDirectory !== SPEC_DIRECTORY) {
     overrides.push(`spec-dir=${options.specDirectory}`);
@@ -687,15 +696,16 @@ export function reportSuspects(options = {}) {
   lines.push(
     "  This is a RANKED REPORT, not a gate. It scores the prose around a citation against every " +
       "section of the document it cites and lists where another section matches better. It NEVER " +
-      "fails on a finding, and its silence proves little. The seeded control above detected " +
-      `${(check.detection * 100).toFixed(1)}% of the mutations it planted in itself. Read that as ` +
-      "SENSITIVITY TO RANDOM RETARGETING and nothing more. It does NOT estimate recall, precision " +
-      "or negative predictive value, because the sample is drawn from citations this same heuristic " +
-      "did not flag — an unlabelled baseline — and because a random repoint can land on a section " +
-      "that supports the claim just as well, so an unknown share of the 'misses' were never wrong. " +
-      "Those two facts leave the figure unlabelled, not merely optimistic: nothing here establishes " +
-      "which direction it errs in, and a figure whose bias direction is unknown cannot be turned " +
-      "into a statement about how much a clean row list proves. SO READ THIS " +
+      "fails on a finding. The seeded control above detected " +
+      `${(check.detection * 100).toFixed(1)}% of the mutations it planted in itself. That is ` +
+      "SENSITIVITY TO RANDOM RETARGETING and nothing else: it estimates neither recall nor " +
+      "precision nor negative predictive value, because the sample is drawn from citations this " +
+      "same heuristic did not flag — an unlabelled baseline — and because a random repoint can land " +
+      "on a section that supports the claim just as well. NEITHER the magnitude nor the direction " +
+      "of that bias is established, so no claim about what a clean row list is worth follows from " +
+      "this number, in either direction. What DOES bear on that is field experience, reported as " +
+      "such: across four review batches, defects were repeatedly found that this tool had not " +
+      "ranked, seven of them in a single batch. SO READ THIS " +
       "AS A FILE ROUTER, NOT A DEFECT DETECTOR. Across four review batches the defects found " +
       "without a row — 7 in one batch alone — were each beside a ranked row, in a file the queue had " +
       "already sent the reviewer to. Citations were authored in cohorts and drifted in cohorts, so a " +

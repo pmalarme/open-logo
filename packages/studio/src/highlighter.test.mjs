@@ -383,7 +383,7 @@ test("every .ol-tok-* rule in web/styles.css meets 4.5:1 contrast against white"
     const ratio = contrastAgainstWhite(found.get(name));
     assert.ok(
       ratio >= 4.5,
-      `.ol-tok-${name} (${found.get(name)}) only has a contrast ratio of ${ratio.toFixed(2)} to 1 against white`,
+      `.ol-tok-${name} (${found.get(name)}) only has ${ratio.toFixed(2)}:1 contrast against white`,
     );
   }
 });

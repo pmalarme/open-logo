@@ -339,7 +339,16 @@ test("the coverage statement names every limit a reader would otherwise assume a
     specRoot: join(TEMP_DIR, CONTRACT),
   }).lines.join("\n");
   assert.match(summary, /RANKED REPORT, not a gate/);
-  assert.match(summary, /its silence proves little/);
+  // Not "silence proves little" — that is a magnitude claim the seeded control cannot support, and
+  // a reviewer showed the stated reasons point in opposite directions. The statement must confine
+  // itself to what the experiment establishes and attribute the rest to field observation.
+  assert.match(summary, /SENSITIVITY TO RANDOM RETARGETING and nothing else/);
+  assert.match(
+    summary,
+    /NEITHER the magnitude nor the direction of that bias is established/,
+  );
+  assert.doesNotMatch(summary, /silence proves/);
+  assert.doesNotMatch(summary, /only about half/);
   assert.match(summary, /property of THIS instrument/);
   assert.match(summary, /cannot tell a WRONG anchor from a LESS SPECIFIC one/);
   assert.match(summary, /never by re-pointing what the tool ranked/);
@@ -630,13 +639,16 @@ test("a scoped run says so, because a narrowed report still reads as authoritati
 
 test("the banner fires on a real override, not on a value that equals the default", () => {
   // Two reviewers independently found that testing "was an option supplied?" made a run with the
-  // PRODUCTION values announce a narrower corpus while producing byte-identical output. A banner
-  // that asserts more than was measured is the same genre of defect as the claims it guards against,
-  // even though it errs toward over-disclosure.
+  // PRODUCTION values announce a narrower corpus while producing byte-identical output.
+  //
+  // The first fix over-corrected: it treated `roots: ["."]` as the default too. It is NOT — an
+  // undefined `roots` reads the tracked set through `git ls-files`, while any defined value walks
+  // the filesystem, and the two reach different files. That suppressed the banner on exactly the
+  // `--root=.` invocation this saga opened with, and the test pinned it green. So the pass-through
+  // case is tested with `roots` LEFT UNDEFINED, which is the only way it can be the default.
   writeDoc();
   write("cites.md", `See ${CONTRACT}/grammar.md#reduce for the empty case.\n`);
   const passthrough = reportSuspects({
-    roots: ["."],
     specDirectory: "spec",
     specRoot: "spec",
   }).lines.join("\n");
@@ -645,6 +657,13 @@ test("the banner fires on a real override, not on a value that equals the defaul
     /SCOPED RUN/,
     "options equal to the defaults are not a scope",
   );
+  // And a root of "." IS an override, because it changes which enumerator runs.
+  const walked = reportSuspects({
+    roots: [TEMP_DIR],
+    specDirectory: CONTRACT,
+    specRoot: join(TEMP_DIR, CONTRACT),
+  }).lines.join("\n");
+  assert.match(walked, /SCOPED RUN \(roots=\[/);
 });
 
 test("the CLI never fails BECAUSE OF a finding — only the tool's checks on itself can fail", () => {

@@ -67,9 +67,13 @@ the measured churn and the rejected alternatives for *why* an anchor.
   clothing: it names a position, not a section, and drifts exactly the way a line number does.
   Rejected on the same terms.
 - **Never write a bare `:<number>` in a file that mentions a `spec/` document** — not in prose, not
-  in a comment, not as an incidental figure that was never meant as a citation. The gate reads such
-  a number as a line claim against a `spec/` document, so one you never intended as a citation is
-  caught by the rule above. Spell it in words, or restructure so that a colon and digits are not
+  in a comment, **not inside a string literal in live code**, and not as an incidental figure that
+  was never meant as a citation. There is no prose carve-out: the gate enumerates the form wherever
+  it appears, and a bare number attributed to a `spec/` document by an earlier citation in the same
+  file is read as a line claim. What it will *not* read as a citation is a colon preceded by a word
+  character, a digit, a `/`, or the closer of an interpolation or index — so `{a:1}`, `http://host:80`
+  and `` `${ratio}:1` `` are safe by construction. Spell it in words, or restructure so that a colon
+  and digits are not
   adjacent — a literal line number is never illustrative here.
 
 **What the gate proves.** `npm run spec-citations` **resolves** anchors (#1181): it reads the

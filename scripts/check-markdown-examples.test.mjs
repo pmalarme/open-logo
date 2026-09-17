@@ -1325,6 +1325,14 @@ test('SELF-TEST: the gate fails the set_shape "bee" regression that motivated is
   // The document/line/column triple below is this harness's DIAGNOSTIC OUTPUT format, not a
   // citation, so it is assembled from parts: written contiguously it has the exact shape of a line
   // citation and the citation gate would — correctly, on the evidence available to it — reject it.
+  //
+  // Both halves are load-bearing, measured rather than assumed. Restoring either one alone still
+  // trips the gate: the document-and-line half supplies the mention, and that mention is what
+  // attributes the bare column number beside it. It also explains why a contiguous bare number two
+  // assertions below survives untouched — with no document mention left in this file, a bare number
+  // attributes to nothing and is not a citation. That is the attribution rule working, not an
+  // inconsistency. (This comment deliberately spells those numbers out: written as digits after a
+  // colon they would themselves be read as citations, which is how it was caught.)
   const diagnosticAt = ["turtles-and-sprites\\.md", "4"].join(":");
   assert.match(
     result.lines[0],

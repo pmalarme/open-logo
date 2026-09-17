@@ -58,14 +58,13 @@
  * mentioning a *different* spec document, and only the earlier explicit citation says which document
  * that bare reference belongs to.
  *
- * In JavaScript and TypeScript sources a bare `:N` counts only inside a comment line. That is a
- * structural rule, not a tolerance: a formatted contrast ratio, whose template literal ends with a
- * closing brace immediately before a colon and a digit, is live code. It is a **bound, not a proof
- * of exhaustiveness** — a bare `:N` CAN be written in an expression. {@link isProseLine}'s tests pin
- * the ratio shape by asserting on that exact literal. The *prefix-less* line form carries no such
- * bound: it names its own document, so it is enumerated in code as well as prose (see
- * {@link PREFIX_LESS_REFERENCE}). Two citations had been written inside `test(…)` titles, and this
- * is what now reaches them.
+ * In JavaScript and TypeScript sources a bare `:N` is enumerated **wherever it appears**, including
+ * inside a string literal. What keeps that safe without knowing the language is not position but two
+ * structural rules: {@link BARE_REFERENCE}'s lookbehind, which excludes a colon preceded by a word
+ * character, a digit, a `/`, or the closer of an interpolation or index — so `{a:1}`, `x?1:2`,
+ * `http://host:80` and `` `${ratio}:1` `` are never offered as citations — and **attribution**, which
+ * only resolves a bare token against a citation written ABOVE it in the same file. An earlier
+ * version required a comment line as well, and that hid four real citations inside template strings.
  *
  * ## No automatic tolerance, and nowhere to record an exception
  *
@@ -143,16 +142,14 @@
  *
  * ## Known blind spots, stated rather than hidden
  *
- * Every citation is found by the literal `<spec-dir>/` prefix **except** the prefix-less line form,
- * which {@link PREFIX_LESS_REFERENCE} enumerates and the gate rejects like any other line claim. A
- * relatively-written **anchor** is still invisible: `docs/adr/0029-…md` records that blind spot for
- * the line form, and the anchor form inherits it. That asymmetry is deliberate rather than an
- * oversight, and the corpus is why. Measured when the hole was closed, every prefix-less *line*
- * reference sat outside `spec/`, while prefix-less *anchors* sat almost entirely inside it — one
- * specification document linking to a sibling relatively, which is the normal and correct way to
- * write that link. Rejecting the line form there costs nothing; resolving the anchor form would mean
- * this gate adjudicating links inside a maintainer-owned directory it must never edit. Write the
- * prefix anyway: outside `spec/`, an unprefixed anchor is checked by nothing at all.
+ * Every citation is found by the literal `<spec-dir>/` prefix **except** the prefix-less forms, which
+ * {@link PREFIX_LESS_REFERENCE} enumerates — the line form rejected like any other line claim, the
+ * anchor form reported as unresolvable — both wherever they appear, in prose and in code alike. A
+ * relative path carrying no `<spec-dir>/` segment at all is still invisible: `docs/adr/0029-…md`
+ * records that blind spot. Inside the specification directory a relative anchor is the normal way
+ * one document links to a sibling, so it is deliberately left alone rather than adjudicated by a
+ * gate that must never edit a maintainer-owned directory. Write the prefix anyway: outside `spec/`,
+ * an unprefixed anchor is checked by nothing at all.
  *
  * `roots` narrows the scan to a filesystem walk instead of the tracked set, and narrowing what an
  * instrument looks at while its report still reads as authoritative is the recurring defect of this
@@ -224,7 +221,7 @@ const UNWALKED_DIRECTORIES = new Set([
   "coverage",
 ]);
 
-/** Extensions whose bare `:N` only counts inside a comment line (see the module note). */
+/** Extensions whose lines are treated as prose only when they are comments (see {@link isProseLine}). */
 const COMMENT_ONLY_EXTENSIONS = [".ts", ".mts", ".cts", ".js", ".mjs", ".cjs"];
 
 /**
@@ -411,16 +408,13 @@ export function proseRuns(path, lines) {
 }
 
 /**
- * Whether `line` in a file named `path` is **prose** — the only place a citation is ever written.
+ * Whether `line` in a file named `path` is **prose**.
  *
- * This is a structural rule, not a tolerance. In JavaScript and TypeScript a citation lives in a
- * comment, so a formatted contrast ratio — a template literal closing with a brace immediately before
- * a colon and a digit — is never offered as one; in a `.logo` fixture a citation lives in a `#`
- * header. Everywhere else — markdown, JSON fixture prose, YAML — every line counts.
- *
- * It is also what makes a **prose run** meaningful in a source file: grouping merely contiguous
- * non-blank lines would swallow a whole blank-line-free function body, pairing a production quoted in
- * one comment with a citation written in another twenty lines away.
+ * This no longer gates whether a citation is enumerated — every form is now found in code as well as
+ * prose. What it still does is bound a **prose run**: grouping merely contiguous non-blank lines in
+ * a source file would swallow a whole blank-line-free function body, pairing a production quoted in
+ * one comment with a citation written in another twenty lines away. So it defines where a *claim*
+ * begins and ends, not where a citation may be written.
  */
 export function isProseLine(path, line) {
   const trimmed = line.trim();
@@ -505,12 +499,20 @@ export const SLUG_CHARACTER = "[\\p{L}\\p{N}\\p{M}\\p{Pc}\\p{So}-]";
  * it when the document is one the specification publishes. The remedy is to name fixtures after
  * documents the specification does **not** publish, which this gate's own suite now does.
  *
- * The unprefixed **anchor** half keeps the prose-line guard, because it is a different rule: it
- * governs how a citation is *written*, and a fragment-shaped token inside code is not a citation
- * anybody wrote. Reporting one would invent a citation, which is the mirror image of missing one.
+ * The unprefixed **anchor** half carries no prose guard either. Both halves are governed by
+ * attribution, not position.
+ *
+ * **The fragment class is `SLUG_CHARACTER`, the same contract the prefixed pattern uses, and `*`
+ * rather than `+`.** It was hand-written as a narrower class and a `+`, which meant `x.md#ⓐ` was
+ * invisible while `<dir>/x.md#ⓐ` was recognised, and an empty `x.md#` was invisible in both
+ * spellings — so the same citation was enforced or ignored depending on how it was written. Deriving
+ * both from one exported constant is what stops the two spellings drifting apart again; it is the
+ * same reason the slug alphabet is exported at all.
  */
-const PREFIX_LESS_REFERENCE =
-  /(?<![A-Za-z0-9._/#-])([A-Za-z][A-Za-z0-9-]*\.md)(?::(\d+)(?:-(\d+))?((?:,\d+(?:-\d+)?)+)?|#([\p{L}\p{N}\p{M}\p{Pc}-]+))/gu;
+const PREFIX_LESS_REFERENCE = new RegExp(
+  `(?<![A-Za-z0-9._/#-])([A-Za-z][A-Za-z0-9-]*\\.md)(?::(\\d+)(?:-(\\d+))?((?:,\\d+(?:-\\d+)?)+)?|#(${SLUG_CHARACTER}*))`,
+  "gu",
+);
 
 function mentionPattern(specDirectory) {
   const token = specDirectory.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -1103,12 +1105,23 @@ export function rejoinedFragment(fragment, nextLine, headings) {
 /**
  * A bare `:N`, `:N-M`, or either followed by a comma-appended list of further lines and ranges.
  *
- * The lookbehind is what makes the sweep safe on source code without knowing the language: `{a:1}`,
+ * The lookbehind is what keeps the sweep safe on source code without knowing the language: `{a:1}`,
  * `x?1:2`, and `http://host:80` are all preceded by a word character, a digit, or a `/`, so none of
  * them is ever offered as a citation in the first place.
+ *
+ * **`}` and `]` are in that class for a measured reason.** While the prefix-less enumeration still
+ * required a prose line, this lookbehind only had to survive comments. Removing that guard made it
+ * the *only* protection for live code, and a reviewer measured seven plausible shapes it did not
+ * survive — every one of them an interpolation, where the character before the colon is the closing
+ * brace of a template substitution rather than the digit or letter the class already covered:
+ * `` `ws://${host}:8080/socket` ``, `` `${hours}:00` ``, `` `${ratio}:1` ``. The un-interpolated
+ * spellings in the sentence above were safe; their interpolated twins were not, which is why the
+ * rationale had to be re-measured rather than re-read. Adding the two closers restores the property
+ * the sentence claims, and it is a **structural** rule, not a list: a value substituted into a
+ * string is not a citation, whatever it holds.
  */
 const BARE_REFERENCE =
-  /(?<![A-Za-z0-9._\-/]):(\d+)(?:-(\d+))?((?:,\d+(?:-\d+)?)+)?/g;
+  /(?<![A-Za-z0-9._\-/\]}]):(\d+)(?:-(\d+))?((?:,\d+(?:-\d+)?)+)?/g;
 
 /**
  * The extra line specs in a comma-appended tail such as the `,139` of a `<file>.md:119-129,139`
@@ -1214,6 +1227,8 @@ export function collectCitations(
         start: mention.start,
         end: mention.stop,
         line,
+        // Where the citation sits, so a bare token can only attribute to one written ABOVE it.
+        index: mention.index,
         form: "explicit",
       });
       for (const extra of expandCommaTail(match[4])) {
@@ -1223,6 +1238,7 @@ export function collectCitations(
           start: extra.start,
           end: extra.end,
           line,
+          index: mention.index,
           form: "comma-tail",
         });
       }
@@ -1282,6 +1298,7 @@ export function collectCitations(
         end:
           bareDocument[3] === undefined ? undefined : Number(bareDocument[3]),
         line,
+        index,
         form: "prefix-less",
         // The written token, kept so a rejection can quote back exactly what the author typed
         // rather than a reconstruction carrying a prefix they never wrote.
@@ -1294,6 +1311,7 @@ export function collectCitations(
           start: extra.start,
           end: extra.end,
           line,
+          index,
           form: "comma-tail",
         });
       }
@@ -1306,19 +1324,33 @@ export function collectCitations(
     return { citations, anchors, unattributed, unprefixedAnchors };
   }
 
-  // Which file an earlier explicit citation gave each exact line spec, so a bare back-reference
+  // Which file an EARLIER explicit citation gave each exact line spec, so a bare back-reference
   // sitting four lines below a mention of a *different* document still resolves to the one that
   // introduced it.
+  //
+  // Each entry records the position it was introduced at. A reviewer showed the map was previously
+  // built from every citation in the file before any bare token was resolved, so a citation written
+  // BELOW a bare token could attribute it — the gate then named a document that had not yet appeared
+  // when the author wrote the colon. That contradicted the rule stated in this gate's own coverage
+  // text, and "attribution" is the whole justification for enumerating bare tokens in live code, so
+  // it has to be the boundary that is actually implemented.
   const backReferences = new Map();
   for (const citation of citations) {
     const key = `${citation.start}-${citation.end ?? ""}`;
     const known = backReferences.get(key);
+    const at = citation.index ?? 0;
+    if (known === undefined) {
+      backReferences.set(key, { file: citation.file, at });
+      continue;
+    }
     // Two documents cited at the same line spec make a later bare reference genuinely ambiguous;
-    // `null` records that so it falls through to nearest-preceding attribution rather than guessing.
-    backReferences.set(
-      key,
-      known === undefined || known === citation.file ? citation.file : null,
-    );
+    // `file: null` records that so it falls through to nearest-preceding attribution rather than
+    // guessing. The earliest position is kept either way, because that is what a bare token below
+    // them is allowed to see.
+    backReferences.set(key, {
+      file: known.file === citation.file ? citation.file : null,
+      at: Math.min(known.at, at),
+    });
   }
 
   BARE_REFERENCE.lastIndex = 0;
@@ -1329,14 +1361,14 @@ export function collectCitations(
       (mention) => index >= mention.index && index < mention.end,
     );
     const line = lineAt(index);
-    // No prose guard. A bare colon-and-number is only ever enumerated when an earlier citation in
-    // the same file already named a document for it to attribute to, and that attribution is the
-    // real filter — it is what separates a citation from a ratio or a time. Requiring a prose line
-    // on top of it hid four live citations inside template strings, which is the same "documented
-    // therefore acceptable" hole the prefix-less form had. The two shapes attribution alone could
-    // not separate — a contrast ratio rendered with a trailing `${n}` then a colon and a digit, and
-    // a regex matching this gate's own diagnostic output — were reworded at their sites rather than
-    // excused here, because a rule with no exceptions file has nowhere to put an excuse.
+    // No prose guard. A bare colon-and-number is only ever enumerated when a citation EARLIER IN
+    // THE FILE already named a document for it to attribute to, and that attribution is the real
+    // filter — it is what separates a citation from a ratio or a time. Requiring a prose line on top
+    // of it hid four live citations inside template strings, which is the same "documented therefore
+    // acceptable" hole the prefix-less form had. The shapes attribution alone cannot separate are
+    // handled structurally by {@link BARE_REFERENCE}'s lookbehind, which excludes a value
+    // interpolated into a string, rather than by an exception — a rule with no exceptions file has
+    // nowhere to put one.
     if (inside) {
       bare = BARE_REFERENCE.exec(text);
       continue;
@@ -1344,7 +1376,10 @@ export function collectCitations(
     const start = Number(bare[1]);
     const end = bare[2] === undefined ? undefined : Number(bare[2]);
     const viaBackReference = backReferences.get(`${start}-${end ?? ""}`);
-    let file = viaBackReference ?? null;
+    let file =
+      viaBackReference !== undefined && viaBackReference.at < index
+        ? viaBackReference.file
+        : null;
     let form = "back-reference";
     if (file === null) {
       let nearest = null;
@@ -2108,7 +2143,10 @@ export function runSpecCitationsGate({
       "and is never reported. A relative path that still carries the spec-directory segment " +
       "(`../../<dir>/<file>.md#y`) IS matched and resolved; one with no such segment is not seen at " +
       "all. So the rejection above is exhaustive over every spelling this gate can name, in prose " +
-      "and in code alike. " +
+      "and in code alike — but a citation ASSEMBLED at runtime, such as joining a document name and " +
+      "a line number into one string, is not a spelling it can name, and a reviewer demonstrated " +
+      "that bypass in-tree. There is no exception manifest, and that is not the same as there " +
+      "being no way round the rule. " +
       "Headings come from a GFM " +
       "parse and slugs from github-slugger (ADR-0035), so block structure and rendered text are no longer " +
       "approximated; where GitHub can still resolve something this reader does not — an entity reference " +

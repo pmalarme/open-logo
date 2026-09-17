@@ -282,6 +282,15 @@ export function redundantSpan(text, start, end) {
  * in a period, yet deleting the second reference removes the object of "for the counterexample".
  * When in doubt the anchor is repeated, because a repeated anchor is verbose and a deleted word is
  * wrong.
+ *
+ * **The visible consequence is a repeated anchor on one line, and it is deliberate.** A reviewer
+ * noted that this rule still emits `` `…#debug states the first half, …#debug the second` `` and
+ * that no gate can see it. That is the intended trade, not an escaped defect: the alternative
+ * deletes "the second"'s referent. It is a different thing from the pure duplicates that were
+ * removed from `packages/` by hand — those repeated an anchor with **no** referring expression
+ * between them, so nothing was load-bearing and the repetition carried no meaning. The test for
+ * "may this duplicate go?" is whether the words between the two citations still mean anything
+ * without the second, and only a human can answer it.
  */
 export function isListElement(text, span) {
   if (!span.absorbedComma) {
@@ -301,8 +310,16 @@ export function applyEdits(text, edits) {
 
 /**
  * A **prefix-less** reference to a specification document, the one line-form spelling written
- * without the `<spec-dir>/` prefix. Mirrors the gate's own pattern, so the two sweeps enumerate the
- * same corpus and {@link planFile}'s cross-check stays meaningful.
+ * without the `<spec-dir>/` prefix.
+ *
+ * **This no longer mirrors the gate's enumeration, and that is deliberate.** The gate now finds this
+ * form wherever it appears, including inside a string literal in live code; this module still
+ * restricts itself to prose lines. The asymmetry is safe only because the sweep is **complete** —
+ * there is no corpus left for this module to convert, so the strictly narrower set it would enumerate
+ * is empty in practice, and {@link planFile}'s cross-check runs over files that contain no line form
+ * at all. If this converter is ever pointed at a fresh corpus, align it with the gate first: a
+ * converter that silently declines what the gate rejects would leave exactly the sites a human then
+ * has to find by hand.
  */
 const PREFIX_LESS =
   /(?<![A-Za-z0-9._/#-])([A-Za-z][A-Za-z0-9-]*\.md):(\d+)(?:-(\d+))?((?:,\d+(?:-\d+)?)+)?/g;
