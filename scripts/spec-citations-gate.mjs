@@ -61,10 +61,12 @@
  * In JavaScript and TypeScript sources a bare `:N` is enumerated **wherever it appears**, including
  * inside a string literal. What keeps that safe without knowing the language is not position but two
  * structural rules: {@link BARE_REFERENCE}'s lookbehind, which excludes a colon preceded by a word
- * character, a digit, a `/`, or the closer of an interpolation or index — so `{a:1}`, `x?1:2`,
- * `http://host:80` and `` `${ratio}:1` `` are never offered as citations — and **attribution**, which
- * only resolves a bare token against a citation written ABOVE it in the same file. An earlier
- * version required a comment line as well, and that hid four real citations inside template strings.
+ * character, a digit, a `/`, or the closer of a template substitution — so an object literal, a
+ * tight ternary, a URL port and every interpolated form are never offered as citations — and
+ * **attribution**, which only resolves a bare token against a citation written ABOVE it in the same
+ * file. An earlier version required a comment line as well, and that hid four real citations inside
+ * template strings. Read {@link BARE_REFERENCE}'s own note for what the lookbehind does NOT exclude:
+ * the list there is illustrative, and an index closer is deliberately not among the exclusions.
  *
  * ## No automatic tolerance, and nowhere to record an exception
  *
@@ -1272,12 +1274,14 @@ export function collectCitations(
   // reference and no prefixed mention at all — which is precisely how 60 line references stayed
   // invisible while the gate reported zero line citations.
   //
-  // The ANCHOR half is enumerated only OUTSIDE the specification directory. Inside it, one document
-  // linking to a sibling relatively is the normal and correct way to write that link, and 71 such
-  // links exist; outside it, an unprefixed anchor is checked by nothing at all, which is the blind
-  // spot ADR-0036's "only accepted form" sentence forbids. Ambiguous basenames never reach here —
-  // {@link unambiguousSpecDocuments} has already dropped `README.md` and anything else the tree
-  // publishes twice — so rejecting the form cannot collide with a link to a neighbour.
+  // The ANCHOR half is REPORTED only outside the specification directory. Inside it, one document
+  // linking to a sibling relatively is the normal and correct way to write that link; outside it, an
+  // unprefixed anchor is checked by nothing at all, which is the blind spot ADR-0036's "only
+  // accepted form" sentence forbids. Reporting and enumeration are different things: both are
+  // enumerated, and every attributable prefix-less form — reported or not — is recorded as a mention,
+  // because it names a document that a following bare token may attribute to. Ambiguous basenames
+  // never reach here — {@link unambiguousSpecDocuments} has already dropped `README.md` and anything
+  // else the tree publishes twice — so rejecting the form cannot collide with a link to a neighbour.
   // Whether the CITING file lives inside the specification directory. Tested as a path segment
   // rather than a prefix, because a rooted run reports absolute paths — the production scan yields
   // repo-relative ones, so a prefix test passed in CI and silently failed everywhere else, which is
@@ -1301,19 +1305,24 @@ export function collectCitations(
     // anybody wrote" was false. What keeps both honest is the attribution rule above: the document
     // must be one the specification publishes AND its basename must be unambiguous repo-wide, so an
     // incidental README fragment is still left alone.
+    // Every attributable prefix-less form is recorded as a MENTION, whatever its reporting
+    // disposition. Naming a document and being reported for it are different things: a permitted
+    // sibling anchor is not reported, an unprefixed anchor outside the directory is, and a line form
+    // is rejected — but all three tell a reader which document the next bare token belongs to, and a
+    // reviewer showed that omitting the ones that are not reported made a following bare token
+    // attribute to the wrong document or vanish entirely.
+    if (attributable) {
+      mentions.push({
+        index: bareDocument.index,
+        end: bareDocument.index + bareDocument[0].length,
+        file: bareDocument[1],
+        line,
+      });
+    }
     if (attributable && bareDocument[5] !== undefined) {
-      if (insideSpecDirectory) {
-        // A relative sibling anchor is the normal way one specification document links to another,
-        // so it is not reported. It IS still a mention: it names a document, and a bare line claim
-        // written below it attributes to that document exactly as it would to a prefixed citation.
-        // Omitting it let a bare claim after such a link go unscanned entirely.
-        mentions.push({
-          index: bareDocument.index,
-          end: bareDocument.index + bareDocument[0].length,
-          file: bareDocument[1],
-          line,
-        });
-      } else {
+      // A relative sibling anchor inside the specification directory is the normal way one document
+      // links to another, so it is not reported — only recorded above.
+      if (!insideSpecDirectory) {
         unprefixedAnchors.push({
           specDirectory,
           file: bareDocument[1],
@@ -1417,12 +1426,20 @@ export function collectCitations(
     let file = viaBackReference ?? null;
     let form = "back-reference";
     if (file === null) {
+      // Selected by POSITION, not by insertion order. Mentions are collected in two passes — the
+      // prefixed sweep, then the prefix-less one — so the array is not in document order, and a
+      // loop that breaks at the first mention past the token stopped early and attributed to a
+      // document the author had not most recently named. That is the round-4 temporal invariant
+      // failing through a path added in round 5: the same mistake reached by a different route,
+      // which is why this now depends on nothing but the offsets.
       let nearest = null;
       for (const mention of mentions) {
         if (mention.end > index) {
-          break;
+          continue;
         }
-        nearest = mention;
+        if (nearest === null || mention.end > nearest.end) {
+          nearest = mention;
+        }
       }
       file = nearest === null ? null : nearest.file;
       form = "context-reference";

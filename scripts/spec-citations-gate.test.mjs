@@ -243,6 +243,60 @@ test("a line spec two documents both cite is ambiguous, so it falls back to cont
   assert.equal(last.file, "other.md");
 });
 
+test("a mention is selected by POSITION, so a later one never wins", () => {
+  // Mentions are collected in two passes — prefixed, then prefix-less — so the array is not in
+  // document order. A loop that broke at the first mention past the token stopped early and
+  // attributed to a document the author had not most recently named. That is the round-4 temporal
+  // invariant failing through a path added a round later: the same mistake by a different route.
+  const mixed = collectCitations(
+    `${CONTRACT}/current.md`,
+    [
+      `${CONTRACT}/x.md#old`,
+      "a.md#right",
+      ":10",
+      `${CONTRACT}/b.md#future`,
+    ].join("\n"),
+    CONTRACT,
+    new Set(["a.md", "b.md", "x.md"]),
+  );
+  const resolved = mixed.citations.find((citation) => citation.line === 3);
+  assert.equal(resolved.file, "a.md");
+});
+
+test("every attributable prefix-less form is a mention, whatever its disposition", () => {
+  // Naming a document and being REPORTED for it are different things. A permitted sibling anchor is
+  // not reported, an unprefixed anchor outside the directory is, and a line form is rejected — but
+  // all three tell a reader which document the next bare token belongs to.
+  //
+  // (a) A prefix-less LINE citation attributes the bare token below it.
+  const afterLine = collectCitations(
+    `${CONTRACT}/current.md`,
+    "a.md:7\n:10",
+    CONTRACT,
+    new Set(["a.md"]),
+  );
+  assert.deepEqual(
+    afterLine.citations.map((citation) => `${citation.file}:${citation.start}`),
+    ["a.md:7", "a.md:10"],
+  );
+  assert.deepEqual(afterLine.unattributed, []);
+
+  // (b) OUTSIDE the specification directory an unprefixed anchor is reported AND attributes, rather
+  // than being reported while the bare token below it vanishes from every bucket.
+  const outside = collectCitations(
+    "packages/x.ts",
+    "// a.md#heading\n// :10",
+    CONTRACT,
+    new Set(["a.md"]),
+  );
+  assert.equal(outside.unprefixedAnchors.length, 1);
+  assert.deepEqual(
+    outside.citations.map((citation) => `${citation.file}:${citation.start}`),
+    ["a.md:10"],
+  );
+  assert.deepEqual(outside.unattributed, []);
+});
+
 test("attribution is judged only among citations ABOVE the bare token", () => {
   // Two temporal defects, found one round apart, with the same root: a decision about what the
   // author could see, made from text the author had not written yet.
