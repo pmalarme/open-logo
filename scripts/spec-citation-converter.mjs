@@ -540,6 +540,34 @@ export function planFile(
           });
           continue;
         }
+        // **Refuse what the gate cannot attribute to ONE document.** The gate stopped choosing when
+        // the attribution machinery was deleted: it now lists every document a file names, because
+        // choosing produced four consecutive regressions and never affected its verdict. This module
+        // is the other consumer, and for it the difference is not cosmetic — it REWRITES source
+        // files. Taking the first candidate would convert a bare reference to a confidently wrong
+        // anchor and report no problem: a silent wrong answer, the one failure direction this
+        // tooling must never have. Two reviewers reproduced exactly that. A converter with nothing
+        // to attribute to must stop, which is what the branch above already does for the empty case.
+        // Every bare citation the gate produces carries `candidates`, so there is no fallback here:
+        // a missing field would be a contract break worth crashing on rather than guessing past.
+        if (attributed.candidates.length !== 1) {
+          // Count the site before refusing. This module DID enumerate it — it is declining to
+          // convert it — and skipping the counter would make the cross-check against the gate
+          // report an enumeration disagreement, dressing a deliberate refusal as a sweep defect.
+          seenSites +=
+            1 +
+            expandTail(token.tail).filter((spec) => spec.gateVisible).length;
+          problems.push({
+            kind: "unattributed-bare",
+            site: `${path}:${number}`,
+            detail:
+              `\`:${token.start}\` sits in a file naming ` +
+              `${attributed.candidates.join(", ")}, so no single document is determined — ` +
+              "convert it by hand",
+            context: lineText.trim(),
+          });
+          continue;
+        }
         file = attributed.file;
         specs = [
           { start: token.start, end: token.end, gateVisible: true },

@@ -243,24 +243,27 @@ test("a file naming exactly one document still gets a fully specific rejection",
   assert.equal(bare.file, "syntax-rules.md");
 });
 
-test("a mention is selected by POSITION, so a later one never wins", () => {
-  // Mentions are collected in two passes — prefixed, then prefix-less — so the array is not in
-  // document order. A loop that broke at the first mention past the token stopped early and
-  // attributed to a document the author had not most recently named. That is the round-4 temporal
-  // invariant failing through a path added a round later: the same mistake by a different route.
+test("a mixed-order file yields the same candidate set as any other ordering", () => {
+  // This used to assert "a later mention never wins", which was a property of the nearest-mention
+  // selection that no longer exists — and a reviewer showed the fixture passed only because `a.md`
+  // sorts before `b.md`, so it would not have caught a position regression anyway. A test that
+  // passes coincidentally is worse than no test.
+  //
+  // What it pins now is the surviving property, with names chosen so alphabetical and positional
+  // order disagree: every document the file names is listed, whatever order they appear in.
   const mixed = collectCitations(
     `${CONTRACT}/current.md`,
     [
-      `${CONTRACT}/x.md#old`,
-      "a.md#right",
+      `${CONTRACT}/zeta.md#old`,
+      "mid.md#right",
       ":10",
-      `${CONTRACT}/b.md#future`,
+      `${CONTRACT}/alpha.md#future`,
     ].join("\n"),
     CONTRACT,
-    new Set(["a.md", "b.md", "x.md"]),
+    new Set(["alpha.md", "mid.md", "zeta.md"]),
   );
   const resolved = mixed.citations.find((citation) => citation.line === 3);
-  assert.equal(resolved.file, "a.md");
+  assert.deepEqual(resolved.candidates, ["alpha.md", "mid.md", "zeta.md"]);
 });
 
 test("every attributable prefix-less form is a mention, whatever its disposition", () => {
@@ -296,16 +299,16 @@ test("every attributable prefix-less form is a mention, whatever its disposition
   );
 });
 
-test("ORDER NO LONGER MATTERS, which is why the temporal defects cannot recur", () => {
-  // Four rounds of defects lived here, each a different way of deciding "what could the author see":
-  // a citation below the token attributing it; a later conflicting citation poisoning an earlier
-  // unambiguous one; a nearest-mention loop that depended on insertion order; an inferred citation
-  // promoted into a back-reference source because it carried no position.
+test("attribution is CANONICAL over the file: relative mention order cannot change it", () => {
+  // Narrower than the name it replaced. "ORDER NO LONGER MATTERS" was too broad and a reviewer was
+  // right to say so: `collectCitations` output still depends on position in other ways — a token
+  // lexically inside a mention is a different form, and the quotation failure joins sections in
+  // anchor order. A test name is an assertion like any other, and an overbroad one is a false claim
+  // in the place people trust most.
   //
-  // The gate no longer asks the question. A bare token in a file naming any specification document
-  // is rejected, and the rejection names every document the file mentions. These two inputs differ
-  // only in ORDER, and they now produce the same citation — which is what makes the whole class
-  // unreachable rather than fixed.
+  // What IS true, and is what the deletion bought: relative mention order cannot affect a bare
+  // token's candidate set or its verdict, because the candidates are a sorted Set over the whole
+  // file and nothing downstream consults position.
   const before = collectCitations(
     "a.ts",
     [
@@ -330,18 +333,80 @@ test("ORDER NO LONGER MATTERS, which is why the temporal defects cannot recur", 
   assert.equal(before.citations.length, after.citations.length);
 
   // And a file naming several documents lists them, in a stable order, wherever the token sits.
+  // Asserted with names whose ALPHABETICAL order differs from their positional order, so the test
+  // cannot pass by coincidence the way an `a.md`/`b.md` fixture would — a reviewer showed the
+  // previous fixture would not have caught a position regression at all.
   const several = collectCitations(
     "a.ts",
     [
-      `// ${CONTRACT}/a.md:10`,
-      `// ${CONTRACT}/c.md#context`,
+      `// ${CONTRACT}/zeta.md:10`,
+      `// ${CONTRACT}/mid.md#context`,
       "// :10",
-      `// ${CONTRACT}/b.md:10`,
+      `// ${CONTRACT}/alpha.md:10`,
     ].join("\n"),
     CONTRACT,
-    new Set(["a.md", "b.md", "c.md"]),
+    new Set(["alpha.md", "mid.md", "zeta.md"]),
   );
-  assert.deepEqual(bareOf(several).candidates, ["a.md", "b.md", "c.md"]);
+  assert.deepEqual(bareOf(several).candidates, [
+    "alpha.md",
+    "mid.md",
+    "zeta.md",
+  ]);
+});
+
+test("THE RENDERED MESSAGE lists candidates, and never invents a citation the author did not write", () => {
+  // The gap that hid a real defect for a whole round: every test asserted `bare.candidates` as an
+  // internal field, and none asserted what a contributor actually reads. The enumerator stopped
+  // choosing while the reporting layer went on choosing — ALPHABETICALLY — so the gate quoted back
+  // `<dir>/<first>.md:4`, a citation nobody wrote, and pointed at that document's section. Wrong
+  // remediation, not vague remediation. Three reviewers caught it independently.
+  //
+  // 100% coverage cannot catch this: `candidates` was assigned on a covered line and never read.
+  // Dead DATA is invisible to an instrument that measures executed code.
+  writeGrammar();
+  write(`${CONTRACT}/zeta.md`, "# Zeta\n\n## Other section\n\ntext\n");
+  write(
+    "multi.ts",
+    [
+      `// ${CONTRACT}/zeta.md:4 establishes the ruling.`,
+      `// ${CONTRACT}/syntax-rules.md#ebnf-notation discusses something else.`,
+      "// The :4 ruling is the one above.",
+    ].join("\n"),
+  );
+  const message = runOverTemp().lines.join("\n");
+  // Quoted back exactly as written…
+  assert.match(message, /multi\.ts:3: :4 names a LINE/);
+  // …both documents listed, in a stable order…
+  assert.match(
+    message,
+    /this file names contract\/syntax-rules\.md, contract\/zeta\.md/,
+  );
+  // …and NO section suggested, because choosing one would be inventing an answer.
+  assert.doesNotMatch(message, /multi\.ts:3.*#other-section/);
+  // And the alphabetically-first document is not presented as the citation's own.
+  assert.doesNotMatch(message, /multi\.ts:3: contract\/syntax-rules\.md:4/);
+});
+
+test("a bare token in a SINGLE-document file keeps its fully specific remediation", () => {
+  // 70% of citing files name exactly one document, so listing costs those nothing: one candidate
+  // means the gate still names the document and the exact section to write.
+  writeGrammar();
+  write(
+    "single.ts",
+    [
+      `// ${CONTRACT}/syntax-rules.md:4 establishes the ruling.`,
+      "// The :4 ruling is the one above.",
+    ].join("\n"),
+  );
+  const message = runOverTemp().lines.join("\n");
+  assert.match(
+    message,
+    /single\.ts:2: contract\/syntax-rules\.md:4 names a LINE/,
+  );
+  assert.match(
+    message,
+    /Cite the section instead — contract\/syntax-rules\.md#/,
+  );
 });
 
 test("a permitted sibling anchor inside the spec directory still attributes", () => {

@@ -750,6 +750,45 @@ test("a bare `#` names no fragment, so it seeds nothing and blocks no later anch
   );
 });
 
+test("a bare reference in a MULTI-DOCUMENT file is refused, never rewritten to a guess", () => {
+  // The most serious defect of this saga's review, and the only one whose failure direction was a
+  // SILENT WRONG ANSWER rather than a loud one.
+  //
+  // When the gate stopped choosing a document for a bare token — because choosing produced four
+  // consecutive regressions and never changed its verdict — it began reporting every document a
+  // file names. This module is the gate's other consumer, and for it the difference is not
+  // cosmetic: `--write` rewrites source files. Taking the first candidate converted a bare
+  // reference to a confidently wrong anchor and reported `problems: 0`. Two reviewers reproduced
+  // the same wrong rewrite independently.
+  //
+  // A converter cannot list candidates — it must emit one anchor — so the only honest option is to
+  // refuse. Deleting attribution was right for the gate and impossible for the converter, and that
+  // asymmetry is the finding: a measurement taken over one consumer said nothing about the other.
+  const { plan, text } = convert(
+    [
+      "// contract/syntax-rules.md:4 establishes the ruling.",
+      "// contract/other.md#elsewhere discusses something else.",
+      "// The :4,9 ruling is the one above.",
+      "",
+    ].join("\n"),
+  );
+  assert.deepEqual(
+    plan.problems.map((problem) => problem.kind),
+    ["unattributed-bare"],
+  );
+  assert.match(plan.problems[0].detail, /no single document is determined/);
+  // And the line is left exactly as written — a refusal that still rewrote would be the defect.
+  assert.match(text, /\/\/ The :4,9 ruling is the one above\./);
+  // The comma tail is counted as seen even though it is refused, so the cross-check against the
+  // gate does not dress a deliberate refusal as an enumeration disagreement.
+  assert.deepEqual(
+    plan.problems.filter(
+      (problem) => problem.kind === "enumeration-disagreement",
+    ),
+    [],
+  );
+});
+
 test("a bare reference the gate attributes to nothing is reported, never guessed at", () => {
   const { plan } = convert("// :77 comes before this file names anything.\n");
   assert.deepEqual(

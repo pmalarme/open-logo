@@ -45,27 +45,26 @@
  * by whole clauses of prose; a separator regex would miss a form and quietly under-report. Three
  * separately-written tokenizers gave three different counts of the same corpus before hand-derivation
  * settled it (PRs #942 and #949). **A separator regex is not a completeness argument**, so
- * {@link collectCitations} instead enumerates **every** bare `:N` in a citing file and accounts for
- * each one in exactly three buckets:
+ * {@link collectCitations} instead enumerates **every** bare `:N` in a citing file, and there is
+ * exactly one disposition for it:
  *
- * - a **back-reference**, when the same line spec appears earlier in the file as an explicit citation;
- * - a **context reference**, attributed to the nearest preceding spec-file mention (which need not
- *   carry a line number of its own);
- * - **bare**, a colon-and-number in a file that names a specification document. The rejection lists
- *   every document the file names rather than choosing one, because choosing is what four rounds of
- *   regressions lived inside and it never affected the verdict.
+ * - **bare** — a colon-and-number in a file that names a specification document is a citation and is
+ *   rejected. The rejection quotes it back as written and **lists every document the file names**,
+ *   rather than choosing one.
  *
- * The back-reference rule comes first because nearest-preceding attribution demonstrably gets it
- * wrong: `packages/parser/src/keywords.ts` refers back to a line-408 ruling four lines after
- * mentioning a *different* spec document, and only the earlier explicit citation says which document
- * that bare reference belongs to.
+ * It used to choose, through a back-reference map and a nearest-preceding-mention fallback, and
+ * report a separate `unattributed` failure when both missed. Four consecutive review rounds each
+ * fixed a real defect in that machinery and introduced the next; the measurement that ended it is
+ * that **none of it could change a verdict** — both dispositions always failed, so attribution only
+ * ever selected the wording. It is deleted, and with it every ordering question that produced those
+ * regressions.
  *
  * In JavaScript and TypeScript sources a bare `:N` is enumerated **wherever it appears**, including
  * inside a string literal. What keeps that safe without knowing the language is not position but two
  * structural rules: {@link BARE_REFERENCE}'s lookbehind, which excludes a colon preceded by a word
  * character, a digit, a `/`, or the closer of a template substitution — so an object literal, a
- * tight ternary, a URL port and every interpolated form are never offered as citations — and
- * **attribution**, which only resolves a bare token against a citation written ABOVE it in the same
+ * tight ternary, a URL port and every interpolated form are never offered as citations — and the
+ * requirement that the file **name a specification document at all**, since a file naming none
  * file. An earlier version required a comment line as well, and that hid four real citations inside
  * template strings. Read {@link BARE_REFERENCE}'s own note for what the lookbehind does NOT exclude:
  * the list there is illustrative, and an index closer is deliberately not among the exclusions.
@@ -1198,9 +1197,10 @@ export function formatCitation(citation) {
  * Enumerate every citation in one file's `text`, every section anchor, plus every bare `:N` that
  * could not be attributed.
  *
- * An **explicit** citation (`<spec-dir>/<file>.md:<line>`) is unambiguous. A bare `:<line>` is
- * attributed by the two rules the module note explains — back-reference first, then nearest preceding
- * mention — and, when neither applies, reported so that nothing is dropped without a trace.
+ * An **explicit** citation (`<spec-dir>/<file>.md:<line>`) is unambiguous. A bare `:<line>` names no
+ * document, so it is not attributed to one: it carries the sorted set of every document the file
+ * mentions, and the rejection lists them. Deciding WHICH document produced four consecutive
+ * regressions and never changed a verdict, so the decision is no longer made.
  *
  * A `#fragment` is collected from the same single pass over mentions rather than by a second sweep,
  * so the two forms can never disagree about what the file says.
@@ -2009,20 +2009,37 @@ export function runSpecCitationsGate({
       counts.citations += 1;
       counts[CITATION_FORM_COUNTS[citation.form]] += 1;
       const context = fileLines[citation.line - 1];
-      // A prefix-less reference is quoted back exactly as written, because telling an author to fix
-      // `<dir>/<file>.md:213` when they wrote `<file>.md:213` names a string their file does not
-      // contain.
-      const subject = citation.written ?? formatCitation(citation);
+      // A bare token names no document, so the rejection must not pretend it does. Reconstructing
+      // `<dir>/<first-candidate>.md:4` quotes back a citation the author never wrote, and deriving a
+      // heading from that document sends them to a section chosen — after the attribution machinery
+      // was deleted — by ALPHABETICAL ORDER. Three reviewers measured that independently: it is
+      // strictly more arbitrary than the rule it replaced, and it is wrong remediation rather than
+      // vague remediation. So a bare token is quoted back AS WRITTEN and the file's documents are
+      // LISTED. With one candidate that is still a fully specific instruction (70% of citing files);
+      // with several, listing is honest and the author picks.
+      // Only a bare-derived citation carries `candidates`; a comma tail hanging off an explicit or
+      // prefix-less citation names its own document and is quoted back normally.
+      const ambiguous =
+        Array.isArray(citation.candidates) && citation.candidates.length !== 1;
+      const subject = ambiguous
+        ? `:${citation.start}${citation.end === undefined ? "" : `-${citation.end}`}`
+        : (citation.written ?? formatCitation(citation));
       // The rule, in one place: a citation that names a line is rejected, whether or not it
       // currently resolves. Resolution was the old question — does this line still hold text — and
       // the answer stopped mattering when the line form stopped being allowed. What the author is
       // told instead is what to write, since the enclosing heading is always derivable from the
-      // line they meant. There is no exception manifest to record a survivor in: that machinery,
-      // and the 84 entries it carried, were deleted with the last line citation (saga #1180).
+      // line they meant — EXCEPT when the document itself is not determined, which is the one case
+      // where naming a heading would be inventing an answer.
       const heading =
         specHeadingsFor(citation.file) === null
           ? null
           : enclosingSlug(specHeadingsFor(citation.file), citation.start);
+      const remedy = ambiguous
+        ? `this file names ${citation.candidates.map((name) => `${specDirectory}/${name}`).join(", ")} — ` +
+          "write the full citation, naming the document AND its section"
+        : heading === null
+          ? `${specDirectory}/${citation.file}#a-heading`
+          : `${specDirectory}/${citation.file}#${heading}`;
       report({
         file,
         context,
@@ -2033,9 +2050,7 @@ export function runSpecCitationsGate({
           (citation.form === "prefix-less"
             ? `, and omits the ${specDirectory}/ prefix. Cite the section, WITH the prefix — `
             : ". Cite the section instead — ") +
-          (heading === null
-            ? `${specDirectory}/${citation.file}#a-heading`
-            : `${specDirectory}/${citation.file}#${heading}`) +
+          remedy +
           " (ADR-0034). A heading does not move when text is inserted above it; a line number does, " +
           "which is the drift saga #1180 removed.",
       });
@@ -2162,9 +2177,12 @@ export function runSpecCitationsGate({
       "without the spec-directory prefix is now enumerated too: the LINE form anywhere, and the " +
       "ANCHOR form outside the specification directory. BOTH are counted ANYWHERE, including " +
       "inside a string literal in live code: there is no prose carve-out left, because what " +
-      "separates a citation from an incidental colon-and-digit is ATTRIBUTION, not where the " +
-      "characters sit. A bare colon-and-number is enumerated only when an earlier citation in the " +
-      "same file named a document for it, and a prefix-less form only when it names a document " +
+      "separates a citation from an incidental colon-and-digit is whether THE FILE NAMES A " +
+      "SPECIFICATION DOCUMENT at all, not where the characters sit. A bare colon-and-number in such " +
+      "a file is a citation wherever it appears — before or after the mention, in a comment or in a " +
+      "string — and its rejection LISTS every document the file names rather than choosing one, " +
+      "because choosing was wrong often enough to be deleted and never affected this verdict. A " +
+      "prefix-less form counts only when it names a document " +
       "whose basename is unique in the repository — an ambiguous one such as a README is left alone, " +
       "because attributing it to the specification would invent a citation nobody wrote. Inside the " +
       "specification directory the relative anchor is the normal way one document links to a sibling " +
