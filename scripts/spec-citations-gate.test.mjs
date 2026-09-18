@@ -152,7 +152,7 @@ test("toPosixPath, splitLines and formatCitation render the shapes a failure quo
 
 test("splitLines keeps a CRLF line's byte count, so offsets never drift", () => {
   // Splitting on /\r?\n/ and then measuring offsets against the original text loses one byte per
-  // line, which silently mis-attributes every citation in a CRLF working tree.
+  // line, which silently reports every citation in a CRLF working tree on the wrong line.
   const text = "alpha\r\nbeta\r\ngamma";
   const lines = splitLines(text);
   const at = lineLookup(lines);
@@ -201,7 +201,7 @@ test("collectCitations still enumerates every line form, because rejecting one m
   // strictest possible rule into a green run over citations nobody looked at.
   const text = [
     "// see contract/syntax-rules.md:4-6,9 and also :5 for the postfix rule",
-    "// and contract/other.md then :7 belongs to that one",
+    "// and contract/other.md then :7 is listed against both of them",
   ].join("\n");
   const { citations } = collectCitations("a.ts", text, CONTRACT);
   assert.deepEqual(
@@ -269,9 +269,11 @@ test("a mixed-order file yields the same candidate set as any other ordering", (
 test("every attributable prefix-less form is a mention, whatever its disposition", () => {
   // Naming a document and being REPORTED for it are different things. A permitted sibling anchor is
   // not reported, an unprefixed anchor outside the directory is, and a line form is rejected — but
-  // all three tell a reader which document the next bare token belongs to.
+  // all three name a document, so all three belong in the candidate set a bare token is listed
+  // against.
   //
-  // (a) A prefix-less LINE citation attributes the bare token below it.
+  // (a) A prefix-less LINE citation puts its document in the set, so the bare token elsewhere in the
+  // file is listed against it.
   const afterLine = collectCitations(
     `${CONTRACT}/current.md`,
     "a.md:7\n:10",
@@ -284,8 +286,9 @@ test("every attributable prefix-less form is a mention, whatever its disposition
   );
   assert.deepEqual(afterLine.unprefixedAnchors, []);
 
-  // (b) OUTSIDE the specification directory an unprefixed anchor is reported AND attributes, rather
-  // than being reported while the bare token below it vanishes from every bucket.
+  // (b) OUTSIDE the specification directory an unprefixed anchor is reported AND enters the set,
+  // rather than being reported while the bare token elsewhere in the file vanishes from every
+  // bucket.
   const outside = collectCitations(
     "packages/x.ts",
     "// a.md#heading\n// :10",
@@ -299,7 +302,7 @@ test("every attributable prefix-less form is a mention, whatever its disposition
   );
 });
 
-test("attribution is CANONICAL over the file: relative mention order cannot change it", () => {
+test("the candidate set is CANONICAL over the file: relative mention order cannot change it", () => {
   // Narrower than the name it replaced. "ORDER NO LONGER MATTERS" was too broad and a reviewer was
   // right to say so: `collectCitations` output still depends on position in other ways — a token
   // lexically inside a mention is a different form, and the quotation failure joins sections in
@@ -409,7 +412,7 @@ test("a bare token in a SINGLE-document file keeps its fully specific remediatio
   );
 });
 
-test("a permitted sibling anchor inside the spec directory still attributes", () => {
+test("a permitted sibling anchor inside the spec directory still names a document", () => {
   // Inside the specification directory a relative anchor is the normal way one document links to
   // another, so it is not reported — but it still NAMES a document. The early return keyed on
   // prefixed mentions alone, so a bare line claim written under such a link was never scanned.
@@ -577,7 +580,8 @@ test("flattenProseRun strips comment markers so a wrapped quotation reads as one
 test("auditRunQuotations finds EBNF productions and reports the line each was written on", () => {
   // It no longer binds a production to the nearest mention. That binding existed to pick a LINE
   // RANGE, ranges are gone, and a value nothing reads is an instrument producing a number nobody
-  // consults — so attribution now lives in the caller, where the cited sections are known.
+  // consults — so nothing binds a quotation to one mention at all now: the caller checks it against
+  // every section the run cites.
   const found = auditRunQuotations([
     { line: 7, text: " * contract/syntax-rules.md#ebnf-notation defines" },
     { line: 8, text: ' * `selector ::= "[" key-term "]"` and nothing else.' },
@@ -769,6 +773,87 @@ test("a tree of anchor citations passes, and the report states what it does not 
     summary,
     new RegExp(`does NOT apply under ${STATUS_CLAIM_EXEMPT_PREFIX}`),
   );
+});
+
+test("the coverage statement's account of a bare token matches what the gate renders", () => {
+  // The coverage statement is printed on EVERY run and executed by every test, so 100% coverage
+  // says nothing whatever about whether it is TRUE. It went stale exactly that way: for five review
+  // rounds it described the attribution machinery that had been deleted, and five consecutive
+  // reviewers each found a different subset of the stale sentences. The repair could have gone
+  // stale again just as silently, because only an unchanged PREFIX of the statement was matched by
+  // any assertion — the sentences that actually describe the rule were pinned by nothing.
+  //
+  // So this asserts the sentences AND the behaviour they describe, in one test, against fixtures
+  // that render both dispositions. A future change to how a bare token is rejected now breaks a
+  // test here rather than quietly making the printed self-description false.
+  writeGrammar();
+  write(`${CONTRACT}/zeta.md`, "# Zeta\n\n## Other section\n\ntext\n");
+
+  // (a) A file naming SEVERAL documents: quoted back with no document name on it, both listed, no
+  // section named.
+  write(
+    "several.ts",
+    [
+      `// ${CONTRACT}/zeta.md:4 establishes the ruling.`,
+      `// ${CONTRACT}/syntax-rules.md#ebnf-notation discusses something else.`,
+      "// The :4 ruling is the one above.",
+    ].join("\n"),
+  );
+  const several = runOverTemp();
+  const severalReport = several.lines.join("\n");
+  assert.match(severalReport, /several\.ts:3: :4 names a LINE/);
+  assert.match(
+    severalReport,
+    /this file names contract\/syntax-rules\.md, contract\/zeta\.md/,
+  );
+  assert.doesNotMatch(severalReport, /several\.ts:3.*#other-section/);
+
+  // (b) A file naming exactly ONE: rendered in full, with the section to write.
+  rmSync(join(TEMP_DIR, "several.ts"));
+  write(
+    "sole.ts",
+    [
+      `// ${CONTRACT}/syntax-rules.md:8 establishes the ruling.`,
+      "// The :8 ruling is the one above.",
+    ].join("\n"),
+  );
+  const sole = runOverTemp();
+  const soleReport = sole.lines.join("\n");
+  assert.match(
+    soleReport,
+    /sole\.ts:2: contract\/syntax-rules\.md:8 names a LINE/,
+  );
+  assert.match(
+    soleReport,
+    /sole\.ts:2:.*Cite the section instead — contract\/syntax-rules\.md#ebnf-notation/,
+  );
+
+  // And now the printed statement, which must describe exactly those two renderings. The statement
+  // is the last line of every report, green or red; take it from both runs so neither can drift.
+  for (const statement of [several.lines.at(-1), sole.lines.at(-1)]) {
+    assert.match(statement, /NO document is ever selected for it/);
+    assert.match(
+      statement,
+      /it is listed against every document the file names/,
+    );
+    assert.match(statement, /Only the SIZE of that list changes the message/);
+    assert.match(
+      statement,
+      /Naming several documents, the rejection quotes the token back with no document name on it, LISTS them and suggests no section/,
+    );
+    assert.match(
+      statement,
+      /Naming exactly one, there is nothing to choose between, so the rejection renders the citation in full and names the section to write/,
+    );
+    // And it must not go back to describing the deleted machinery, in either of the two shapes that
+    // survived a review round each: a document "attributed to" a bare token, and an unconditional
+    // claim that the rejection lists rather than choosing.
+    assert.doesNotMatch(statement, /attributed to a document/);
+    assert.doesNotMatch(
+      statement,
+      /rejection LISTS every document the file names rather than choosing one/,
+    );
+  }
 });
 
 test("an explicit line citation is REJECTED, and the failure names the enclosing heading", () => {
@@ -2218,7 +2303,7 @@ test("a DOUBLED directory prefix is rejected, not read as the valid citation ins
 });
 
 test("the prefix-less rule is structural, and the LINE form has no code carve-out", () => {
-  // The attribution guard is a rule rather than a list, which is what the no-exemptions
+  // The document-identity guard is a rule rather than a list, which is what the no-exemptions
   // instruction requires.
   writeGrammar();
 
@@ -2261,9 +2346,9 @@ test("the prefix-less rule is structural, and the LINE form has no code carve-ou
 test("the unprefixed ANCHOR form is rejected in code as well as prose", () => {
   // An earlier round kept a prose guard here, arguing an anchor-shaped token in code "is not a
   // citation anybody wrote". A reviewer refuted that with a test title naming a document and a
-  // heading — plainly a citation. What actually separates a citation from an incidental token is
-  // ATTRIBUTION: the document must be one the specification publishes and its basename must be
-  // unambiguous repo-wide. That rule does the work, in code and in prose alike.
+  // heading fragment — plainly a citation. What actually separates a citation from an incidental
+  // token is DOCUMENT IDENTITY: the document must be one the specification publishes and its
+  // basename must be unambiguous repo-wide. That rule does the work, in code and in prose alike.
   writeGrammar();
   write("code.mjs", 'expect(link).toBe("syntax-rules.md#ebnf-notation");\n');
   assert.equal(

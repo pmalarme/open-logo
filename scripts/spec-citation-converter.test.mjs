@@ -573,10 +573,10 @@ test("a collapse lands on an anchor ALREADY on the line, rather than repeating i
   assert.equal(text, "// See (`contract/syntax-rules.md#debug`).\n");
 });
 
-test("a bare reference is converted using the document the GATE attributes to it", () => {
-  // Attribution is deliberately borrowed rather than re-derived: a mis-attributed bare reference
-  // converts to an anchor that RESOLVES, so the gate would pass it and the error would be permanent
-  // and silent. A missed site is loud; a mis-attributed one is not.
+test("a bare reference is converted only when the GATE's candidate set holds exactly one document", () => {
+  // The candidate set is deliberately borrowed rather than re-derived: a bare reference converted
+  // to the wrong document lands on an anchor that RESOLVES, so the gate would pass it and the error
+  // would be permanent and silent. A missed site is loud; a wrongly converted one is not.
   const { plan, text } = convert(
     "// contract/syntax-rules.md:5 and later just :10 on its own.\n",
   );
@@ -780,7 +780,10 @@ test("a bare reference in a MULTI-DOCUMENT file is refused, never rewritten to a
   // And the line is left exactly as written — a refusal that still rewrote would be the defect.
   assert.match(text, /\/\/ The :4,9 ruling is the one above\./);
   // The comma tail is counted as seen even though it is refused, so the cross-check against the
-  // gate does not dress a deliberate refusal as an enumeration disagreement.
+  // gate does not dress a deliberate refusal as an enumeration disagreement. The gate DID enumerate
+  // these three sites — the explicit citation, the bare token and its tail — so here, unlike the
+  // empty-candidate refusal below, the count has something to agree with.
+  assert.equal(plan.sites, 3);
   assert.deepEqual(
     plan.problems.filter(
       (problem) => problem.kind === "enumeration-disagreement",
@@ -789,13 +792,21 @@ test("a bare reference in a MULTI-DOCUMENT file is refused, never rewritten to a
   );
 });
 
-test("a bare reference the gate attributes to nothing is reported, never guessed at", () => {
+test("a bare reference the gate collected nothing for is reported, never guessed at", () => {
   const { plan } = convert("// :77 comes before this file names anything.\n");
   assert.deepEqual(
     plan.problems.map((problem) => problem.kind),
     ["unattributed-bare"],
   );
-  assert.match(plan.problems[0].detail, /the gate attributes no document/);
+  assert.match(plan.problems[0].detail, /the gate collected no bare citation/);
+  assert.match(
+    plan.problems[0].detail,
+    /no candidate document to convert it to/,
+  );
+  // The gate enumerated nothing here either, so the two sweeps still agree and no enumeration
+  // disagreement is raised — the refusal is visible only as the problem above.
+  assert.equal(plan.sites, 0);
+  assert.deepEqual(plan.edits, []);
   assert.equal(
     plan.problems[0].context,
     "// :77 comes before this file names anything.",

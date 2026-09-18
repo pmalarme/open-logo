@@ -49,8 +49,13 @@
  * exactly one disposition for it:
  *
  * - **bare** — a colon-and-number in a file that names a specification document is a citation and is
- *   rejected. The rejection quotes it back as written and **lists every document the file names**,
- *   rather than choosing one.
+ *   rejected. No document is ever **selected** for it: it carries the sorted set of every document
+ *   its file names, and only the *size* of that set decides how the rejection reads. Naming several,
+ *   the rejection quotes the token back with **no document name on it**, **lists them all** and
+ *   suggests no section, because picking one would invent an answer. Naming exactly one, there is
+ *   nothing to pick between: the rejection renders the citation in the canonical
+ *   `<spec-dir>/<file>.md:<line>` form and names the section to write instead, which is the same
+ *   fully specific remediation an explicit citation receives.
  *
  * It used to choose, through a back-reference map and a nearest-preceding-mention fallback, and
  * report a separate `unattributed` failure when both missed. Four consecutive review rounds each
@@ -350,8 +355,9 @@ export function toPosixPath(path) {
  *
  * A `\r` left by a CRLF checkout stays on the end of the line, where it is whitespace and cannot
  * change a blank-line test — whereas splitting on `/\r?\n/` and then measuring byte offsets against
- * the original text drifts one byte per line, which silently mis-attributes every citation in a CRLF
- * working tree. This repository sets `core.autocrlf=true` on Windows, so that is not hypothetical.
+ * the original text drifts one byte per line, which silently reports every citation in a CRLF
+ * working tree on the wrong line. This repository sets `core.autocrlf=true` on Windows, so that is
+ * not hypothetical.
  */
 export function splitLines(text) {
   return text.split("\n");
@@ -508,8 +514,9 @@ export const SLUG_CHARACTER = "[\\p{L}\\p{N}\\p{M}\\p{Pc}\\p{So}-]";
  * it when the document is one the specification publishes. The remedy is to name fixtures after
  * documents the specification does **not** publish, which this gate's own suite now does.
  *
- * The unprefixed **anchor** half carries no prose guard either. Both halves are governed by
- * attribution, not position.
+ * The unprefixed **anchor** half carries no prose guard either. Both halves are governed by the
+ * document-identity rule above — the name must be one the specification publishes, and its basename
+ * must be unambiguous repository-wide — never by where the token sits.
  *
  * **The fragment class is `SLUG_CHARACTER`, the same contract the prefixed pattern uses, and `*`
  * rather than `+`.** It was hand-written as a narrower class and a `+`, which meant a fragment using
@@ -1199,9 +1206,10 @@ export function formatCitation(citation) {
  * anchor the gate reports.
  *
  * An **explicit** citation (`<spec-dir>/<file>.md:<line>`) is unambiguous. A bare `:<line>` names no
- * document, so it is not attributed to one: it carries the sorted set of every document the file
- * mentions, and the rejection lists them. Deciding WHICH document produced four consecutive
- * regressions and never changed a verdict, so the decision is no longer made.
+ * document, so no document is selected for it: it carries the sorted set of every document the file
+ * mentions, and the caller renders that set according to its size — several are listed, exactly one
+ * is named. Deciding WHICH document produced four consecutive regressions and never changed a
+ * verdict, so the decision is no longer made.
  *
  * A `#fragment` is collected from the same single pass over mentions rather than by a second sweep,
  * so the two forms can never disagree about what the file says.
@@ -1307,15 +1315,16 @@ export function collectCitations(
     // Neither half carries a prose guard any longer. The LINE form is a banned construct and the
     // ANCHOR form is a citation however it is written — a reviewer demonstrated that a test title
     // naming a document and a heading fragment is plainly a citation, so calling it "not a citation
-    // anybody wrote" was false. What keeps both honest is the attribution rule above: the document
-    // must be one the specification publishes AND its basename must be unambiguous repo-wide, so an
-    // incidental README fragment is still left alone.
+    // anybody wrote" was false. What keeps both honest is the document-identity rule above: the
+    // document must be one the specification publishes AND its basename must be unambiguous
+    // repo-wide, so an incidental README fragment is still left alone.
     // Every attributable prefix-less form is recorded as a MENTION, whatever its reporting
     // disposition. Naming a document and being reported for it are different things: a permitted
     // sibling anchor is not reported, an unprefixed anchor outside the directory is, and a line form
-    // is rejected — but all three tell a reader which document the next bare token belongs to, and a
-    // reviewer showed that omitting the ones that are not reported made a following bare token
-    // attribute to the wrong document or vanish entirely.
+    // is rejected — but all three name a document, so all three belong in the candidate set every
+    // bare token in the file is listed against. A reviewer showed that omitting the forms that are
+    // not reported shrank that set, which under the deleted machinery made a bare token name the
+    // wrong document or vanish entirely; the set is what survives, so it must still be complete.
     if (attributable) {
       mentions.push({
         index: bareDocument.index,
@@ -1593,7 +1602,9 @@ export function flattenProseRun(runLines) {
  * quotation against the line range that mention named. Anchors carry no range, so the gate now
  * measures against every section the run cites and the binding has no reader — computing it anyway
  * would be an instrument producing a number nothing consults, which is the defect this saga keeps
- * finding. Attribution therefore lives entirely in the caller, where the sections are known.
+ * finding. Nothing binds a production to one mention any more, here or anywhere: the caller holds
+ * the cited sections and checks each quotation against **all** of them, failing only when none
+ * contains it.
  *
  * @returns `[{ quotation, line }]`.
  */
@@ -2028,6 +2039,13 @@ export function runSpecCitationsGate({
       // determined, so the rejection names it in the canonical form and points at the section to
       // write — still a fully specific instruction; with several, listing is honest and the author
       // picks.
+      // One measured limit on "as written", worth stating rather than leaving as an overclaim: a
+      // comma tail is always RECONSTRUCTED from the line number it names, never copied from the
+      // source. A citation whose tail appends a second line number is rejected as two separate
+      // sites, and the tail's subject is rendered with a colon where the source wrote a comma; a
+      // tail hanging off a prefix-less citation renders with the very prefix its head was rejected
+      // for omitting. Both still name the right file and line, so the site is findable; only the
+      // head of a citation is ever quoted character-for-character.
       // Only a bare-derived citation carries `candidates`; a comma tail hanging off an explicit or
       // prefix-less citation names its own document and is quoted back normally.
       const ambiguous =
@@ -2191,8 +2209,13 @@ export function runSpecCitationsGate({
       "separates a citation from an incidental colon-and-digit is whether THE FILE NAMES A " +
       "SPECIFICATION DOCUMENT at all, not where the characters sit. A bare colon-and-number in such " +
       "a file is a citation wherever it appears — before or after the mention, in a comment or in a " +
-      "string — and its rejection LISTS every document the file names rather than choosing one, " +
-      "because choosing was wrong often enough to be deleted and never affected this verdict. A " +
+      "string — and NO document is ever selected for it: it is listed against every document the " +
+      "file names, because choosing was wrong often enough to be deleted and never affected this " +
+      "verdict. Only the SIZE of that list changes the message. Naming several documents, the " +
+      "rejection quotes the token back with no document name on it, LISTS them and suggests no " +
+      "section. Naming exactly one, there is nothing to choose between, so the rejection renders " +
+      "the citation in full and names the section to write — the same remediation an explicit " +
+      "citation gets. A " +
       "prefix-less form counts only when it names a document " +
       "whose basename is unique in the repository — an ambiguous one such as a README is left alone, " +
       "because attributing it to the specification would invent a citation nobody wrote. Inside the " +

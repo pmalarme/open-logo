@@ -27,9 +27,14 @@
  *    vacuous on the rest — which is safe only because the sweep is complete and there is no corpus
  *    left to convert. Align the two before pointing this module at a fresh one.
  *
- *    A refusal keeps that agreement rather than breaking it: a bare token this module declines to
- *    convert is still counted as enumerated, so a deliberate refusal cannot present itself as a
- *    sweep defect.
+ *    A refusal keeps that agreement rather than breaking it, and the two refusals do it differently
+ *    because they are different situations. When the gate DID enumerate the site but named several
+ *    candidate documents, this module counts the site before refusing, so a deliberate refusal
+ *    cannot present itself as a sweep defect: the plan reports `sites` 1 and `edits` 0 for a
+ *    one-token line. When the gate handed this module nothing for the line at all, there is nothing
+ *    to agree about — neither instrument counted a site, and the plan reports `sites` 0 and `edits`
+ *    0. Either way the refusal is visible only as the problem it records, never as an enumeration
+ *    disagreement.
  * 3. **The result is re-measured by an instrument this module does not own.** After the sweep the
  *    gate must report **zero** line-form citations, and a section-anchor count risen by the number
  *    this converter predicted. A converter that silently skipped a file fails the first. One that
@@ -69,16 +74,17 @@
  * Deciding *which document* a bare `:<line>` means is the one judgement this module does **not**
  * make for itself — and the gate no longer makes it either. The gate stopped choosing when the
  * attribution machinery was deleted: {@link collectCitations} now hands every bare citation the
- * sorted set of every document its file names, and the rejection lists them all. Listing is a
- * disposition a gate can have and a converter cannot, because a converter must write exactly one
- * anchor into the source.
+ * sorted set of every document its file names, and selects nothing from it. The gate can afford
+ * that because a rejection can render a set: naming several documents it lists them all, naming
+ * exactly one it renders that one. A converter has no such option — it must write exactly one
+ * anchor into the source — so listing is a disposition a gate can have and a converter cannot.
  *
  * So this module **refuses**. A bare token whose candidate set is not exactly one is reported as an
  * `unattributed-bare` problem and left untouched (the refusal in {@link planFile}'s bare branch).
  * Taking the first candidate instead would rewrite the line to a confidently wrong anchor that
  * **resolves**, so the gate would pass it and the error would be permanent and silent. A missed site
- * is loud; a mis-attributed one is not, and a silent wrong answer is the one failure direction this
- * tooling must never have.
+ * is loud; a wrongly converted one is not, and a silent wrong answer is the one failure direction
+ * this tooling must never have.
  */
 
 import { readFileSync, writeFileSync } from "node:fs";
@@ -164,7 +170,7 @@ export function enclosingHeading(headings, line) {
  *
  * A range that is blank from end to end names no content at all. There is nothing to trim towards,
  * so it keeps its enclosing section and is reported by {@link planFile} when that landing sits on a
- * section boundary, rather than being silently attributed.
+ * section boundary, rather than being silently assigned one.
  *
  * **Every section crossed, not just the two ends.** An inclusive line range claims every line
  * between its endpoints, so a range crossing three sections claims all three. Emitting only the
@@ -546,19 +552,20 @@ export function planFile(
           problems.push({
             kind: "unattributed-bare",
             site: `${path}:${number}`,
-            detail: `the gate attributes no document to \`:${token.start}\` here`,
+            detail: `the gate collected no bare citation for \`:${token.start}\` here, so there is no candidate document to convert it to`,
             context: lineText.trim(),
           });
           continue;
         }
-        // **Refuse what the gate cannot attribute to ONE document.** The gate stopped choosing when
-        // the attribution machinery was deleted: it now lists every document a file names, because
-        // choosing produced four consecutive regressions and never affected its verdict. This module
-        // is the other consumer, and for it the difference is not cosmetic — it REWRITES source
-        // files. Taking the first candidate would convert a bare reference to a confidently wrong
-        // anchor and report no problem: a silent wrong answer, the one failure direction this
-        // tooling must never have. Two reviewers reproduced exactly that. A converter with nothing
-        // to attribute to must stop, which is what the branch above already does for the empty case.
+        // **Refuse what the gate does not narrow to ONE document.** The gate stopped choosing when
+        // the attribution machinery was deleted: it hands over the sorted set of every document a
+        // file names and selects nothing from it, because choosing produced four consecutive
+        // regressions and never affected its verdict. This module is the other consumer, and for it
+        // the difference is not cosmetic — it REWRITES source files. Taking the first candidate
+        // would convert a bare reference to a confidently wrong anchor and report no problem: a
+        // silent wrong answer, the one failure direction this tooling must never have. Two reviewers
+        // reproduced exactly that. A converter with no single document to write must stop, which is
+        // what the branch above already does for the empty case.
         // Every bare citation the gate produces carries `candidates`, so there is no fallback here:
         // a missing field would be a contract break worth crashing on rather than guessing past.
         if (attributed.candidates.length !== 1) {
@@ -668,8 +675,8 @@ export function planFile(
         }
         // A range that holds no text anywhere names no content, so there is nothing for the span
         // rule to trim towards and its anchor would rest on the raw endpoint alone. That is reported
-        // rather than quietly attributed: it is the shape most likely to name a section the claim
-        // never relied on, and the anchor would resolve either way.
+        // rather than quietly assigned a section: it is the shape most likely to name a section the
+        // claim never relied on, and the anchor would resolve either way.
         if (
           documentLines !== null &&
           contentBounds(spec, documentLines).allBlank &&
