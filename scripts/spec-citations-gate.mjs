@@ -51,7 +51,9 @@
  * - a **back-reference**, when the same line spec appears earlier in the file as an explicit citation;
  * - a **context reference**, attributed to the nearest preceding spec-file mention (which need not
  *   carry a line number of its own);
- * - **unattributed**, when no spec file is named before it — reported, never silently dropped.
+ * - **bare**, a colon-and-number in a file that names a specification document. The rejection lists
+ *   every document the file names rather than choosing one, because choosing is what four rounds of
+ *   regressions lived inside and it never affected the verdict.
  *
  * The back-reference rule comes first because nearest-preceding attribution demonstrably gets it
  * wrong: `packages/parser/src/keywords.ts` refers back to a line-408 ruling four lines after
@@ -1175,8 +1177,9 @@ export function expandCommaTail(tail) {
 const CITATION_FORM_COUNTS = Object.freeze({
   explicit: "explicit",
   "comma-tail": "tails",
-  "back-reference": "bare",
-  "context-reference": "bare",
+  // One `bare` form, not two. `back-reference` and `context-reference` were distinct only in HOW a
+  // document was chosen for the message, and that choice is gone — both always counted here anyway.
+  bare: "bare",
   "prefix-less": "prefixLess",
 });
 
@@ -1202,7 +1205,7 @@ export function formatCitation(citation) {
  * A `#fragment` is collected from the same single pass over mentions rather than by a second sweep,
  * so the two forms can never disagree about what the file says.
  *
- * @returns `{ citations, anchors, unattributed }`.
+ * @returns `{ citations, anchors, unprefixedAnchors }`.
  */
 export function collectCitations(
   path,
@@ -1214,7 +1217,6 @@ export function collectCitations(
   const lineAt = lineLookup(lines);
   const citations = [];
   const anchors = [];
-  const unattributed = [];
   const unprefixedAnchors = [];
 
   const mentions = [];
@@ -1367,7 +1369,7 @@ export function collectCitations(
   // as well as prefixed ones, so the guard is "is there anything to attribute to".
   if (mentions.length === 0 && citations.length === 0) {
     // Nothing to sort: this branch is reached only when no citation was collected at all.
-    return { citations, anchors, unattributed, unprefixedAnchors };
+    return { citations, anchors, unprefixedAnchors };
   }
 
   // A bare token is resolved against the citations written ABOVE it, and against nothing else.
@@ -1382,23 +1384,30 @@ export function collectCitations(
   //
   // So the lookup is computed per token, over the prefix of citations that precede it. The corpus is
   // small and this is O(citations) per bare token; correctness here is worth more than the sort.
-  const attributionAt = (position) => {
-    const seen = new Map();
-    for (const citation of citations) {
-      if ((citation.index ?? 0) >= position) {
-        continue;
-      }
-      const key = `${citation.start}-${citation.end ?? ""}`;
-      const known = seen.get(key);
-      // Two documents cited at the same line spec make the reference genuinely ambiguous; `null`
-      // records that so it falls through to nearest-preceding attribution rather than guessing.
-      seen.set(
-        key,
-        known === undefined || known === citation.file ? citation.file : null,
-      );
-    }
-    return seen;
-  };
+  // **There is no attribution machinery here any more, and that is the fix.**
+  //
+  // Four consecutive rounds each corrected a real defect introduced by the previous round's
+  // correction, always in this one area: a back-reference map built from the whole file, then from a
+  // position-tested prefix, then a nearest-mention loop that depended on insertion order, then
+  // inferred citations promoted into back-reference sources because they carry no position. Every
+  // one was a decision about *what the author could see*, and every one was wrong in a new way.
+  //
+  // The decisive measurement is that none of it could ever change a verdict. Under ADR-0036 a bare
+  // colon-and-number in a file that names a specification document is **rejected**, and so is one
+  // that could not be attributed — both dispositions are loud failures. Attribution selected only
+  // which document appeared in the rejection text. So the machinery that produced four regressions
+  // was answering a question the gate does not ask.
+  //
+  // What remains is the part that IS verdict-affecting: whether the file names an attributable
+  // specification document at all. A file that names none has no citations, only numbers.
+  //
+  // The message keeps most of its value without any selection. Measured over this corpus, 70% of
+  // citing files name exactly ONE document, so there is nothing to choose between; the rest name a
+  // handful, and listing them is both honest and actionable. Naming candidates cannot be wrong in
+  // the way picking one was.
+  const candidates = [
+    ...new Set(mentions.map((mention) => mention.file)),
+  ].sort();
 
   BARE_REFERENCE.lastIndex = 0;
   let bare = BARE_REFERENCE.exec(text);
@@ -1408,55 +1417,31 @@ export function collectCitations(
       (mention) => index >= mention.index && index < mention.end,
     );
     const line = lineAt(index);
-    // No prose guard. A bare colon-and-number is only ever enumerated when a citation EARLIER IN
-    // THE FILE already named a document for it to attribute to, and that attribution is the real
-    // filter — it is what separates a citation from a ratio or a time. Requiring a prose line on top
-    // of it hid four live citations inside template strings, which is the same "documented therefore
-    // acceptable" hole the prefix-less form had. The shapes attribution alone cannot separate are
-    // handled structurally by {@link BARE_REFERENCE}'s lookbehind, which excludes a value
-    // interpolated into a string, rather than by an exception — a rule with no exceptions file has
-    // nowhere to put one.
+    // No prose guard. A bare colon-and-number is enumerated wherever it appears, and what keeps that
+    // safe is not position but two structural rules: this file must name a specification document,
+    // and {@link BARE_REFERENCE}'s lookbehind excludes a value interpolated into a string. Requiring
+    // a comment line as well hid four live citations inside template strings — the same "documented
+    // therefore acceptable" hole the prefix-less form had.
     if (inside) {
       bare = BARE_REFERENCE.exec(text);
       continue;
     }
     const start = Number(bare[1]);
     const end = bare[2] === undefined ? undefined : Number(bare[2]);
-    const viaBackReference = attributionAt(index).get(`${start}-${end ?? ""}`);
-    let file = viaBackReference ?? null;
-    let form = "back-reference";
-    if (file === null) {
-      // Selected by POSITION, not by insertion order. Mentions are collected in two passes — the
-      // prefixed sweep, then the prefix-less one — so the array is not in document order, and a
-      // loop that breaks at the first mention past the token stopped early and attributed to a
-      // document the author had not most recently named. That is the round-4 temporal invariant
-      // failing through a path added in round 5: the same mistake reached by a different route,
-      // which is why this now depends on nothing but the offsets.
-      let nearest = null;
-      for (const mention of mentions) {
-        if (mention.end > index) {
-          continue;
-        }
-        if (nearest === null || mention.end > nearest.end) {
-          nearest = mention;
-        }
-      }
-      file = nearest === null ? null : nearest.file;
-      form = "context-reference";
-    }
-    if (file === null) {
-      unattributed.push({
-        line,
-        text: `:${start}${end === undefined ? "" : `-${end}`}`,
-      });
-      bare = BARE_REFERENCE.exec(text);
-      continue;
-    }
-    citations.push({ specDirectory, file, start, end, line, form });
+    citations.push({
+      specDirectory,
+      file: candidates[0],
+      candidates,
+      start,
+      end,
+      line,
+      form: "bare",
+    });
     for (const extra of expandCommaTail(bare[3])) {
       citations.push({
         specDirectory,
-        file,
+        file: candidates[0],
+        candidates,
         start: extra.start,
         end: extra.end,
         line,
@@ -1466,7 +1451,7 @@ export function collectCitations(
     bare = BARE_REFERENCE.exec(text);
   }
   citations.sort((left, right) => left.line - right.line);
-  return { citations, anchors, unattributed, unprefixedAnchors };
+  return { citations, anchors, unprefixedAnchors };
 }
 
 /**
@@ -1913,12 +1898,15 @@ export function runSpecCitationsGate({
     ) {
       continue;
     }
-    const { citations, anchors, unattributed, unprefixedAnchors } =
-      collectCitations(file, text, specDirectory, knownDocuments);
+    const { citations, anchors, unprefixedAnchors } = collectCitations(
+      file,
+      text,
+      specDirectory,
+      knownDocuments,
+    );
     if (
       citations.length === 0 &&
       anchors.length === 0 &&
-      unattributed.length === 0 &&
       unprefixedAnchors.length === 0
     ) {
       continue;
@@ -1997,18 +1985,6 @@ export function runSpecCitationsGate({
             ? ""
             : ". It continues on the next line: this anchor is one slug hard-wrapped across a line " +
               `break, and joined back up it reads "#${wrapped}" — keep an anchor on one line`),
-      });
-    }
-
-    for (const reference of unattributed) {
-      report({
-        file,
-        context: fileLines[reference.line - 1],
-        subject: reference.text,
-        observed: "unattributed",
-        describe:
-          `${file}:${reference.line}: the bare reference \`${reference.text}\` follows no ${specDirectory}/<file>.md ` +
-          "mention in this file, so nothing says which document it means — write the full citation",
       });
     }
 

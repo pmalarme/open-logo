@@ -205,42 +205,42 @@ test("collectCitations still enumerates every line form, because rejecting one m
   ].join("\n");
   const { citations } = collectCitations("a.ts", text, CONTRACT);
   assert.deepEqual(
-    citations.map(
-      (citation) => `${citation.file}:${citation.start}:${citation.form}`,
-    ),
-    [
-      "syntax-rules.md:4:explicit",
-      "syntax-rules.md:9:comma-tail",
-      "syntax-rules.md:5:context-reference",
-      "other.md:7:context-reference",
-    ],
+    citations.map((citation) => `${citation.start}:${citation.form}`),
+    ["4:explicit", "9:comma-tail", "5:bare", "7:bare"],
   );
 });
 
-test("a bare reference resolves to the document an earlier citation gave it, not the nearest mention", () => {
-  // The real case: packages/parser/src/keywords.ts referred back to a line-408 ruling four lines
-  // after mentioning a different document, and only the earlier full citation said which document
-  // that bare reference belonged to.
+test("a bare reference names the file's candidate documents, and does not choose between them", () => {
+  // This replaced four rounds of attribution machinery — a back-reference map, a position-tested
+  // prefix, a nearest-mention loop, and inferred citations promoted into back-reference sources.
+  // Each fixed a real defect and introduced the next, and the measurement that ended it is that
+  // NONE of them could change a verdict: a bare token in a file naming a spec document is rejected,
+  // and so was one that could not be attributed. Attribution only chose the wording.
+  //
+  // So the gate no longer chooses. It reports every document the file names, which cannot be wrong
+  // in the way picking one was.
   const text = [
     "// contract/syntax-rules.md:408 makes profile words built-in names.",
     "// Painting is contract/tooling.md:30's keyword row.",
     "// Issue #855 aligned the rest of the contract with the :408 ruling.",
   ].join("\n");
   const { citations } = collectCitations("a.ts", text, CONTRACT);
-  const back = citations.find((citation) => citation.form === "back-reference");
-  assert.equal(back.file, "syntax-rules.md");
-  assert.equal(back.start, 408);
+  const bare = citations.find((citation) => citation.form === "bare");
+  assert.equal(bare.start, 408);
+  assert.deepEqual(bare.candidates, ["syntax-rules.md", "tooling.md"]);
 });
 
-test("a line spec two documents both cite is ambiguous, so it falls back to context", () => {
+test("a file naming exactly one document still gets a fully specific rejection", () => {
+  // Measured over this repository, 70% of citing files name exactly ONE specification document, so
+  // there is nothing to choose between and the message loses nothing by not choosing.
   const text = [
-    "// contract/syntax-rules.md:12 and contract/tooling.md:12 both matter.",
-    "// Later, contract/other.md says :12 again.",
+    "// contract/syntax-rules.md:12 introduces the production.",
+    "// The :12 ruling is what the reader implements.",
   ].join("\n");
   const { citations } = collectCitations("a.ts", text, CONTRACT);
-  const last = citations.at(-1);
-  assert.equal(last.form, "context-reference");
-  assert.equal(last.file, "other.md");
+  const bare = citations.find((citation) => citation.form === "bare");
+  assert.deepEqual(bare.candidates, ["syntax-rules.md"]);
+  assert.equal(bare.file, "syntax-rules.md");
 });
 
 test("a mention is selected by POSITION, so a later one never wins", () => {
@@ -279,7 +279,7 @@ test("every attributable prefix-less form is a mention, whatever its disposition
     afterLine.citations.map((citation) => `${citation.file}:${citation.start}`),
     ["a.md:7", "a.md:10"],
   );
-  assert.deepEqual(afterLine.unattributed, []);
+  assert.deepEqual(afterLine.unprefixedAnchors, []);
 
   // (b) OUTSIDE the specification directory an unprefixed anchor is reported AND attributes, rather
   // than being reported while the bare token below it vanishes from every bucket.
@@ -294,28 +294,43 @@ test("every attributable prefix-less form is a mention, whatever its disposition
     outside.citations.map((citation) => `${citation.file}:${citation.start}`),
     ["a.md:10"],
   );
-  assert.deepEqual(outside.unattributed, []);
 });
 
-test("attribution is judged only among citations ABOVE the bare token", () => {
-  // Two temporal defects, found one round apart, with the same root: a decision about what the
-  // author could see, made from text the author had not written yet.
+test("ORDER NO LONGER MATTERS, which is why the temporal defects cannot recur", () => {
+  // Four rounds of defects lived here, each a different way of deciding "what could the author see":
+  // a citation below the token attributing it; a later conflicting citation poisoning an earlier
+  // unambiguous one; a nearest-mention loop that depended on insertion order; an inferred citation
+  // promoted into a back-reference source because it carried no position.
   //
-  // (a) A citation BELOW a bare token must not attribute it.
-  const below = collectCitations(
+  // The gate no longer asks the question. A bare token in a file naming any specification document
+  // is rejected, and the rejection names every document the file mentions. These two inputs differ
+  // only in ORDER, and they now produce the same citation — which is what makes the whole class
+  // unreachable rather than fixed.
+  const before = collectCitations(
     "a.ts",
-    ["// :77 appears first", "// contract/syntax-rules.md:77 only later"].join(
+    [
+      "// :77 appears first",
+      `// ${CONTRACT}/syntax-rules.md:77 only later`,
+    ].join("\n"),
+    CONTRACT,
+  );
+  const after = collectCitations(
+    "a.ts",
+    [`// ${CONTRACT}/syntax-rules.md:77 first`, "// :77 appears later"].join(
       "\n",
     ),
     CONTRACT,
   );
-  assert.deepEqual(below.unattributed, [{ line: 1, text: ":77" }]);
+  const bareOf = (result) =>
+    result.citations.find((citation) => citation.form === "bare");
+  assert.deepEqual(bareOf(before).candidates, ["syntax-rules.md"]);
+  assert.deepEqual(bareOf(after).candidates, ["syntax-rules.md"]);
+  // In a file that names a document, a bare token is always a citation — there is no longer a
+  // second disposition for one that "nothing attributes".
+  assert.equal(before.citations.length, after.citations.length);
 
-  // (b) A later CONFLICTING citation must not poison an earlier unambiguous one. Here only
-  // `a.md:10` precedes the bare token, so it attributes cleanly — the `b.md:10` below it used to
-  // make the precomputed map ambiguous and push the token onto nearest-mention fallback, landing on
-  // the intervening `c.md`.
-  const poisoned = collectCitations(
+  // And a file naming several documents lists them, in a stable order, wherever the token sits.
+  const several = collectCitations(
     "a.ts",
     [
       `// ${CONTRACT}/a.md:10`,
@@ -326,9 +341,7 @@ test("attribution is judged only among citations ABOVE the bare token", () => {
     CONTRACT,
     new Set(["a.md", "b.md", "c.md"]),
   );
-  const resolved = poisoned.citations.find((citation) => citation.line === 3);
-  assert.equal(resolved.file, "a.md");
-  assert.equal(resolved.form, "back-reference");
+  assert.deepEqual(bareOf(several).candidates, ["a.md", "b.md", "c.md"]);
 });
 
 test("a permitted sibling anchor inside the spec directory still attributes", () => {
@@ -365,36 +378,34 @@ test("a Markdown link destination does not suppress the line claim after it", ()
   );
 });
 
-test("a bare reference is enumerated in live code, and one before any mention is reported", () => {
-  // The prose guard is gone: ATTRIBUTION is what separates a citation from an incidental colon and
-  // digit, not where the characters sit. A ratio rendered `…:1` therefore surfaces here as an
-  // UNATTRIBUTED reference rather than being silently dropped — which is the honest outcome, and is
-  // why the one real site of that shape in this repository was reworded at the site instead of
-  // being excused in the enumerator. There is no exceptions file to put an excuse in.
+test("a bare reference is enumerated in live code, wherever it sits in the file", () => {
+  // The prose guard is gone, and so is the `unattributed` bucket. In a file that names a
+  // specification document, every bare colon-and-number is a citation and is rejected — there is no
+  // longer a disposition where one is reported but not counted as a line claim, because both
+  // dispositions always failed and the distinction only ever changed the wording.
+  //
+  // A ratio rendered with a trailing colon-and-digit therefore surfaces as a citation. That is the
+  // honest outcome: it is why the one real site of that shape was reworded at the site rather than
+  // excused in the enumerator, and there is no exceptions file to put an excuse in.
   const text = [
     "const label = formatRatio(value) + ':1 contrast';",
     "// :77 appears before this file names any document",
     "// contract/syntax-rules.md:4 is the first mention",
   ].join("\n");
-  const { citations, unattributed } = collectCitations("a.ts", text, CONTRACT);
+  const { citations } = collectCitations("a.ts", text, CONTRACT);
   assert.deepEqual(
-    citations.map((citation) => citation.start),
-    [4],
+    citations.map((citation) => citation.start).sort((a, b) => a - b),
+    [1, 4, 77],
   );
-  assert.deepEqual(unattributed, [
-    { line: 1, text: ":1" },
-    { line: 2, text: ":77" },
-  ]);
 });
 
 test("collectCitations returns nothing for a file that names no document", () => {
-  const { citations, unattributed } = collectCitations(
+  const { citations } = collectCitations(
     "a.ts",
     "// nothing here, not even a bare :12",
     CONTRACT,
   );
   assert.deepEqual(citations, []);
-  assert.deepEqual(unattributed, []);
 });
 
 test("enclosingSlug names the section a line sits in, and the boundary is exact", () => {
@@ -855,7 +866,11 @@ test("uppercase L is what separates a line fragment from a heading, and it is de
   assert.equal(failing.counts.lineFragments, 1);
 });
 
-test("a bare reference nothing attributes fails, asking for the full citation", () => {
+test("a bare reference in a file that names a document is rejected as a line claim", () => {
+  // It used to matter whether a mention preceded the token: one that did produced a line-claim
+  // rejection, one that did not produced an "unattributed" rejection. Both failed, so the
+  // distinction only ever changed the wording — and choosing between them is what four rounds of
+  // regressions lived inside. Now the file names a document, so the token is a citation.
   writeGrammar();
   write(
     "loose.ts",
@@ -863,10 +878,8 @@ test("a bare reference nothing attributes fails, asking for the full citation", 
   );
   const result = runOverTemp();
   assert.equal(result.ok, false);
-  assert.match(
-    result.lines.join("\n"),
-    /the bare reference `:77` follows no contract/,
-  );
+  assert.match(result.lines.join("\n"), /names a LINE/);
+  assert.match(result.lines.join("\n"), /syntax-rules\.md/);
 });
 
 test("an untracked forward-looking claim fails; naming its issue is enough", () => {
@@ -2198,15 +2211,12 @@ test("the unprefixed ANCHOR form is rejected in code as well as prose", () => {
   assert.equal(runOverTemp().ok, true);
 });
 
-test("a prefix-less reference carries its own document, so it never consumes a bare attribution", () => {
-  // `collectCitations` queues only BARE references for attribution. A prefix-less reference names
-  // its own document, so letting it into that queue would make the next bare `:N` shift the wrong
-  // entry off and silently adopt the wrong file.
+test("each line form keeps its own identity, whatever else sits on the line", () => {
+  // Three forms on one line — prefixed, prefix-less, and bare — must each be enumerated under their
+  // own form so the summary counters cannot silently merge them. This used to also pin an ordering
+  // property ("a prefix-less reference never consumes a bare attribution"), which no longer exists:
+  // there is no attribution queue to consume from.
   writeGrammar();
-  write(
-    "mixed.ts",
-    "// contract/syntax-rules.md:6 and syntax-rules.md:13 and later :8 as well.\n",
-  );
   const { citations } = collectCitations(
     "mixed.ts",
     "// contract/syntax-rules.md:6 and syntax-rules.md:13 and later :8 as well.\n",
@@ -2220,9 +2230,7 @@ test("a prefix-less reference carries its own document, so it never consumes a b
     [
       "syntax-rules.md:6:explicit",
       "syntax-rules.md:13:prefix-less",
-      // Attributed to the nearest preceding mention, which is the prefixed one — NOT shifted off a
-      // queue the prefix-less reference had joined.
-      "syntax-rules.md:8:context-reference",
+      "syntax-rules.md:8:bare",
     ],
   );
 });
