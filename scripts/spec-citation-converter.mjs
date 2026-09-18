@@ -18,8 +18,14 @@
  *    defect rather than the check.
  * 2. **Site finding is shaped differently from the gate's.** The gate sweeps the whole document with
  *    one global pattern; this module works **per line**, because a line is the unit a collapse
- *    happens on. Two differently-shaped enumerators over the same corpus catch each other's misses,
- *    and {@link planFile} asserts the two agree site-for-site before it rewrites anything.
+ *    happens on. Two differently-shaped enumerators catch each other's misses, and {@link planFile}
+ *    asserts the two agree site-for-site before it rewrites anything.
+ *
+ *    **They no longer enumerate the same corpus, and that agreement is therefore narrower than it
+ *    reads.** The gate now finds every form in live code; this module still restricts itself to
+ *    prose lines (see {@link PREFIX_LESS}). The cross-check is still sound on what it covers, and is
+ *    vacuous on the rest — which is safe only because the sweep is complete and there is no corpus
+ *    left to convert. Align the two before pointing this module at a fresh one.
  * 3. **The result is re-measured by an instrument this module does not own.** After the sweep the
  *    gate must report **zero** line-form citations, and a section-anchor count risen by the number
  *    this converter predicted. A converter that silently skipped a file fails the first. One that
@@ -328,8 +334,10 @@ const PREFIX_LESS =
  * Every token on one line that names a document, in the order they are written.
  *
  * Mentions are found anywhere on the line; a bare `:<line>` and a prefix-less `<file>.md:<line>`
- * count only on a prose line, which is the same structural rule the gate applies — a formatted ratio
- * in live code is not a citation, and neither is a `file:line:form` assertion string.
+ * count only on a prose line. **That is no longer the rule the gate applies** — the gate enumerates
+ * both in live code as well — so this module is strictly the narrower of the two. See
+ * {@link PREFIX_LESS} for why that asymmetry is safe while the sweep is complete, and what to do
+ * first if this module is ever pointed at a fresh corpus.
  */
 export function lineTokens(
   path,

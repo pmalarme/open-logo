@@ -243,6 +243,74 @@ test("a line spec two documents both cite is ambiguous, so it falls back to cont
   assert.equal(last.file, "other.md");
 });
 
+test("attribution is judged only among citations ABOVE the bare token", () => {
+  // Two temporal defects, found one round apart, with the same root: a decision about what the
+  // author could see, made from text the author had not written yet.
+  //
+  // (a) A citation BELOW a bare token must not attribute it.
+  const below = collectCitations(
+    "a.ts",
+    ["// :77 appears first", "// contract/syntax-rules.md:77 only later"].join(
+      "\n",
+    ),
+    CONTRACT,
+  );
+  assert.deepEqual(below.unattributed, [{ line: 1, text: ":77" }]);
+
+  // (b) A later CONFLICTING citation must not poison an earlier unambiguous one. Here only
+  // `a.md:10` precedes the bare token, so it attributes cleanly — the `b.md:10` below it used to
+  // make the precomputed map ambiguous and push the token onto nearest-mention fallback, landing on
+  // the intervening `c.md`.
+  const poisoned = collectCitations(
+    "a.ts",
+    [
+      `// ${CONTRACT}/a.md:10`,
+      `// ${CONTRACT}/c.md#context`,
+      "// :10",
+      `// ${CONTRACT}/b.md:10`,
+    ].join("\n"),
+    CONTRACT,
+    new Set(["a.md", "b.md", "c.md"]),
+  );
+  const resolved = poisoned.citations.find((citation) => citation.line === 3);
+  assert.equal(resolved.file, "a.md");
+  assert.equal(resolved.form, "back-reference");
+});
+
+test("a permitted sibling anchor inside the spec directory still attributes", () => {
+  // Inside the specification directory a relative anchor is the normal way one document links to
+  // another, so it is not reported — but it still NAMES a document. The early return keyed on
+  // prefixed mentions alone, so a bare line claim written under such a link was never scanned.
+  const sibling = collectCitations(
+    `${CONTRACT}/current.md`,
+    "a.md#heading\n:10",
+    CONTRACT,
+    new Set(["a.md"]),
+  );
+  assert.deepEqual(
+    sibling.citations.map((citation) => `${citation.file}:${citation.start}`),
+    ["a.md:10"],
+  );
+  // …and the anchor itself is still not reported, because it is permitted there.
+  assert.deepEqual(sibling.unprefixedAnchors, []);
+});
+
+test("a Markdown link destination does not suppress the line claim after it", () => {
+  // A closing square bracket was once excluded by the bare lookbehind, on the assumption that an
+  // index closer needed it. It was never load-bearing — every interpolated shape ends in a brace —
+  // and it silently dropped a line claim written after a bracketed link destination.
+  const bracketed = collectCitations(
+    "a.md",
+    `[${CONTRACT}/a.md#heading]:10`,
+    CONTRACT,
+    new Set(["a.md"]),
+  );
+  assert.deepEqual(
+    bracketed.citations.map((citation) => `${citation.file}:${citation.start}`),
+    ["a.md:10"],
+  );
+});
+
 test("a bare reference is enumerated in live code, and one before any mention is reported", () => {
   // The prose guard is gone: ATTRIBUTION is what separates a citation from an incidental colon and
   // digit, not where the characters sit. A ratio rendered `…:1` therefore surfaces here as an

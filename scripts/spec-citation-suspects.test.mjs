@@ -657,7 +657,8 @@ test("the banner fires on a real override, not on a value that equals the defaul
     /SCOPED RUN/,
     "options equal to the defaults are not a scope",
   );
-  // And a root of "." IS an override, because it changes which enumerator runs.
+  // And ANY defined root is an override, because it changes which enumerator runs. This asserts the
+  // case the test actually exercises; the current-directory spelling is verified through the CLI.
   const walked = reportSuspects({
     roots: [TEMP_DIR],
     specDirectory: CONTRACT,

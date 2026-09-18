@@ -27,8 +27,10 @@
  *
  *    What *is* evidence about silence comes from the field and is reported as such: across four
  *    review batches, defects were repeatedly found that this tool had not ranked, including seven in
- *    a single batch. That is an observation about particular reviews, not a rate, and it is the only
- *    basis on which this module says silence is weak.
+ *    a single batch. That is an observation about particular reviews, not a rate — it establishes
+ *    that false negatives occur and nothing about how often, and this module draws no further
+ *    conclusion from it. The actionable guidance below ("work the neighbourhood a row names") does
+ *    not depend on one.
  * 2. **The flag rate is a property of the instrument, not of the corpus.** Two implementations
  *    written from the same prose description — differing only in tokenizer and stop-list — produced
  *    rates 2.3× apart on the same tree. So this module never publishes a rate as a measurement of
@@ -621,11 +623,13 @@ export function reportSuspects(options = {}) {
   const overrides = [];
   const effectiveSpecDirectory = options.specDirectory ?? SPEC_DIRECTORY;
   // `roots` has no "equal to the default" case. Undefined means the TRACKED set via `git ls-files`;
-  // any defined value means a filesystem walk, which is a different enumerator reaching different
-  // files — measured at 2,550 tracked against 2,558 walked on a clean tree, the extra being ignored
-  // build artefacts. An earlier fix here treated `["."]` as the default and so suppressed the banner
-  // on precisely the `--root=.` invocation this saga opened with. The other two options DO have a
-  // meaningful default, so they are compared by effective value.
+  // any defined value means a filesystem walk, which is a different enumerator reaching a different
+  // set of files — the walk also sees ignored build artefacts. No count is recorded here: reviewers
+  // measured the difference on a clean tree, but it moves with the working directory's state and a
+  // number in a comment is an assertion nothing recomputes. An earlier fix here treated a root of
+  // the current directory as the default and so suppressed the banner on precisely the invocation
+  // this saga opened with. The other two options DO have a meaningful default, so they are compared
+  // by effective value.
   if (options.roots !== undefined) {
     overrides.push(`roots=[${[].concat(options.roots).join(", ")}]`);
   }

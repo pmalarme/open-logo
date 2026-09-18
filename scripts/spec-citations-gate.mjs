@@ -481,8 +481,13 @@ export const SLUG_CHARACTER = "[\\p{L}\\p{N}\\p{M}\\p{Pc}\\p{So}-]";
  * Measured before it was closed, the two prefix-less forms were distributed **oppositely** — every
  * prefix-less *line* reference sat outside `spec/`, while prefix-less *anchors* sat almost entirely
  * inside it, where one specification document referring to a sibling relatively is the normal and
- * correct way to write a link. So this pattern matches the **line form only**; a relative anchor is
- * not a line claim and is left exactly alone.
+ * correct way to write a link.
+ *
+ * So this pattern matches **both** forms, and what differs is the disposition. A prefix-less LINE
+ * reference is rejected wherever it appears. A prefix-less ANCHOR is rejected **outside** the
+ * specification directory, where nothing would otherwise resolve it, and **inside** it is left
+ * unreported — but still recorded as a mention, because it names a document and a bare line claim
+ * written below it must be able to attribute to it.
  *
  * Two guards keep it from firing on text that is not a citation, and both are rules rather than
  * lists. The document must **actually exist** in the specification directory, so `readme.md:10` or a
@@ -503,11 +508,12 @@ export const SLUG_CHARACTER = "[\\p{L}\\p{N}\\p{M}\\p{Pc}\\p{So}-]";
  * attribution, not position.
  *
  * **The fragment class is `SLUG_CHARACTER`, the same contract the prefixed pattern uses, and `*`
- * rather than `+`.** It was hand-written as a narrower class and a `+`, which meant `x.md#ⓐ` was
- * invisible while `<dir>/x.md#ⓐ` was recognised, and an empty `x.md#` was invisible in both
- * spellings — so the same citation was enforced or ignored depending on how it was written. Deriving
- * both from one exported constant is what stops the two spellings drifting apart again; it is the
- * same reason the slug alphabet is exported at all.
+ * rather than `+`.** It was hand-written as a narrower class and a `+`, which meant a fragment using
+ * a symbol outside that narrower class was invisible unprefixed while the prefixed spelling caught
+ * it, and an empty fragment was invisible here while the prefixed pattern already collected it — so
+ * the same citation was enforced or ignored depending on how it was written. Deriving both from one
+ * exported constant is what stops the two spellings drifting apart again; it is the same reason the
+ * slug alphabet is exported at all.
  */
 const PREFIX_LESS_REFERENCE = new RegExp(
   `(?<![A-Za-z0-9._/#-])([A-Za-z][A-Za-z0-9-]*\\.md)(?::(\\d+)(?:-(\\d+))?((?:,\\d+(?:-\\d+)?)+)?|#(${SLUG_CHARACTER}*))`,
@@ -1105,23 +1111,38 @@ export function rejoinedFragment(fragment, nextLine, headings) {
 /**
  * A bare `:N`, `:N-M`, or either followed by a comma-appended list of further lines and ranges.
  *
- * The lookbehind is what keeps the sweep safe on source code without knowing the language: `{a:1}`,
- * `x?1:2`, and `http://host:80` are all preceded by a word character, a digit, or a `/`, so none of
- * them is ever offered as a citation in the first place.
+ * The lookbehind excludes a colon preceded by a word character, a digit, a `/`, or the closer of a
+ * template substitution. That covers an object literal, a tight ternary, a URL port, and — the case
+ * that was measured the hard way — every interpolated form, where a substitution's closing brace
+ * sits immediately before the colon.
  *
- * **`}` and `]` are in that class for a measured reason.** While the prefix-less enumeration still
- * required a prose line, this lookbehind only had to survive comments. Removing that guard made it
- * the *only* protection for live code, and a reviewer measured seven plausible shapes it did not
- * survive — every one of them an interpolation, where the character before the colon is the closing
- * brace of a template substitution rather than the digit or letter the class already covered:
- * `` `ws://${host}:8080/socket` ``, `` `${hours}:00` ``, `` `${ratio}:1` ``. The un-interpolated
- * spellings in the sentence above were safe; their interpolated twins were not, which is why the
- * rationale had to be re-measured rather than re-read. Adding the two closers restores the property
- * the sentence claims, and it is a **structural** rule, not a list: a value substituted into a
- * string is not a citation, whatever it holds.
+ * **This is a bound, not a proof of exhaustiveness, and any list of shapes here is illustrative.**
+ * Two reviewers swept the character space and found an earlier version of this sentence generalised
+ * past its evidence. Still admitted, and therefore enumerated: a double or single quote, a backtick,
+ * a closing parenthesis, a percent sign, an asterisk, and a space. So a minified JSON key inside a
+ * string, a call expression written tight against the colon, and a ternary spaced on the left but
+ * not the right are all offered as citations. Nothing in the tree hits those today, and Prettier
+ * inserts the space that neutralises the live-code spellings — but it does not reformat string
+ * contents, so serialized JSON inside a string literal in a spec-citing file is the live residue,
+ * remediable only by rewording at the site.
+ *
+ * **A space is deliberately NOT excluded**, and cannot be: the four genuine citations this branch
+ * recovered were written inside message strings with a space before the colon. Excluding it would
+ * re-open the hole that hid them.
+ *
+ * **A closing square bracket is deliberately not excluded either.** It was added alongside the brace
+ * on the assumption that an index closer needed it, and a reviewer showed it created a Markdown
+ * bypass: a link whose destination is bracketed, followed by a colon and a line number, silently
+ * dropped the line claim. Re-measuring showed every interpolated shape ends in a brace, including an
+ * indexed one — so the bracket was never load-bearing. It was a speculative exclusion that cost a
+ * real rejection. **Add nothing to this class without a measured shape that needs it.**
+ *
+ * The failure direction is safe by construction: an admitted shape produces a **loud rejection**,
+ * never a silently accepted wrong citation. That is why the residue above is recorded rather than
+ * chased with more exclusions — each one risks the bypass the bracket produced.
  */
 const BARE_REFERENCE =
-  /(?<![A-Za-z0-9._\-/\]}]):(\d+)(?:-(\d+))?((?:,\d+(?:-\d+)?)+)?/g;
+  /(?<![A-Za-z0-9._\-/}]):(\d+)(?:-(\d+))?((?:,\d+(?:-\d+)?)+)?/g;
 
 /**
  * The extra line specs in a comma-appended tail such as the `,139` of a `<file>.md:119-129,139`
@@ -1281,7 +1302,18 @@ export function collectCitations(
     // must be one the specification publishes AND its basename must be unambiguous repo-wide, so an
     // incidental README fragment is still left alone.
     if (attributable && bareDocument[5] !== undefined) {
-      if (!insideSpecDirectory) {
+      if (insideSpecDirectory) {
+        // A relative sibling anchor is the normal way one specification document links to another,
+        // so it is not reported. It IS still a mention: it names a document, and a bare line claim
+        // written below it attributes to that document exactly as it would to a prefixed citation.
+        // Omitting it let a bare claim after such a link go unscanned entirely.
+        mentions.push({
+          index: bareDocument.index,
+          end: bareDocument.index + bareDocument[0].length,
+          file: bareDocument[1],
+          line,
+        });
+      } else {
         unprefixedAnchors.push({
           specDirectory,
           file: bareDocument[1],
@@ -1319,39 +1351,45 @@ export function collectCitations(
     bareDocument = PREFIX_LESS_REFERENCE.exec(text);
   }
 
-  if (mentions.length === 0) {
-    citations.sort((left, right) => left.line - right.line);
+  // The bare scan runs whenever ANY citation was collected, not only when a prefixed mention was.
+  // A reviewer found that this early return keyed on `mentions` alone, so inside the specification
+  // directory — where a relative sibling anchor is permitted and therefore records no mention — a
+  // bare line claim written after one was never scanned at all. Prefix-less citations attribute just
+  // as well as prefixed ones, so the guard is "is there anything to attribute to".
+  if (mentions.length === 0 && citations.length === 0) {
+    // Nothing to sort: this branch is reached only when no citation was collected at all.
     return { citations, anchors, unattributed, unprefixedAnchors };
   }
 
-  // Which file an EARLIER explicit citation gave each exact line spec, so a bare back-reference
-  // sitting four lines below a mention of a *different* document still resolves to the one that
-  // introduced it.
+  // A bare token is resolved against the citations written ABOVE it, and against nothing else.
   //
-  // Each entry records the position it was introduced at. A reviewer showed the map was previously
-  // built from every citation in the file before any bare token was resolved, so a citation written
-  // BELOW a bare token could attribute it — the gate then named a document that had not yet appeared
-  // when the author wrote the colon. That contradicted the rule stated in this gate's own coverage
-  // text, and "attribution" is the whole justification for enumerating bare tokens in live code, so
-  // it has to be the boundary that is actually implemented.
-  const backReferences = new Map();
-  for (const citation of citations) {
-    const key = `${citation.start}-${citation.end ?? ""}`;
-    const known = backReferences.get(key);
-    const at = citation.index ?? 0;
-    if (known === undefined) {
-      backReferences.set(key, { file: citation.file, at });
-      continue;
+  // This used to precompute one map from every citation in the file. A reviewer showed two ways that
+  // was wrong. First, a citation written BELOW a bare token could attribute it, so the gate named a
+  // document that had not yet appeared when the author wrote the colon. Fixing that with a position
+  // test was still not enough: the map also recorded AMBIGUITY across the whole file, so a later
+  // conflicting citation could poison an earlier, perfectly unambiguous one and push the bare token
+  // onto nearest-mention fallback. Both are the same mistake — a decision about what the author could
+  // see, made from text the author had not written yet.
+  //
+  // So the lookup is computed per token, over the prefix of citations that precede it. The corpus is
+  // small and this is O(citations) per bare token; correctness here is worth more than the sort.
+  const attributionAt = (position) => {
+    const seen = new Map();
+    for (const citation of citations) {
+      if ((citation.index ?? 0) >= position) {
+        continue;
+      }
+      const key = `${citation.start}-${citation.end ?? ""}`;
+      const known = seen.get(key);
+      // Two documents cited at the same line spec make the reference genuinely ambiguous; `null`
+      // records that so it falls through to nearest-preceding attribution rather than guessing.
+      seen.set(
+        key,
+        known === undefined || known === citation.file ? citation.file : null,
+      );
     }
-    // Two documents cited at the same line spec make a later bare reference genuinely ambiguous;
-    // `file: null` records that so it falls through to nearest-preceding attribution rather than
-    // guessing. The earliest position is kept either way, because that is what a bare token below
-    // them is allowed to see.
-    backReferences.set(key, {
-      file: known.file === citation.file ? citation.file : null,
-      at: Math.min(known.at, at),
-    });
-  }
+    return seen;
+  };
 
   BARE_REFERENCE.lastIndex = 0;
   let bare = BARE_REFERENCE.exec(text);
@@ -1375,11 +1413,8 @@ export function collectCitations(
     }
     const start = Number(bare[1]);
     const end = bare[2] === undefined ? undefined : Number(bare[2]);
-    const viaBackReference = backReferences.get(`${start}-${end ?? ""}`);
-    let file =
-      viaBackReference !== undefined && viaBackReference.at < index
-        ? viaBackReference.file
-        : null;
+    const viaBackReference = attributionAt(index).get(`${start}-${end ?? ""}`);
+    let file = viaBackReference ?? null;
     let form = "back-reference";
     if (file === null) {
       let nearest = null;
