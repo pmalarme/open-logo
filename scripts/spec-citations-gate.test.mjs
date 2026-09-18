@@ -231,8 +231,8 @@ test("a bare reference names the file's candidate documents, and does not choose
 });
 
 test("a file naming exactly one document still gets a fully specific rejection", () => {
-  // Measured over this repository, 70% of citing files name exactly ONE specification document, so
-  // there is nothing to choose between and the message loses nothing by not choosing.
+  // A file naming exactly ONE specification document has nothing to choose between, so the message
+  // loses nothing by not choosing.
   const text = [
     "// contract/syntax-rules.md:12 introduces the production.",
     "// The :12 ruling is what the reader implements.",
@@ -388,8 +388,8 @@ test("THE RENDERED MESSAGE lists candidates, and never invents a citation the au
 });
 
 test("a bare token in a SINGLE-document file keeps its fully specific remediation", () => {
-  // 70% of citing files name exactly one document, so listing costs those nothing: one candidate
-  // means the gate still names the document and the exact section to write.
+  // Listing costs a single-document file nothing: one candidate means the gate still names the
+  // document and the exact section to write.
   writeGrammar();
   write(
     "single.ts",

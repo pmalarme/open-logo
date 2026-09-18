@@ -26,6 +26,10 @@
  *    prose lines (see {@link PREFIX_LESS}). The cross-check is still sound on what it covers, and is
  *    vacuous on the rest — which is safe only because the sweep is complete and there is no corpus
  *    left to convert. Align the two before pointing this module at a fresh one.
+ *
+ *    A refusal keeps that agreement rather than breaking it: a bare token this module declines to
+ *    convert is still counted as enumerated, so a deliberate refusal cannot present itself as a
+ *    sweep defect.
  * 3. **The result is re-measured by an instrument this module does not own.** After the sweep the
  *    gate must report **zero** line-form citations, and a section-anchor count risen by the number
  *    this converter predicted. A converter that silently skipped a file fails the first. One that
@@ -60,14 +64,21 @@
  * complete, so the remedy is to read the surrounding sentence at the sites where it matters rather
  * than to add a rule to a converter that has no corpus left to convert.
  *
- * ## Attribution is borrowed, deliberately
+ * ## The judgement this module refuses to make
  *
  * Deciding *which document* a bare `:<line>` means is the one judgement this module does **not**
- * make for itself. The gate's rule — an earlier explicit citation of the same line spec first, then
- * the nearest preceding mention — exists because nearest-preceding demonstrably gets it wrong, and a
- * mis-attributed bare reference converts to an anchor that **resolves**, so the gate would pass it
- * and the error would be permanent and silent. A missed site is loud; a mis-attributed one is not.
- * So {@link collectCitations} supplies attribution, and this module supplies only the spans to edit.
+ * make for itself — and the gate no longer makes it either. The gate stopped choosing when the
+ * attribution machinery was deleted: {@link collectCitations} now hands every bare citation the
+ * sorted set of every document its file names, and the rejection lists them all. Listing is a
+ * disposition a gate can have and a converter cannot, because a converter must write exactly one
+ * anchor into the source.
+ *
+ * So this module **refuses**. A bare token whose candidate set is not exactly one is reported as an
+ * `unattributed-bare` problem and left untouched (the refusal in {@link planFile}'s bare branch).
+ * Taking the first candidate instead would rewrite the line to a confidently wrong anchor that
+ * **resolves**, so the gate would pass it and the error would be permanent and silent. A missed site
+ * is loud; a mis-attributed one is not, and a silent wrong answer is the one failure direction this
+ * tooling must never have.
  */
 
 import { readFileSync, writeFileSync } from "node:fs";
@@ -433,7 +444,7 @@ export function planFile(
   let expectedSites = 0;
   for (const citation of collected.citations) {
     expectedSites += 1;
-    // Only a BARE reference needs attribution from the gate. An explicit citation, a comma tail and
+    // Only a BARE reference needs the gate's candidate set. An explicit citation, a comma tail and
     // a prefix-less reference all name their own document, so putting them in this queue would make
     // the next bare token shift the wrong entry off it.
     if (

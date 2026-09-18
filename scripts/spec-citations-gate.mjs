@@ -65,9 +65,10 @@
  * character, a digit, a `/`, or the closer of a template substitution — so an object literal, a
  * tight ternary, a URL port and every interpolated form are never offered as citations — and the
  * requirement that the file **name a specification document at all**, since a file naming none
- * file. An earlier version required a comment line as well, and that hid four real citations inside
- * template strings. Read {@link BARE_REFERENCE}'s own note for what the lookbehind does NOT exclude:
- * the list there is illustrative, and an index closer is deliberately not among the exclusions.
+ * contains numbers rather than citations. An earlier version required a comment line as well, and
+ * that hid four real citations inside template strings. Read {@link BARE_REFERENCE}'s own note for
+ * what the lookbehind does NOT exclude: the list there is illustrative, and an index closer is
+ * deliberately not among the exclusions.
  *
  * ## No automatic tolerance, and nowhere to record an exception
  *
@@ -489,8 +490,8 @@ export const SLUG_CHARACTER = "[\\p{L}\\p{N}\\p{M}\\p{Pc}\\p{So}-]";
  * So this pattern matches **both** forms, and what differs is the disposition. A prefix-less LINE
  * reference is rejected wherever it appears. A prefix-less ANCHOR is rejected **outside** the
  * specification directory, where nothing would otherwise resolve it, and **inside** it is left
- * unreported — but still recorded as a mention, because it names a document and a bare line claim
- * written below it must be able to attribute to it.
+ * unreported — but still recorded as a mention, because it names a document, and a bare line claim
+ * anywhere in the file is listed against every document the file names.
  *
  * Two guards keep it from firing on text that is not a citation, and both are rules rather than
  * lists. The document must **actually exist** in the specification directory, so `readme.md:10` or a
@@ -1194,8 +1195,8 @@ export function formatCitation(citation) {
 }
 
 /**
- * Enumerate every citation in one file's `text`, every section anchor, plus every bare `:N` that
- * could not be attributed.
+ * Enumerate every citation in one file's `text`, every section anchor, and every prefix-less
+ * anchor the gate reports.
  *
  * An **explicit** citation (`<spec-dir>/<file>.md:<line>`) is unambiguous. A bare `:<line>` names no
  * document, so it is not attributed to one: it carries the sorted set of every document the file
@@ -1252,7 +1253,8 @@ export function collectCitations(
         start: mention.start,
         end: mention.stop,
         line,
-        // Where the citation sits, so a bare token can only attribute to one written ABOVE it.
+        // Where the citation sits. Nothing selects a document by position any more: the rule that
+        // read this was deleted with the rest of the attribution machinery.
         index: mention.index,
         form: "explicit",
       });
@@ -1281,9 +1283,10 @@ export function collectCitations(
   // unprefixed anchor is checked by nothing at all, which is the blind spot ADR-0036's "only
   // accepted form" sentence forbids. Reporting and enumeration are different things: both are
   // enumerated, and every attributable prefix-less form — reported or not — is recorded as a mention,
-  // because it names a document that a following bare token may attribute to. Ambiguous basenames
-  // never reach here — {@link unambiguousSpecDocuments} has already dropped `README.md` and anything
-  // else the tree publishes twice — so rejecting the form cannot collide with a link to a neighbour.
+  // because it names a document that any bare token in the file is listed against. Ambiguous
+  // basenames never reach here — {@link unambiguousSpecDocuments} has already dropped `README.md`
+  // and anything else the tree publishes twice — so rejecting the form cannot collide with a link to
+  // a neighbour.
   // Whether the CITING file lives inside the specification directory. Tested as a path segment
   // rather than a prefix, because a rooted run reports absolute paths — the production scan yields
   // repo-relative ones, so a prefix test passed in CI and silently failed everywhere else, which is
@@ -1365,14 +1368,15 @@ export function collectCitations(
   // The bare scan runs whenever ANY citation was collected, not only when a prefixed mention was.
   // A reviewer found that this early return keyed on `mentions` alone, so inside the specification
   // directory — where a relative sibling anchor is permitted and therefore records no mention — a
-  // bare line claim written after one was never scanned at all. Prefix-less citations attribute just
-  // as well as prefixed ones, so the guard is "is there anything to attribute to".
+  // bare line claim in such a file was never scanned at all. The guard is a SCOPE test: does this
+  // file name a specification document at all, since a file naming none contains numbers rather than
+  // citations. A prefix-less citation names one exactly as a prefixed mention does.
   if (mentions.length === 0 && citations.length === 0) {
     // Nothing to sort: this branch is reached only when no citation was collected at all.
     return { citations, anchors, unprefixedAnchors };
   }
 
-  // A bare token is resolved against the citations written ABOVE it, and against nothing else.
+  // A bare token is listed against every document the file names, and no document is selected.
   //
   // This used to precompute one map from every citation in the file. A reviewer showed two ways that
   // was wrong. First, a citation written BELOW a bare token could attribute it, so the gate named a
@@ -1382,9 +1386,11 @@ export function collectCitations(
   // onto nearest-mention fallback. Both are the same mistake — a decision about what the author could
   // see, made from text the author had not written yet.
   //
-  // So the lookup is computed per token, over the prefix of citations that precede it. The corpus is
-  // small and this is O(citations) per bare token; correctness here is worth more than the sort.
-  // **There is no attribution machinery here any more, and that is the fix.**
+  // **There is no attribution machinery here any more, and that is the fix.** The candidate set is
+  // computed ONCE for the whole file, just below, and every bare token carries that same set — no
+  // lookup runs per token, and where a mention sits relative to a token changes nothing. The one
+  // per-token cost left is the containment scan in the loop, asking whether a token sits inside a
+  // mention's own span: O(mentions) per bare token, and free on a tree that holds no bare token.
   //
   // Four consecutive rounds each corrected a real defect introduced by the previous round's
   // correction, always in this one area: a back-reference map built from the whole file, then from a
@@ -1393,18 +1399,21 @@ export function collectCitations(
   // one was a decision about *what the author could see*, and every one was wrong in a new way.
   //
   // The decisive measurement is that none of it could ever change a verdict. Under ADR-0036 a bare
-  // colon-and-number in a file that names a specification document is **rejected**, and so is one
-  // that could not be attributed — both dispositions are loud failures. Attribution selected only
+  // colon-and-number in a file that names a specification document was **rejected**, and so was one
+  // that could not be attributed — both dispositions were loud failures. Attribution selected only
   // which document appeared in the rejection text. So the machinery that produced four regressions
   // was answering a question the gate does not ask.
   //
   // What remains is the part that IS verdict-affecting: whether the file names an attributable
   // specification document at all. A file that names none has no citations, only numbers.
   //
-  // The message keeps most of its value without any selection. Measured over this corpus, 70% of
-  // citing files name exactly ONE document, so there is nothing to choose between; the rest name a
-  // handful, and listing them is both honest and actionable. Naming candidates cannot be wrong in
-  // the way picking one was.
+  // The message keeps most of its value without any selection. A file naming exactly ONE document
+  // still receives fully specific remediation, since there is nothing to choose between; the rest
+  // name a handful, and listing them is both honest and actionable. Naming candidates cannot be
+  // wrong in the way picking one was. No share is quoted here: one was, and independently written
+  // measurements of the same tree disagreed about it — a figure in a comment is an unenforced
+  // assertion. It also inverted under `packages/`, where the MAJORITY of citing files name more
+  // than one document, so the figure pointed the opposite way in the code that carries the rule.
   const candidates = [
     ...new Set(mentions.map((mention) => mention.file)),
   ].sort();
@@ -2014,9 +2023,11 @@ export function runSpecCitationsGate({
       // heading from that document sends them to a section chosen — after the attribution machinery
       // was deleted — by ALPHABETICAL ORDER. Three reviewers measured that independently: it is
       // strictly more arbitrary than the rule it replaced, and it is wrong remediation rather than
-      // vague remediation. So a bare token is quoted back AS WRITTEN and the file's documents are
-      // LISTED. With one candidate that is still a fully specific instruction (70% of citing files);
-      // with several, listing is honest and the author picks.
+      // vague remediation. So a bare token whose document is NOT determined is quoted back AS
+      // WRITTEN and the file's documents are LISTED. With exactly one candidate the document IS
+      // determined, so the rejection names it in the canonical form and points at the section to
+      // write — still a fully specific instruction; with several, listing is honest and the author
+      // picks.
       // Only a bare-derived citation carries `candidates`; a comma tail hanging off an explicit or
       // prefix-less citation names its own document and is quoted back normally.
       const ambiguous =
@@ -2157,9 +2168,9 @@ export function runSpecCitationsGate({
   }
   lines.push(
     "  This gate REJECTS every citation that names a line — a `<file>.md` carrying a line number, a " +
-      "comma-appended tail, a bare colon-and-number attributed to a document, GitHub's `#L` line " +
-      "fragment, and a prefix-less `<file>.md:12` naming a document the specification directory " +
-      "publishes. The only accepted form is the " +
+      "comma-appended tail, a bare colon-and-number in a file that names a specification document, " +
+      "GitHub's `#L` line fragment, and a prefix-less `<file>.md:12` naming a document the " +
+      "specification directory publishes. The only accepted form is the " +
       "section anchor `<file>.md#a-heading`, and there is no exception manifest, no baseline and no " +
       "grandfathering: a line citation fails, and nowhere records that it may. Beyond that it checks that an " +
       "anchor names a heading that exists in the file it cites, that a quoted EBNF production is inside the " +
