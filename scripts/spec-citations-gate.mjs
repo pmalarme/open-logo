@@ -51,13 +51,10 @@
  * - **bare** — a colon-and-number in a file that names a specification document is a citation and is
  *   rejected. No document is ever **selected** for it: it carries the sorted set of every document
  *   its file names, and the *cardinality* of that set chooses which of two rejections is rendered.
- *   With **several**, the subject names no document, every candidate is listed, and no section is
- *   suggested, because picking one would invent an answer. With **exactly one** there is nothing to
- *   pick between, so the rejection renders the citation in the canonical
- *   `<spec-dir>/<file>.md:<line>` form and names the section to write instead, which is the same
- *   fully specific remediation an explicit citation receives. Cardinality chooses the branch; the
- *   members then supply the names listed in it, and a sole member additionally identifies the
- *   document whose headings the suggested section is derived from.
+ *   With **several**, the subject names no document and every candidate is listed, because picking
+ *   one would invent an answer. With **exactly one** there is nothing to pick between, so the
+ *   rejection renders the citation in full and builds its remedy from that document — the same
+ *   remediation an explicit citation receives.
  *
  * It used to choose, through a back-reference map and a nearest-preceding-mention fallback, and
  * report a separate `unattributed` failure when both missed. Four consecutive review rounds each
@@ -1460,15 +1457,14 @@ export function collectCitations(
     const start = Number(bare[1]);
     const end = bare[2] === undefined ? undefined : Number(bare[2]);
     // `file` is the first candidate alphabetically, and what that is worth differs by branch. With
-    // exactly ONE candidate first and only coincide, and it is load-bearing: the rejection renders
-    // that document and derives the suggested section from its headings. On the AMBIGUOUS branch
-    // nothing the rejection PRINTS depends on it — the subject and the remedy are both built from
-    // `candidates` — but it is still read, because the heading lookup runs eagerly above the branch
-    // that discards its result. So this is not a field the ambiguous path can simply stop being
-    // given: a reviewer narrowed it to the single-candidate case and the gate crashed in that
-    // lookup. Narrowing it means moving the lookup inside the branch, which is an executable change
-    // carried as a maintainer follow-up on saga #1180 — recorded here because an alphabetical
-    // first-candidate is the one place a future consumer could still be handed a silent choice.
+    // exactly ONE candidate first and only coincide, and it is load-bearing: the remedy is built
+    // from that document. On the AMBIGUOUS branch nothing the rejection prints depends on it, but it
+    // is still read, because the heading lookup runs eagerly above the branch that discards its
+    // result — so the ambiguous path cannot simply stop being given the field: a reviewer narrowed
+    // it to the single-candidate case and the gate crashed in that lookup. Narrowing it means moving
+    // the lookup inside the branch, an executable change carried as a maintainer follow-up on saga
+    // #1180, and recorded here because an alphabetical first-candidate is the one place a future
+    // consumer could still be handed a silent choice.
     citations.push({
       specDirectory,
       file: candidates[0],
@@ -2058,28 +2054,13 @@ export function runSpecCitationsGate({
       // machinery was deleted — by ALPHABETICAL ORDER. Three reviewers measured that independently:
       // it is strictly more arbitrary than the rule it replaced, and it is wrong remediation rather
       // than vague remediation. So a bare token whose document is NOT determined keeps a subject
-      // that names no document, and the file's documents are LISTED. With exactly one candidate the
-      // document IS determined, so the rejection names it in the canonical form and points at the
-      // section to write — still a fully specific instruction; with several, listing is honest and
-      // the author picks.
-      // A subject is the source text only where the citation carries a `written` field — the
-      // prefix-less and unprefixed-anchor forms, which are echoed character-for-character. Nothing
-      // else is quoted; there are two rendering paths and neither reproduces the source:
-      //
-      //   - an ambiguous bare token is rendered INLINE, just below, from its parsed line numbers, so
-      //     it keeps the bare shape but not the spelling — a zero-padded line comes back without the
-      //     padding, and so does each end of a padded range;
-      //   - every other subject is rendered by {@link formatCitation} from the parsed document and
-      //     line numbers, so a single-candidate bare token gains a document the author never wrote,
-      //     a comma tail off any NON-ambiguous citation renders with a colon where the source wrote
-      //     a comma — and, hanging off a prefix-less citation, with the very prefix its head was
-      //     rejected for omitting — and a leading zero is dropped here too. A tail off an AMBIGUOUS
-      //     bare token is not this shape: it is a second bare-shaped site, by the bullet above.
-      //
-      // Every subject still names the LINE the author meant, which is what lets them find the claim
-      // they wrote. The ambiguous one deliberately names no document — that is the whole point of
-      // the branch — so it is the report's own file, line and context fields, not the subject, that
-      // locate the site on the page.
+      // that names no document, and the file's documents are LISTED; with exactly one candidate the
+      // document IS determined and the remedy is built from it.
+      // A subject is the source text only where the citation carries a `written` field. Every other
+      // subject is RENDERED from parsed values and may differ from what the author typed. The shapes
+      // are pinned by the coverage-statement test rather than restated here — longer versions of
+      // this note were wrong in a new way in every review round of this slice, because prose
+      // describing behaviour that no test checks is the unenforced assertion this saga removes.
       // Only a bare-derived citation carries `candidates`; a comma tail hanging off an explicit or
       // prefix-less citation names its own document and takes the ordinary subject path.
       const ambiguous =
@@ -2248,9 +2229,9 @@ export function runSpecCitationsGate({
       "verdict. The CARDINALITY of that list selects which rejection is rendered. With SEVERAL, " +
       "the subject names no document, every candidate is listed and NO section is suggested. With " +
       "EXACTLY ONE there is nothing to choose between, so the rejection renders the citation in " +
-      "full and names the section to write — the same remediation an explicit citation gets. " +
-      "Cardinality picks the branch; the members then supply the names listed in it, and a sole " +
-      "member also identifies the document whose headings that section comes from. A " +
+      "full and builds its remedy from that document — the same remediation an explicit citation " +
+      "gets. Cardinality picks the branch; the members then supply the names listed in it, and a " +
+      "sole member becomes the document that remedy names. A " +
       "prefix-less form counts only when it names a document " +
       "whose basename is unique in the repository — an ambiguous one such as a README is left alone, " +
       "because attributing it to the specification would invent a citation nobody wrote. Inside the " +

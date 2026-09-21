@@ -877,9 +877,8 @@ test("the coverage statement's account of a bare token matches what the gate ren
   // shape and loses the padding, and a comma continuation becomes a second site whose subject
   // carries a colon where the source wrote a comma. Padding is what makes this measurable: without
   // it the rendered form and the source text coincide and the test would assert nothing. The
-  // padded RANGE is here because the sentence claims BOTH ends lose their padding, and that clause
-  // reached three review rounds with nothing holding it — a mutation keeping the end's padding
-  // stayed green while the start's was pinned.
+  // padded RANGE is here because the sentence claims BOTH ends lose their padding, and a mutation
+  // keeping the end's padding went green while the start's was already pinned.
   rmSync(join(TEMP_DIR, "above.ts"));
   write(
     "padded.ts",
@@ -922,14 +921,14 @@ test("the coverage statement's account of a bare token matches what the gate ren
     );
     assert.match(
       statement,
-      /With EXACTLY ONE there is nothing to choose between, so the rejection renders the citation in full and names the section to write/,
+      /With EXACTLY ONE there is nothing to choose between, so the rejection renders the citation in full and builds its remedy from that document/,
     );
     // Cardinality picks the branch, but the members are not inert: they supply the listed names,
-    // and a sole member also picks the document the suggested section is derived from. A reviewer
-    // showed the earlier "members only supply the names" wording was false for exactly that reason.
+    // and a sole member becomes the document the remedy names. A reviewer showed the earlier
+    // "members only supply the names" wording was false for exactly that reason.
     assert.match(
       statement,
-      /Cardinality picks the branch; the members then supply the names listed in it, and a sole member also identifies the document whose headings that section comes from/,
+      /Cardinality picks the branch; the members then supply the names listed in it, and a sole member becomes the document that remedy names/,
     );
     // And it must not go back to describing the deleted machinery, in either of the two shapes that
     // survived a review round each: a document "attributed to" a bare token, and an unconditional
