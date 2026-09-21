@@ -379,15 +379,22 @@ test("THE RENDERED MESSAGE lists candidates, and never invents a citation the au
     ].join("\n"),
   );
   const message = runOverTemp().lines.join("\n");
-  // Quoted back exactly as written…
+  // The subject keeps the bare SHAPE and names no document — it is rendered from the parsed line
+  // number, not echoed, so it is not the source text either…
   assert.match(message, /multi\.ts:3: :4 names a LINE/);
   // …both documents listed, in a stable order…
   assert.match(
     message,
     /this file names contract\/syntax-rules\.md, contract\/zeta\.md/,
   );
-  // …and NO section suggested, because choosing one would be inventing an answer.
-  assert.doesNotMatch(message, /multi\.ts:3.*#other-section/);
+  // …and NO section suggested, because choosing one would be inventing an answer. Keyed on any
+  // anchor on the rejection line rather than one candidate's slug: three reviewers showed the
+  // narrow form stayed green while a mutation appended the ALPHABETICALLY FIRST candidate's
+  // section, which is the arbitrary choice the deleted machinery was deleted for.
+  const multiLine = message
+    .split("\n")
+    .find((line) => line.includes("multi.ts:3:"));
+  assert.doesNotMatch(multiLine, /\.md#/);
   // And the alphabetically-first document is not presented as the citation's own.
   assert.doesNotMatch(message, /multi\.ts:3: contract\/syntax-rules\.md:4/);
 });
@@ -823,24 +830,25 @@ test("the coverage statement's account of a bare token matches what the gate ren
     .find((line) => line.includes("several.ts:3:"));
   assert.doesNotMatch(severalLine, /\.md#/);
 
-  // (b) A file naming exactly ONE: rendered in full, with the section to write.
+  // (b) A file naming exactly ONE: rendered in full, with the section to write. The sole candidate
+  // is deliberately the document that sorts LAST of the two the fixture tree publishes, so a rule
+  // keyed on a candidate's IDENTITY rather than on the set's cardinality cannot pass here — a
+  // reviewer made a member select the branch and watched an earlier version of this test stay
+  // green, because its sole candidate happened to sort first.
   rmSync(join(TEMP_DIR, "several.ts"));
   write(
     "sole.ts",
     [
-      `// ${CONTRACT}/syntax-rules.md:8 establishes the ruling.`,
-      "// The :8 ruling is the one above.",
+      `// ${CONTRACT}/zeta.md:4 establishes the ruling.`,
+      "// The :4 ruling is the one above.",
     ].join("\n"),
   );
   const sole = runOverTemp();
   const soleReport = sole.lines.join("\n");
+  assert.match(soleReport, /sole\.ts:2: contract\/zeta\.md:4 names a LINE/);
   assert.match(
     soleReport,
-    /sole\.ts:2: contract\/syntax-rules\.md:8 names a LINE/,
-  );
-  assert.match(
-    soleReport,
-    /sole\.ts:2:.*Cite the section instead — contract\/syntax-rules\.md#ebnf-notation/,
+    /sole\.ts:2:.*Cite the section instead — contract\/zeta\.md#other-section/,
   );
 
   // (c) The statement says a bare token is a citation "before or after the mention". Both fixtures
@@ -864,12 +872,34 @@ test("the coverage statement's account of a bare token matches what the gate ren
     /above\.ts:1:.*this file names contract\/syntax-rules\.md, contract\/zeta\.md/,
   );
 
+  // (d) And the subject is RENDERED, never echoed — the one claim two reviewers reached from
+  // opposite ends. A zero-padded line number written bare in a multi-document file keeps the bare
+  // shape and loses the padding, and a comma continuation becomes a second site whose subject
+  // carries a colon where the source wrote a comma. Padding is what makes this measurable: without
+  // it the rendered form and the source text coincide and the test would assert nothing.
+  rmSync(join(TEMP_DIR, "above.ts"));
+  write(
+    "padded.ts",
+    [
+      `// ${CONTRACT}/zeta.md#other-section establishes the ruling.`,
+      `// ${CONTRACT}/syntax-rules.md#ebnf-notation discusses something else.`,
+      "// The :04,08 ruling is the one above.",
+    ].join("\n"),
+  );
+  const padded = runOverTemp();
+  const paddedReport = padded.lines.join("\n");
+  assert.match(paddedReport, /padded\.ts:3: :4 names a LINE/);
+  assert.match(paddedReport, /padded\.ts:3: :8 names a LINE/);
+  assert.doesNotMatch(paddedReport, /:04/);
+  assert.doesNotMatch(paddedReport, /,08/);
+
   // And now the printed statement, which must describe exactly those renderings. The statement is
-  // the last line of every report, green or red; take it from all three runs so none can drift.
+  // the last line of every report, green or red; take it from every run so none can drift.
   for (const statement of [
     several.lines.at(-1),
     sole.lines.at(-1),
     above.lines.at(-1),
+    padded.lines.at(-1),
   ]) {
     assert.match(statement, /NO document is ever selected for it/);
     assert.match(
@@ -878,15 +908,22 @@ test("the coverage statement's account of a bare token matches what the gate ren
     );
     assert.match(
       statement,
-      /The CARDINALITY of that list selects which rejection is rendered; its members only supply the names inside it/,
+      /The CARDINALITY of that list selects which rejection is rendered/,
     );
     assert.match(
       statement,
-      /With SEVERAL, the subject is the bare token with no document name on it, every candidate is listed and NO section is suggested/,
+      /With SEVERAL, the subject names no document, every candidate is listed and NO section is suggested/,
     );
     assert.match(
       statement,
       /With EXACTLY ONE there is nothing to choose between, so the rejection renders the citation in full and names the section to write/,
+    );
+    // Cardinality picks the branch, but the members are not inert: they supply the listed names,
+    // and a sole member also picks the document the suggested section is derived from. A reviewer
+    // showed the earlier "members only supply the names" wording was false for exactly that reason.
+    assert.match(
+      statement,
+      /Cardinality picks the branch; the members then supply the names listed in it, and a sole member also identifies the document whose headings that section comes from/,
     );
     // And it must not go back to describing the deleted machinery, in either of the two shapes that
     // survived a review round each: a document "attributed to" a bare token, and an unconditional

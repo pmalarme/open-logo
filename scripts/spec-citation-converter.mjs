@@ -121,11 +121,13 @@ const MENTION =
 /**
  * A bare `:<line>` reference.
  *
- * The lookbehind is **narrower than the gate's**, which also excludes a colon following the closer
- * of a template substitution. The difference is real and is the reason the refusal below reports
- * what the gate handed over rather than what the file contains: this module can see a token the gate
- * never enumerated, and in that case there is no candidate set to convert against. Aligning the two
- * is a behavioural change and belongs to whoever next points this module at a corpus.
+ * Its lookbehind excludes **less** than the gate's, which additionally excludes a colon following
+ * the closer of a template substitution — so this pattern matches in one place the gate's does not.
+ * The divergence is real and is the reason the refusal below reports what the gate handed over
+ * rather than what the file contains: this module can see a token the gate never enumerated, even
+ * in a file that names a specification document, and in that case there is no candidate set to
+ * convert against. Aligning the two is a behavioural change and belongs to whoever next points this
+ * module at a corpus.
  */
 const BARE = /(?<![A-Za-z0-9._\-/]):(\d+)(?:-(\d+))?((?:,\d+(?:-\d+)?)+)?/g;
 
