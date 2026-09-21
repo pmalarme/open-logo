@@ -876,7 +876,10 @@ test("the coverage statement's account of a bare token matches what the gate ren
   // opposite ends. A zero-padded line number written bare in a multi-document file keeps the bare
   // shape and loses the padding, and a comma continuation becomes a second site whose subject
   // carries a colon where the source wrote a comma. Padding is what makes this measurable: without
-  // it the rendered form and the source text coincide and the test would assert nothing.
+  // it the rendered form and the source text coincide and the test would assert nothing. The
+  // padded RANGE is here because the sentence claims BOTH ends lose their padding, and that clause
+  // reached three review rounds with nothing holding it — a mutation keeping the end's padding
+  // stayed green while the start's was pinned.
   rmSync(join(TEMP_DIR, "above.ts"));
   write(
     "padded.ts",
@@ -884,14 +887,17 @@ test("the coverage statement's account of a bare token matches what the gate ren
       `// ${CONTRACT}/zeta.md#other-section establishes the ruling.`,
       `// ${CONTRACT}/syntax-rules.md#ebnf-notation discusses something else.`,
       "// The :04,08 ruling is the one above.",
+      "// The :04-09 range is the one above too.",
     ].join("\n"),
   );
   const padded = runOverTemp();
   const paddedReport = padded.lines.join("\n");
   assert.match(paddedReport, /padded\.ts:3: :4 names a LINE/);
   assert.match(paddedReport, /padded\.ts:3: :8 names a LINE/);
+  assert.match(paddedReport, /padded\.ts:4: :4-9 names a LINE/);
   assert.doesNotMatch(paddedReport, /:04/);
   assert.doesNotMatch(paddedReport, /,08/);
+  assert.doesNotMatch(paddedReport, /-09/);
 
   // And now the printed statement, which must describe exactly those renderings. The statement is
   // the last line of every report, green or red; take it from every run so none can drift.

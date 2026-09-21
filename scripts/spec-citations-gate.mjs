@@ -1459,12 +1459,16 @@ export function collectCitations(
     }
     const start = Number(bare[1]);
     const end = bare[2] === undefined ? undefined : Number(bare[2]);
-    // `file` is the first candidate alphabetically, and that is load-bearing in exactly one case:
-    // when there IS only one candidate, where first and only coincide and the rejection needs the
-    // document to derive a section from. On the ambiguous branch nothing reads it — the subject and
-    // the remedy are both built from `candidates` — so it is inert rather than a surviving choice.
-    // A reviewer flagged it as the one place a future consumer could still get a silently
-    // alphabetical answer; narrowing it is an executable change carried as a maintainer follow-up.
+    // `file` is the first candidate alphabetically, and what that is worth differs by branch. With
+    // exactly ONE candidate first and only coincide, and it is load-bearing: the rejection renders
+    // that document and derives the suggested section from its headings. On the AMBIGUOUS branch
+    // nothing the rejection PRINTS depends on it — the subject and the remedy are both built from
+    // `candidates` — but it is still read, because the heading lookup runs eagerly above the branch
+    // that discards its result. So this is not a field the ambiguous path can simply stop being
+    // given: a reviewer narrowed it to the single-candidate case and the gate crashed in that
+    // lookup. Narrowing it means moving the lookup inside the branch, which is an executable change
+    // carried as a maintainer follow-up on saga #1180 — recorded here because an alphabetical
+    // first-candidate is the one place a future consumer could still be handed a silent choice.
     citations.push({
       specDirectory,
       file: candidates[0],
@@ -2067,12 +2071,15 @@ export function runSpecCitationsGate({
       //     padding, and so does each end of a padded range;
       //   - every other subject is rendered by {@link formatCitation} from the parsed document and
       //     line numbers, so a single-candidate bare token gains a document the author never wrote,
-      //     a comma tail renders with a colon where the source wrote a comma — and, hanging off a
-      //     prefix-less citation, with the very prefix its head was rejected for omitting — and a
-      //     leading zero is dropped here too.
+      //     a comma tail off any NON-ambiguous citation renders with a colon where the source wrote
+      //     a comma — and, hanging off a prefix-less citation, with the very prefix its head was
+      //     rejected for omitting — and a leading zero is dropped here too. A tail off an AMBIGUOUS
+      //     bare token is not this shape: it is a second bare-shaped site, by the bullet above.
       //
-      // All of them still name the right file and line, so the site stays findable, which is the
-      // only thing a subject has to guarantee.
+      // Every subject still names the LINE the author meant, which is what lets them find the claim
+      // they wrote. The ambiguous one deliberately names no document — that is the whole point of
+      // the branch — so it is the report's own file, line and context fields, not the subject, that
+      // locate the site on the page.
       // Only a bare-derived citation carries `candidates`; a comma tail hanging off an explicit or
       // prefix-less citation names its own document and takes the ordinary subject path.
       const ambiguous =
