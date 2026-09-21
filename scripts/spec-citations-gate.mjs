@@ -50,10 +50,11 @@
  *
  * - **bare** — a colon-and-number in a file that names a specification document is a citation and is
  *   rejected. No document is ever **selected** for it: it carries the sorted set of every document
- *   its file names, and only the *size* of that set decides how the rejection reads. Naming several,
- *   the rejection quotes the token back with **no document name on it**, **lists them all** and
- *   suggests no section, because picking one would invent an answer. Naming exactly one, there is
- *   nothing to pick between: the rejection renders the citation in the canonical
+ *   its file names, and the *cardinality* of that set chooses which of two rejections is rendered —
+ *   the members supply the names inside it, never the shape. With **several**, the subject is the
+ *   bare token with no document name on it, every candidate is listed, and no section is suggested,
+ *   because picking one would invent an answer. With **exactly one** there is nothing to pick
+ *   between, so the rejection renders the citation in the canonical
  *   `<spec-dir>/<file>.md:<line>` form and names the section to write instead, which is the same
  *   fully specific remediation an explicit citation receives.
  *
@@ -1193,8 +1194,15 @@ const CITATION_FORM_COUNTS = Object.freeze({
 /**
  * Render a citation back into the canonical `<spec-dir>/<file>.md:<start>[-<end>]` form.
  *
- * Kept although the form is rejected: a rejection has to quote back exactly what the author wrote,
- * or the failure names a site the author cannot find.
+ * Kept although the form is rejected: a rejection has to name the site precisely enough for the
+ * author to find it. It renders from the **parsed** document name and line numbers, so what it
+ * returns is the canonical spelling rather than the source text — for an ordinary explicit citation
+ * those coincide, and for three shapes they deliberately do not. A **bare** token carries no
+ * document, so its single-candidate rejection is rendered here rather than quoted. A **comma tail**
+ * is reconstructed from the line it names, so it renders with a colon where the source wrote a
+ * comma. And a line number is re-rendered from its numeric value, so a leading zero is dropped.
+ * Each still names the right file and line, which is what findability needs; only the forms
+ * carrying a `written` field are echoed character-for-character.
  */
 export function formatCitation(citation) {
   const range = citation.end === undefined ? "" : `-${citation.end}`;
@@ -1262,7 +1270,10 @@ export function collectCitations(
         end: mention.stop,
         line,
         // Where the citation sits. Nothing selects a document by position any more: the rule that
-        // read this was deleted with the rest of the attribution machinery.
+        // read this was deleted with the rest of the attribution machinery, so the field is
+        // retained unread. That is a deliberate exception to this file's own principle that a value
+        // nothing consults should not be computed — removing it is an executable change, tracked
+        // rather than smuggled into a prose slice.
         index: mention.index,
         form: "explicit",
       });
@@ -2039,13 +2050,15 @@ export function runSpecCitationsGate({
       // determined, so the rejection names it in the canonical form and points at the section to
       // write — still a fully specific instruction; with several, listing is honest and the author
       // picks.
-      // One measured limit on "as written", worth stating rather than leaving as an overclaim: a
-      // comma tail is always RECONSTRUCTED from the line number it names, never copied from the
-      // source. A citation whose tail appends a second line number is rejected as two separate
-      // sites, and the tail's subject is rendered with a colon where the source wrote a comma; a
-      // tail hanging off a prefix-less citation renders with the very prefix its head was rejected
-      // for omitting. Both still name the right file and line, so the site is findable; only the
-      // head of a citation is ever quoted character-for-character.
+      // One measured limit, worth stating rather than leaving as an overclaim. A rejection's subject
+      // is the source text only where the citation carries a `written` field — the prefix-less and
+      // unprefixed-anchor forms. Everything else is RENDERED from the parsed document and line
+      // numbers by {@link formatCitation}: a comma tail is reconstructed from the line it names, so
+      // it renders with a colon where the source wrote a comma and, hanging off a prefix-less
+      // citation, with the very prefix its head was rejected for omitting; a single-candidate bare
+      // token is rendered in full though the author wrote no document; and any line number comes
+      // back without a leading zero. All of them still name the right file and line, so the site
+      // stays findable, which is the only thing the subject has to guarantee.
       // Only a bare-derived citation carries `candidates`; a comma tail hanging off an explicit or
       // prefix-less citation names its own document and is quoted back normally.
       const ambiguous =
@@ -2211,11 +2224,11 @@ export function runSpecCitationsGate({
       "a file is a citation wherever it appears — before or after the mention, in a comment or in a " +
       "string — and NO document is ever selected for it: it is listed against every document the " +
       "file names, because choosing was wrong often enough to be deleted and never affected this " +
-      "verdict. Only the SIZE of that list changes the message. Naming several documents, the " +
-      "rejection quotes the token back with no document name on it, LISTS them and suggests no " +
-      "section. Naming exactly one, there is nothing to choose between, so the rejection renders " +
-      "the citation in full and names the section to write — the same remediation an explicit " +
-      "citation gets. A " +
+      "verdict. The CARDINALITY of that list selects which rejection is rendered; its members only " +
+      "supply the names inside it. With SEVERAL, the subject is the bare token with no document " +
+      "name on it, every candidate is listed and NO section is suggested. With EXACTLY ONE there " +
+      "is nothing to choose between, so the rejection renders the citation in full and names the " +
+      "section to write — the same remediation an explicit citation gets. A " +
       "prefix-less form counts only when it names a document " +
       "whose basename is unique in the repository — an ambiguous one such as a README is left alone, " +
       "because attributing it to the specification would invent a citation nobody wrote. Inside the " +

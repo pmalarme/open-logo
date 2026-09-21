@@ -23,18 +23,21 @@
  *
  *    **They no longer enumerate the same corpus, and that agreement is therefore narrower than it
  *    reads.** The gate now finds every form in live code; this module still restricts itself to
- *    prose lines (see {@link PREFIX_LESS}). The cross-check is still sound on what it covers, and is
- *    vacuous on the rest — which is safe only because the sweep is complete and there is no corpus
- *    left to convert. Align the two before pointing this module at a fresh one.
+ *    prose lines (see {@link PREFIX_LESS}). The two bare-token patterns also differ: the gate's
+ *    lookbehind additionally excludes the closer of a template substitution, so this module can see
+ *    a token the gate never enumerated (see {@link BARE}). The cross-check is still sound on what
+ *    it covers, and is vacuous on the rest — which is safe only because the sweep is complete and
+ *    there is no corpus left to convert. Align the two before pointing this module at a fresh one.
  *
  *    A refusal keeps that agreement rather than breaking it, and the two refusals do it differently
  *    because they are different situations. When the gate DID enumerate the site but named several
  *    candidate documents, this module counts the site before refusing, so a deliberate refusal
  *    cannot present itself as a sweep defect: the plan reports `sites` 1 and `edits` 0 for a
- *    one-token line. When the gate handed this module nothing for the line at all, there is nothing
- *    to agree about — neither instrument counted a site, and the plan reports `sites` 0 and `edits`
- *    0. Either way the refusal is visible only as the problem it records, never as an enumeration
- *    disagreement.
+ *    one-token line. When the gate handed this module no record for the line, there is nothing to
+ *    agree about — neither instrument counted a site, and the plan reports `sites` 0 and `edits` 0.
+ *    That second refusal reports what the gate supplied, **not** what the file contains: the file
+ *    may well name a document, and the pattern divergence above is one way to reach it. Either way
+ *    the refusal is visible only as the problem it records, never as an enumeration disagreement.
  * 3. **The result is re-measured by an instrument this module does not own.** After the sweep the
  *    gate must report **zero** line-form citations, and a section-anchor count risen by the number
  *    this converter predicted. A converter that silently skipped a file fails the first. One that
@@ -115,7 +118,15 @@ import {
 const MENTION =
   /(?<directory>[A-Za-z0-9_.-]+)\/(?<file>[A-Za-z0-9._-]+\.md)(?::(?<start>\d+)(?:-(?<end>\d+))?(?<tail>(?:,\d+(?:-\d+)?|\/:\d+(?:-\d+)?)+)?)?(?:#(?<fragment>[^\s`'"()[\]|]*))?/g;
 
-/** A bare `:<line>` reference, with the same lookbehind guard the gate's sweep uses. */
+/**
+ * A bare `:<line>` reference.
+ *
+ * The lookbehind is **narrower than the gate's**, which also excludes a colon following the closer
+ * of a template substitution. The difference is real and is the reason the refusal below reports
+ * what the gate handed over rather than what the file contains: this module can see a token the gate
+ * never enumerated, and in that case there is no candidate set to convert against. Aligning the two
+ * is a behavioural change and belongs to whoever next points this module at a corpus.
+ */
 const BARE = /(?<![A-Za-z0-9._\-/]):(\d+)(?:-(\d+))?((?:,\d+(?:-\d+)?)+)?/g;
 
 /** GitHub's line fragment, which names lines and so is a line claim like any other. */
@@ -552,7 +563,7 @@ export function planFile(
           problems.push({
             kind: "unattributed-bare",
             site: `${path}:${number}`,
-            detail: `the gate collected no bare citation for \`:${token.start}\` here, so there is no candidate document to convert it to`,
+            detail: `the gate handed over no citation record for \`:${token.start}\` here, so there is no candidate set to convert against`,
             context: lineText.trim(),
           });
           continue;

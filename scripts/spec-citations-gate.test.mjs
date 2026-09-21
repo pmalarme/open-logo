@@ -134,11 +134,13 @@ function writeGrammar() {
   return `${CONTRACT}/syntax-rules.md`;
 }
 
-test("toPosixPath, splitLines and formatCitation render the shapes a failure quotes back", () => {
+test("toPosixPath, splitLines and formatCitation render the shapes a failure names", () => {
   assert.equal(toPosixPath(join("a", "b", "c.md")), "a/b/c.md");
   assert.deepEqual(splitLines("a\r\nb\nc"), ["a\r", "b", "c"]);
-  // formatCitation survives the form's rejection because a rejection has to quote back exactly what
-  // the author wrote, or the failure names a site the author cannot find.
+  // formatCitation survives the form's rejection because a rejection has to name the site precisely
+  // enough for the author to find it. It renders the CANONICAL form from the parsed document and
+  // line numbers, which is not always the source text: a bare token and a comma tail are rendered
+  // rather than echoed, and a line number written with a leading zero comes back without it.
   assert.equal(
     formatCitation({ specDirectory: "s", file: "g.md", start: 4 }),
     "s/g.md:4",
@@ -789,8 +791,8 @@ test("the coverage statement's account of a bare token matches what the gate ren
   writeGrammar();
   write(`${CONTRACT}/zeta.md`, "# Zeta\n\n## Other section\n\ntext\n");
 
-  // (a) A file naming SEVERAL documents: quoted back with no document name on it, both listed, no
-  // section named.
+  // (a) A file naming SEVERAL documents: the bare token as its own subject, both listed, and NO
+  // section suggested at all.
   write(
     "several.ts",
     [
@@ -806,7 +808,20 @@ test("the coverage statement's account of a bare token matches what the gate ren
     severalReport,
     /this file names contract\/syntax-rules\.md, contract\/zeta\.md/,
   );
-  assert.doesNotMatch(severalReport, /several\.ts:3.*#other-section/);
+  assert.match(
+    severalReport,
+    /write the full citation, naming the document AND its section/,
+  );
+  // "Suggests no section" means NO section, not "not that one document's section". Three reviewers
+  // independently showed the narrower guard: keyed on one candidate's slug, it stayed green while a
+  // mutation appended a section derived from the ALPHABETICALLY FIRST candidate — which is exactly
+  // the arbitrary choice the deleted machinery was deleted for. So the guard is now any anchor at
+  // all, on the rejection line itself: the whole report legitimately contains anchors elsewhere,
+  // and matching on a bare `#` would hit the saga number the message ends with.
+  const severalLine = severalReport
+    .split("\n")
+    .find((line) => line.includes("several.ts:3:"));
+  assert.doesNotMatch(severalLine, /\.md#/);
 
   // (b) A file naming exactly ONE: rendered in full, with the section to write.
   rmSync(join(TEMP_DIR, "several.ts"));
@@ -828,22 +843,50 @@ test("the coverage statement's account of a bare token matches what the gate ren
     /sole\.ts:2:.*Cite the section instead — contract\/syntax-rules\.md#ebnf-notation/,
   );
 
-  // And now the printed statement, which must describe exactly those two renderings. The statement
-  // is the last line of every report, green or red; take it from both runs so neither can drift.
-  for (const statement of [several.lines.at(-1), sole.lines.at(-1)]) {
+  // (c) The statement says a bare token is a citation "before or after the mention". Both fixtures
+  // above put it after, which is the one arrangement where a whole-file rule and a position rule
+  // agree — so a reviewer reintroduced position-dependence and watched this test stay green. The
+  // property is pinned by two other tests, but a test asserting that clause must exercise it.
+  rmSync(join(TEMP_DIR, "sole.ts"));
+  write(
+    "above.ts",
+    [
+      "// The :4 ruling is the one below.",
+      `// ${CONTRACT}/zeta.md:4 establishes the ruling.`,
+      `// ${CONTRACT}/syntax-rules.md#ebnf-notation discusses something else.`,
+    ].join("\n"),
+  );
+  const above = runOverTemp();
+  const aboveReport = above.lines.join("\n");
+  assert.match(aboveReport, /above\.ts:1: :4 names a LINE/);
+  assert.match(
+    aboveReport,
+    /above\.ts:1:.*this file names contract\/syntax-rules\.md, contract\/zeta\.md/,
+  );
+
+  // And now the printed statement, which must describe exactly those renderings. The statement is
+  // the last line of every report, green or red; take it from all three runs so none can drift.
+  for (const statement of [
+    several.lines.at(-1),
+    sole.lines.at(-1),
+    above.lines.at(-1),
+  ]) {
     assert.match(statement, /NO document is ever selected for it/);
     assert.match(
       statement,
       /it is listed against every document the file names/,
     );
-    assert.match(statement, /Only the SIZE of that list changes the message/);
     assert.match(
       statement,
-      /Naming several documents, the rejection quotes the token back with no document name on it, LISTS them and suggests no section/,
+      /The CARDINALITY of that list selects which rejection is rendered; its members only supply the names inside it/,
     );
     assert.match(
       statement,
-      /Naming exactly one, there is nothing to choose between, so the rejection renders the citation in full and names the section to write/,
+      /With SEVERAL, the subject is the bare token with no document name on it, every candidate is listed and NO section is suggested/,
+    );
+    assert.match(
+      statement,
+      /With EXACTLY ONE there is nothing to choose between, so the rejection renders the citation in full and names the section to write/,
     );
     // And it must not go back to describing the deleted machinery, in either of the two shapes that
     // survived a review round each: a document "attributed to" a bare token, and an unconditional

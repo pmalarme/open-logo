@@ -798,11 +798,15 @@ test("a bare reference the gate collected nothing for is reported, never guessed
     plan.problems.map((problem) => problem.kind),
     ["unattributed-bare"],
   );
-  assert.match(plan.problems[0].detail, /the gate collected no bare citation/);
   assert.match(
     plan.problems[0].detail,
-    /no candidate document to convert it to/,
+    /the gate handed over no citation record/,
   );
+  assert.match(plan.problems[0].detail, /no candidate set to convert against/);
+  // It reports what the GATE supplied, never what the file contains. A reviewer reached this branch
+  // with a file that does name a document, through the one place the two bare-token patterns
+  // disagree, so a detail claiming the file named nothing would have been a wrong diagnosis.
+  assert.doesNotMatch(plan.problems[0].detail, /no candidate document/);
   // The gate enumerated nothing here either, so the two sweeps still agree and no enumeration
   // disagreement is raised — the refusal is visible only as the problem above.
   assert.equal(plan.sites, 0);
