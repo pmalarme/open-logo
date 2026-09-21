@@ -53,8 +53,7 @@
  *   its file names, and the *cardinality* of that set chooses which of two rejections is rendered.
  *   With **several**, the subject names no document and every candidate is listed, because picking
  *   one would invent an answer. With **exactly one** there is nothing to pick between, so the
- *   rejection renders the citation in full and builds its remedy from that document — the same
- *   remediation an explicit citation receives.
+ *   rejection renders the citation in full and builds its remedy from that document.
  *
  * It used to choose, through a back-reference map and a nearest-preceding-mention fallback, and
  * report a separate `unattributed` failure when both missed. Four consecutive review rounds each
@@ -2071,9 +2070,7 @@ export function runSpecCitationsGate({
       // The rule, in one place: a citation that names a line is rejected, whether or not it
       // currently resolves. Resolution was the old question — does this line still hold text — and
       // the answer stopped mattering when the line form stopped being allowed. What the author is
-      // told instead is what to write, since the enclosing heading is always derivable from the
-      // line they meant — EXCEPT when the document itself is not determined, which is the one case
-      // where naming a heading would be inventing an answer.
+      // told instead is what to write.
       const heading =
         specHeadingsFor(citation.file) === null
           ? null
@@ -2229,9 +2226,9 @@ export function runSpecCitationsGate({
       "verdict. The CARDINALITY of that list selects which rejection is rendered. With SEVERAL, " +
       "the subject names no document, every candidate is listed and NO section is suggested. With " +
       "EXACTLY ONE there is nothing to choose between, so the rejection renders the citation in " +
-      "full and builds its remedy from that document — the same remediation an explicit citation " +
-      "gets. Cardinality picks the branch; the members then supply the names listed in it, and a " +
-      "sole member becomes the document that remedy names. A " +
+      "full and builds its remedy from that document. Cardinality picks the branch; the members " +
+      "then supply the names listed in it, and a sole member becomes the document that remedy " +
+      "names. A " +
       "prefix-less form counts only when it names a document " +
       "whose basename is unique in the repository — an ambiguous one such as a README is left alone, " +
       "because attributing it to the specification would invent a citation nobody wrote. Inside the " +
