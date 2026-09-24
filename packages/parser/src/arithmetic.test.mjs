@@ -1,9 +1,9 @@
 // Unit tests for Core arithmetic operators and precedence — `+ - * / mod`, per
-// spec/grammar.md:185-187,216-226 (issue #50). These validate the already-merged parser; they
+// spec/grammar.md#expressions-and-calls (issue #50). These validate the already-merged parser; they
 // do not change it. `parse.test.mjs` already covers "binds multiplication tighter than
 // addition" and "reads a negative numeric literal", so this file covers only what that one
 // doesn't: `-`/`/`/`mod` left-associativity, parenthesized grouping, a full precedence chain,
-// and the negative-literal-vs-subtraction distinction from grammar.md:226.
+// and the negative-literal-vs-subtraction distinction from spec/grammar.md#expressions-and-calls.
 //
 // Spans are half-open `[start, end)` with 1-based `[line, column]` positions, per
 // @openlogo/core, matching the conventions in parse.test.mjs.
@@ -112,7 +112,7 @@ test("nests a full precedence chain correctly: * / mod bind tighter than + -, le
   assert.equal(division.args[1].value, 2);
 });
 
-test("distinguishes a negative literal from subtraction, per grammar.md:226", () => {
+test("distinguishes a negative literal from subtraction, per spec/grammar.md#expressions-and-calls", () => {
   // `-7`: the `-` sits directly against the numeral, so it is a NumberLit, not a Call.
   const literal = OL.parse("print -7", doc).ast.body[0].args[0];
   assert.equal(literal.kind, "NumberLit");
@@ -132,7 +132,7 @@ test("distinguishes a negative literal from subtraction, per grammar.md:226", ()
 });
 
 test("a `-` separated from its numeral by a gap is a stray token, not a negative literal", () => {
-  // Per grammar.md:226, only a `-` written directly against a numeral is a negative literal.
+  // Per spec/grammar.md#lexical-form-and-encoding, only a `-` written directly against a numeral is a negative literal.
   // `- 3` has a gap and no left operand for subtraction, so it is an unreadable stray token.
   const { diagnostics } = OL.parse("print - 3", doc);
   assert.equal(diagnostics.length, 1);

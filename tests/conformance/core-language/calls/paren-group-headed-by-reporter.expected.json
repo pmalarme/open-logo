@@ -1,5 +1,5 @@
 {
-  "description": "Parenthesized grouping (issue #1021, closing #709's literal acceptance criterion): a group whose FIRST token is a zero-arity reporter is a `parenthesized-expression` (grammar.md:213), not a `parenthesized-call` (grammar.md:215). The reader used to commit to the call on the head token alone and then meet the operator in an argument slot, so `(pi == pi)` raised `ol-bad-token` while the identical unparenthesized `pi == pi` read clean. Every binary operator of grammar.md:181-190 is swept with `pi` as the head — `-` included — and executed, so the fixture proves each group MEANS what it says rather than merely parsing.",
+  "description": "Parenthesized grouping (issue #1021, closing #709's literal acceptance criterion): a group whose FIRST token is a zero-arity reporter is a `parenthesized-expression` (spec/grammar.md#expressions-and-calls), not a `parenthesized-call`. The reader used to commit to the call on the head token alone and then meet the operator in an argument slot, so `(pi == pi)` raised `ol-bad-token` while the identical unparenthesized `pi == pi` read clean. Every binary operator of spec/grammar.md#expressions-and-calls is swept with `pi` as the head — `-` included — and executed, so the fixture proves each group MEANS what it says rather than merely parsing.",
   "profiles": ["core-language"],
   "execute": true,
   "events": [

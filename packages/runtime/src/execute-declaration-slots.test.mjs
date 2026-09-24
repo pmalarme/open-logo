@@ -1,8 +1,8 @@
 // The runtime's **declaration-slot** guard — issue #839, implementing maintainer ruling #833
-// (rules 3 and 6) at phase-1 registration (`spec/execution-model.md:82-89`).
+// (rules 3 and 6) at phase-1 registration (`spec/execution-model.md#reader-pipeline`).
 //
 // A declaration slot (`define`/`to`, `struct`) asks one question — *is this name already taken, and
-// by whom?* — and `spec/error-model.md:132-141` splits the answer in two so each code means exactly
+// by whom?* — and `spec/error-model.md#normative-code-registry` splits the answer in two so each code means exactly
 // one thing: `ol-reserved-word` (OpenLogo owns this name) and `ol-duplicate-definition` (something
 // in the program already declares it, with `params.original_span` naming where).
 //
@@ -51,7 +51,7 @@ const everyPrimitiveName = [
   ...heritageAliasNames(),
 ];
 
-/** Every built-in name: what `ol-reserved-word` is about (`spec/error-model.md:125`). */
+/** Every built-in name: what `ol-reserved-word` is about (`spec/error-model.md#normative-code-registry`). */
 const everyBuiltInName = [
   ...new Set([...everyKeyword, ...everyPrimitiveName]),
 ].sort();
@@ -81,7 +81,7 @@ function checkIdentity(source) {
 /**
  * The **full** identity of a diagnostic — `code`, `params`, `source_span` AND `severity`.
  *
- * `severity` is in the row because `spec/error-model.md:125` makes `ol-reserved-word` normatively an
+ * `severity` is in the row because `spec/error-model.md#normative-code-registry` makes `ol-reserved-word` normatively an
  * error, and measured: downgrading it to `"warning"` **only inside loop and comprehension bodies**
  * passed the entire Definition of Done. It is safe to compare across stages because both produce
  * `"error"`. **`stage` is deliberately NOT here** — `execute()` reports `"runtime"` and `check()`
@@ -207,7 +207,7 @@ function declareProcedure(name, keyword = "define") {
 /**
  * The same declaration, wrapped in `depth` enclosing `define … end` procedures.
  *
- * `spec/grammar.md:93-94,147-148` makes a declaration an ordinary `statement` and a body a sequence
+ * `spec/grammar.md#ebnf-notation` makes a declaration an ordinary `statement` and a body a sequence
  * of statements, so declarations nest by construction — and `registerDeclarations` uses a
  * whole-program `walk`, which is depth-agnostic for free. **"For free" is exactly why it needs
  * pinning:** nothing about the guard mentions depth, so a change that started visiting only
@@ -500,7 +500,7 @@ test("the COMPARATOR distinguishes diagnostics that differ only in a span or a p
   assert.notEqual(
     comparableRow(base),
     comparableRow(differentSeverity),
-    "a differing severity must change the row: `spec/error-model.md:125` makes it an error",
+    "a differing severity must change the row: `spec/error-model.md#normative-code-registry` makes it an error",
   );
   // Key order must NOT change it, or every product would diff on incidental ordering.
   assert.equal(
@@ -702,7 +702,7 @@ test("`params.name` is the DECLARED surface spelling for a built-in too, never t
 
 test("the learner-facing MESSAGE quotes the declared spelling too, and matches the checker's", () => {
   // `params` is diagnostic identity, but the message is what the learner reads — and
-  // `spec/error-model.md:125` fixes this one rather than leaving it to the template author: it
+  // `spec/error-model.md#normative-code-registry` fixes this one rather than leaving it to the template author: it
   // prescribes the sentence AND makes *keyword*/*primitive*/*alias* a MUST NOT inside it. That is
   // precisely the case the conformance opt-in was built for, so fixtures setting
   // `"compareMessages": true` (issue #1025) now pin this sentence at both stages —
@@ -869,7 +869,7 @@ test("a duplicate definition halts the program: NEITHER body runs", () => {
 });
 
 test("`ol-duplicate-definition` is not profile-gated — Core-only sees it too", () => {
-  // Phase-1 registration is unconditional (`spec/execution-model.md:82-88`). `execute()` has no
+  // Phase-1 registration is unconditional (`spec/execution-model.md#reader-pipeline`). `execute()` has no
   // profile set to gate on, and `check()` must not gate either; a Core-only program declaring
   // `point` twice is a duplicate whether or not the Data profile is claimed.
   const source = duplicateForms["struct twice"];
@@ -1237,7 +1237,7 @@ test("a cross-depth duplicate is reported in BOTH orientations, always naming th
   // first, then descend, a plausible "so forward references resolve" refactor — preserves the
   // top-level-first orientation and INVERTS the other: it flags the earlier declaration as the
   // duplicate and names the later one as the original, so the learner stands on line 2 and is told
-  // "you already defined foo on line 5". `spec/execution-model.md:86-87` requires the opposite:
+  // "you already defined foo on line 5". `spec/execution-model.md#reader-pipeline` requires the opposite:
   // it is "a name an EARLIER declaration in the program already registered" that raises. Measured:
   // that mutant passed every gate while only the top-level-first orientation was pinned.
   const orientations = {

@@ -297,7 +297,7 @@ test("who inside a per-turtle command's argument reports the turtle currently ru
   // The two in-argument `who` prints report the acting turtle (1 then 2); the final top-level `who`
   // reports the first addressed turtle again (1). None of the three `print` events carries a
   // `turtle_id`: `print` is not turtle-specific, so its envelope must not claim an identity
-  // (`spec/execution-model.md:638`, issue #764) — before that filter landed these events tracked
+  // (`spec/execution-model.md#trace-and-event-registry`, issue #764) — before that filter landed these events tracked
   // *addressing context* rather than turtle-specificity, and the same program without the `tell`
   // emitted them unstamped.
   assert.deepEqual(printed, [
@@ -337,10 +337,10 @@ test("a nested tell run in an early iteration of a multi-turtle command persists
 
 // --- #782: a `tell` inside a procedure ------------------------------------------------------
 //
-// `spec/turtles-and-sprites.md:46` makes `tell` a plain command that "changes the current addressed
+// `spec/turtles-and-sprites.md#addressing-model` makes `tell` a plain command that "changes the current addressed
 // set for subsequent turtle commands", with no scoping language attached to it. `ask` is the form
-// the spec explicitly scopes — `:58`, "The previous addressed set is restored after the block
-// finishes" — and `each` (`:78`) narrows to one turtle per iteration within the current `tell`/`ask`
+// the spec explicitly scopes — `spec/turtles-and-sprites.md#addressing-model`, "The previous addressed set is restored after the block
+// finishes" — and `each` (`spec/turtles-and-sprites.md#addressing-model`) narrows to one turtle per iteration within the current `tell`/`ask`
 // set. A procedure body is neither, so a callee's `tell` PERSISTS after the
 // call returns and the caller's reporters must observe it. The bug these tests pin: the current
 // turtle's state used to be cached per `Environment`, and `runProcedure` shallow-copies that object,
@@ -408,7 +408,7 @@ test("#782: a tell two call frames deep persists too — nesting does not re-sco
 test("#782: the who/position agreement invariant holds after a callee's tell, with no hard-coded coordinate", () => {
   // States the invariant itself rather than one instance of it. `:reported` is what the caller's own
   // `ycor` says; `:current` is the turtle `who` names; `:actual` is that turtle's real y, read by
-  // addressing it. Only one current turtle exists (`spec/turtles-and-sprites.md:26,105`), so the two
+  // addressing it. Only one current turtle exists (`spec/turtles-and-sprites.md#canonical-forms, spec/turtles-and-sprites.md#per-turtle-state-and-turtle-commands`), so the two
   // MUST be equal — the pair `who`/`ycor` produce has to be a state some single turtle really has.
   //
   // Both reads happen BEFORE the `ask`: re-establishing the addressed set is precisely what used to
@@ -482,7 +482,7 @@ test("#782: a turtle command after a callee's tell applies to the newly addresse
   // the stale cache and hid the divergence, so the wrong answer was only visible in the window
   // between the call returning and the next turtle command. Reading `ycor` inside that window first
   // is what makes this test able to fail; the command that follows must then apply to the turtle the
-  // callee addressed, with its events carrying that turtle's id (`spec/turtles-and-sprites.md:113`).
+  // callee addressed, with its events carrying that turtle's id (`spec/turtles-and-sprites.md#per-turtle-state-and-turtle-commands`).
   const result = execute(
     [
       ":a = new_turtle",
@@ -563,7 +563,7 @@ test("#782: a tell in an argument does not re-aim the non-movement command it is
 });
 
 test("#782: an ask inside a procedure still restores the caller's addressed set (tell persists, ask does not)", () => {
-  // The counterpart of the persistence rule: `ask` IS scoped (`spec/turtles-and-sprites.md:58`), and
+  // The counterpart of the persistence rule: `ask` IS scoped (`spec/turtles-and-sprites.md#addressing-model`), and
   // making a callee's `tell` visible must not accidentally make a callee's `ask` leak. After `nudge`
   // returns, the addressed set is still the caller's :a — proven by `who` and by a `forward` landing
   // on :a — even though the `ask` inside it addressed :b.
@@ -591,9 +591,9 @@ test("#782: an ask inside a procedure still restores the caller's addressed set 
 });
 
 test("#748: a turtle listed twice is ONE member of the addressed set — a direct turtle command applies once (dedup by id)", () => {
-  // The addressed set is a SET (spec/turtles-and-sprites.md:44) whose members compare by "Same
-  // turtle identity" (spec/execution-model.md:540), and a turtle command "applies once for each
-  // addressed turtle" (:113). `tell [ :a :a ]` therefore addresses :a ONCE: one move to [0, 10],
+  // The addressed set is a SET (spec/turtles-and-sprites.md#addressing-model) whose members compare by "Same
+  // turtle identity" (spec/execution-model.md#equality-and-ordering), and a turtle command "applies once for each
+  // addressed turtle" (spec/turtles-and-sprites.md#per-turtle-state-and-turtle-commands). `tell [ :a :a ]` therefore addresses :a ONCE: one move to [0, 10],
   // ending there — not two moves ending at [0, 20], which is what the direct path did before #748
   // while `each` (same epic) already ran once.
   const result = execute(

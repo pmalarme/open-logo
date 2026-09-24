@@ -657,7 +657,7 @@ test("every Turtle & Rendering one-word spelling resolves to a canonical of equa
   assert.equal(realParserApi.canonicalOfTurtleAlias("SETXY"), "set_xy");
   assert.equal(realParserApi.canonicalOfTurtleAlias("forward"), undefined);
   assert.equal(realParserApi.canonicalOfTurtleAlias("fd"), undefined);
-  // Both spellings still enumerate: `spec/grammar.md:414` makes every alias spelling a built-in
+  // Both spellings still enumerate: `spec/grammar.md#keywords-primitives-and-built-in-names` makes every alias spelling a built-in
   // name, so a consumer asking what the profile registers must be told about `setxy` too.
   const names = realParserApi.profilePrimitiveNames("turtle-rendering");
   assert.equal(names.includes("setxy"), true);
@@ -695,7 +695,7 @@ test("INJECTED DRIFT: deleting a stdlib/*.logo file breaks the Geometry carve-ou
 // ---------------------------------------------------------------------------------------------
 
 test("INJECTED DRIFT: emptying excluded leaves every stdlib procedure uncarved", () => {
-  // THE headline mutant. `spec/conformance.md:88-91` makes the Geometry procedures "library
+  // THE headline mutant. `spec/conformance.md#geometry` makes the Geometry procedures "library
   // procedures rather than built-in names", and these carve-outs are the reason those six names are
   // absent from the built-in list — absent reasons are what a completeness pass "fixes".
   const manifest = manifestCopy();
@@ -1104,7 +1104,7 @@ test("stdlibCarveOutFindings reads headers, not prose that merely mentions defin
   // A bare `define` with no name registers nothing rather than `undefined`.
   assert.deepEqual(procedureNamesIn("define\n"), []);
   assert.deepEqual(procedureNamesIn(undefined), []);
-  // Case-folded, because `spec/grammar.md:13` makes keywords and identifiers case-insensitive:
+  // Case-folded, because `spec/grammar.md#lexical-form-and-encoding` makes keywords and identifiers case-insensitive:
   // `DEFINE Hexagon` declares the same procedure as `define hexagon`. A scanner anchored on the
   // lowercase spelling would read a real stdlib procedure as absent — and since this walk reports
   // an ABSENT carve-out, that blind spot would become the gate's.
@@ -2029,7 +2029,7 @@ test("INJECTED DRIFT: a carve-out spelled non-canonically", () => {
   manifest.excluded[0].name = "Polygon";
   assert.equal(
     carveOutFindings(manifest, REAL_IO).includes(
-      "excluded Polygon: is not a canonical OpenLogo name — spec/grammar.md:15's ASCII core form is `[a-z_][a-z0-9_]*[?!]?`, and built-in keywords and primitives are lowercase ASCII",
+      "excluded Polygon: is not a canonical OpenLogo name — spec/grammar.md#lexical-form-and-encoding's ASCII core form is `[a-z_][a-z0-9_]*[?!]?`, and built-in keywords and primitives are lowercase ASCII",
     ),
     true,
   );
@@ -2130,7 +2130,7 @@ test("codeOnly blanks comments and string literals, and keeps the line count", (
     ["/* define arc */\ndefine arc :a", true],
     [`:d = ${triple}\ndefine arc\n${triple}\n`, false],
     [`:d = ${triple}\nx\n${triple}\ndefine arc :a`, true],
-    // A comment marker inside a string is literal text (spec/grammar.md:32) …
+    // A comment marker inside a string is literal text (spec/grammar.md#lexical-form-and-encoding) …
     ['print "# not a comment"\ndefine arc :a', true],
     // … and a quote inside a comment does not open a string.
     [`# see ${triple} below\ndefine arc :a`, true],
@@ -2165,7 +2165,7 @@ test("definesProcedure reads a Core define header, and only that", () => {
 });
 
 test("INJECTED DRIFT: a define header that is only prose inside a multi-line string literal", () => {
-  // `"""…"""` is a real OpenLogo literal (spec/grammar.md:19), so a header written inside one is
+  // `"""…"""` is a real OpenLogo literal (spec/grammar.md#lexical-form-and-encoding), so a header written inside one is
   // documentation, not a declaration. Scanning raw lines read it as source.
   const documented = ':doc = """\ndefine arc :angle :radius\n"""\n';
   assert.equal(definesProcedure(documented, "arc"), false);
@@ -2715,7 +2715,7 @@ test("INJECTED DRIFT: a tokenClass deleted, or set to a class the implementation
 });
 
 test("INJECTED DRIFT: a profile word declared Core, so nothing checks that it falls back", () => {
-  // `spec/tooling.md:31` makes a profile word whose profile is inactive `primitive`. The declared
+  // `spec/tooling.md#normative-token-class-model` makes a profile word whose profile is inactive `primitive`. The declared
   // class is the profile-ACTIVE answer, so the fallback is what the entry's own `profile` buys —
   // re-filing `tell` as Core claims it paints `keyword` everywhere, and it does not.
   const manifest = manifestCopy();
@@ -2734,7 +2734,7 @@ test("INJECTED DRIFT: a profile word declared Core, so nothing checks that it fa
 
 test("INJECTED DRIFT: a highlighter that stops gating a profile word on its profile", () => {
   // The reverse of the above, injected into the IMPLEMENTATION rather than the file: a highlighter
-  // that paints `ask` `keyword` with Sprites inactive contradicts `:31`, and the declaration is what
+  // that paints `ask` `keyword` with Sprites inactive contradicts `spec/tooling.md#normative-token-class-model`, and the declaration is what
   // notices.
   const api = {
     ...realParserApi,
@@ -3189,7 +3189,7 @@ test("INJECTED DRIFT: the row's generated sentences edited away from what the de
       "does not carry the contextual words",
     ],
     [
-      "the profile sentence contradicts :31",
+      "the profile sentence contradicts spec/tooling.md#normative-token-class-model",
       "take this class while their profile is active, and `primitive` while it is not.",
       "take this class whether or not their profile is active.",
       "does not carry the required sentence verbatim",
@@ -3299,7 +3299,7 @@ test("INJECTED DRIFT: an enumeration written to dodge the backticked-word scan",
     ]),
     [],
   );
-  // And Unicode-aware, because a user name may carry Unicode letters (`spec/tooling.md:24`), so
+  // And Unicode-aware, because a user name may carry Unicode letters (`spec/tooling.md#normative-token-class-model`), so
   // `éset` is ONE identifier and must not read as a boundary before `set` (round 4).
   assert.deepEqual(
     reEnumerationFindings("éset, end, and return", ["set", "end", "return"]),

@@ -30,7 +30,7 @@
  *   background by default").
  * - `includeOverlays` (default `true`) controls whether enabled overlays (`grid`/`axes`/
  *   `measure`, folded by `overlay.ts`'s `reduceOverlayEvents`) are painted before the avatar —
- *   `spec/geometry-module.md:300`: "not part of exported drawing geometry unless an export format
+ *   `spec/geometry-module.md#measure`: "not part of exported drawing geometry unless an export format
  *   explicitly includes overlays." When the caller passes no `overlay` argument (or omits overlay
  *   data entirely), there is nothing to include either way.
  * - `includeAvatar` (default `true`) is the "export option [that] says to include it"; when

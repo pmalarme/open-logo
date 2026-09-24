@@ -1,5 +1,5 @@
 {
-  "description": "`<v> is strictly between <low> and <high>` excludes both bounds (spec/execution-model.md:146-166): `5 is strictly between 1 and 5` is `false` because 5 equals the upper bound. Issue #99.",
+  "description": "`<v> is strictly between <low> and <high>` excludes both bounds (spec/execution-model.md#precedence-and-evaluation-order): `5 is strictly between 1 and 5` is `false` because 5 equals the upper bound. Issue #99.",
   "profiles": ["core-language"],
   "execute": true,
   "events": [

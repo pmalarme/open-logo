@@ -1,5 +1,5 @@
 {
-  "description": "`between` requires numbers together or words together; a boolean value raises `ol-type` naming the concept \"number or word\" (spec/execution-model.md:146-166, error-model.md `ol-type`) — the `operation` param reads \"between\" (not an ordering-operator symbol) so the diagnostic names the form the learner actually wrote. Execution halts, so only the `instruction` event is kept. Issue #99.",
+  "description": "`between` requires numbers together or words together; a boolean value raises `ol-type` naming the concept \"number or word\" (spec/execution-model.md#precedence-and-evaluation-order, error-model.md `ol-type`) — the `operation` param reads \"between\" (not an ordering-operator symbol) so the diagnostic names the form the learner actually wrote. Execution halts, so only the `instruction` event is kept. Issue #99.",
   "profiles": ["core-language"],
   "execute": true,
   "events": [

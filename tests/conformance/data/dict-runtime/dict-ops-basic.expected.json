@@ -1,5 +1,5 @@
 {
-  "description": "`member?`/`is member of`, `keys`, `values`, and `count` on a dict (issue #322, `spec/data-structures.md:219-250`): `member? \"tom\" :ages` and `\"tom\" is member of :ages` are both `true` (key membership, not element search), `keys`/`values` return lists in insertion order, and `count` reports the entry total.",
+  "description": "`member?`/`is member of`, `keys`, `values`, and `count` on a dict (issue #322, `spec/data-structures.md#dictionary-operations`): `member? \"tom\" :ages` and `\"tom\" is member of :ages` are both `true` (key membership, not element search), `keys`/`values` return lists in insertion order, and `count` reports the entry total.",
   "profiles": ["core-language", "data"],
   "execute": true,
   "events": [

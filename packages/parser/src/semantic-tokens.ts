@@ -1,7 +1,7 @@
 /**
  * The LSP `textDocument/semanticTokens`-shaped contract (issue #121) layered over
  * {@link highlight}'s token-class + delimiter-role output — the "Informative LSP-style editor
- * integration" section of `spec/tooling.md:274-280`. It never re-lexes or re-classifies: every
+ * integration" section of `spec/tooling.md#informative-lsp-style-editor-integration`. It never re-lexes or re-classifies: every
  * {@link SemanticToken} carries {@link highlight}'s own `class`/`text`/`source_span`/`role`
  * unchanged, plus a `modifiers` array populated from that section's exact modifier vocabulary —
  * `declaration`, `reference`, `readonly`, `defaultLibrary`, `listRole`, `blockRole`, and
@@ -17,7 +17,7 @@
  *    `:param` (`highlight.ts`'s `paramDeclIndexes`, exposed the same way via `declaration`);
  *    every other `:variable` token is a `reference` (a read, or an assignment/place target).
  *    `local`/`for`/comprehension binders parse as bare `name` tokens, or — for a destructuring
- *    `[ :x :y ]` pattern (`spec/grammar.md:136-137`) — as `:variable` tokens with no dedicated
+ *    `[ :x :y ]` pattern (`spec/grammar.md#ebnf-notation`) — as `:variable` tokens with no dedicated
  *    binding-site resolution here (see `ast.ts`'s `Binder`), so a destructured name's own `:x`
  *    token still surfaces only as a `reference`, never a `declaration`.
  *  - `:variable` reads of a `map`/`filter`/`reduce` binder or `reduce` accumulator inside that
@@ -26,15 +26,15 @@
  *    expression-blocks only"), so no `set`/`=` assignment statement can ever appear there — the
  *    binder is provably never reassigned within that scope. This is a positional, name-matching
  *    heuristic (like `highlight.ts`'s own field-name resolution): it does not model nested
- *    same-named shadowing, which the spec's "MAY defer … precision" allowance (`tooling.md:66-68`)
+ *    same-named shadowing, which the spec's "MAY defer … precision" allowance (`spec/tooling.md#disambiguating-identifiers`)
  *    permits, and does not change the correctness of the modifier for the common (non-shadowed)
  *    case, since a nested comprehension that re-shadows the name would itself just as validly
  *    mark those inner reads `readonly` again for its own binder.
  *  - `primitive` — every Core primitive/alias call is a call into the standard library, so it
- *    always gets `defaultLibrary` (`tooling.md:279`'s literal example).
+ *    always gets `defaultLibrary` (`spec/tooling.md#informative-lsp-style-editor-integration`'s literal example).
  *  - any class — a `[`/`]` carrying {@link Token.role} `"list"`, `"instruction-block"`, or
  *    `"selector"` gets `listRole`, `blockRole`, or `selectorRole` respectively; `"pattern"` and
- *    `"field-list"` have no named LSP modifier in `tooling.md:278-280` and so contribute none.
+ *    `"field-list"` have no named LSP modifier in `spec/tooling.md#informative-lsp-style-editor-integration` and so contribute none.
  *  - every other class (`keyword`, `number`, `word/string`, `comment`, `bracket`, `brace`,
  *    `paren`, `operator`, `index/dot`, `dict-key`) gets no declaration/reference/readonly
  *    modifier — there is no binding/use distinction for a literal, delimiter, or operator.
@@ -53,7 +53,7 @@ import type {
 import { assertDocumentArgument, highlight } from "./highlight.js";
 
 /**
- * The LSP-style semantic-token modifiers from `spec/tooling.md:278-280`, in the document's own
+ * The LSP-style semantic-token modifiers from `spec/tooling.md#informative-lsp-style-editor-integration`, in the document's own
  * order.
  */
 export const OL_TOKEN_MODIFIERS = [
@@ -125,7 +125,7 @@ function modifiersFor(
 ): TokenModifier[] {
   const modifiers: TokenModifier[] = [];
   if (token.class === "primitive") {
-    // KNOWN DEVIATION (#831): `spec/tooling.md:31` makes `primitive` the grammar-safe **fallback**
+    // KNOWN DEVIATION (#831): `spec/tooling.md#normative-token-class-model` makes `primitive` the grammar-safe **fallback**
     // for any bare name no other row claims, and says that fallback "is not a claim of matrix
     // membership, and tools MUST NOT infer one from it". This branch infers exactly that, so an
     // unresolved name (`fowad`, `zzz`) or a contextual word outside its structural positions
@@ -152,7 +152,7 @@ function modifiersFor(
 
 /**
  * The lowercase name(s) a comprehension binder introduces: one for a bare `name`, or one per
- * `:name` in a destructuring `[ :x :y ]` pattern (`spec/grammar.md:136-137`, mirroring
+ * `:name` in a destructuring `[ :x :y ]` pattern (`spec/grammar.md#ebnf-notation`, mirroring
  * `checker-undefined-var.ts`'s own `binderNames` helper for `for … in`/comprehension binders).
  */
 function namesOf(binder: Binder): string[] {

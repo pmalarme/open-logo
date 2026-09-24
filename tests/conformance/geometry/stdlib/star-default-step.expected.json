@@ -1,5 +1,5 @@
 {
-  "description": "issue #338: `star 5 100` draws the default pentagram {5/2} without diagnostics (spec/geometry-module.md:75-133).",
+  "description": "issue #338: `star 5 100` draws the default pentagram {5/2} without diagnostics (spec/geometry-module.md#star-points-size-step-2).",
   "profiles": ["geometry"],
   "execute": true,
   "events": [

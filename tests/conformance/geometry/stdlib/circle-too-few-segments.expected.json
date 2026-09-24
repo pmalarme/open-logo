@@ -1,5 +1,5 @@
 {
-  "description": "issue #338: `(circle 50 2)` (`:segments` below 3) raises `ol-user-error` with the exact spec message \"a circle needs at least 3 segments\" (spec/geometry-module.md:156-158).",
+  "description": "issue #338: `(circle 50 2)` (`:segments` below 3) raises `ol-user-error` with the exact spec message \"a circle needs at least 3 segments\" (spec/geometry-module.md#circle-radius-segments-36).",
   "profiles": ["geometry"],
   "execute": true,
   "events": [

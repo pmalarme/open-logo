@@ -1,5 +1,5 @@
 {
-  "description": "issue #338: `arc 90 50` curves the turtle left through 90 degrees around a center 50 units to its left, ending at the documented final pose within numeric tolerance (spec/geometry-module.md:195-266).",
+  "description": "issue #338: `arc 90 50` curves the turtle left through 90 degrees around a center 50 units to its left, ending at the documented final pose within numeric tolerance (spec/geometry-module.md#arc-angle-radius).",
   "profiles": ["geometry"],
   "execute": true,
   "events": [

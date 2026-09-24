@@ -1,5 +1,5 @@
 {
-  "description": "`false and :missing` short-circuits (spec/execution-model.md:141): `and` never evaluates its right operand once the left is `false`, so the `ol-undefined-var` reading `:missing` would raise is never reached. Result is `false`. Issue #95.",
+  "description": "`false and :missing` short-circuits (spec/execution-model.md#precedence-and-evaluation-order): `and` never evaluates its right operand once the left is `false`, so the `ol-undefined-var` reading `:missing` would raise is never reached. Result is `false`. Issue #95.",
   "profiles": ["core-language"],
   "execute": true,
   "events": [

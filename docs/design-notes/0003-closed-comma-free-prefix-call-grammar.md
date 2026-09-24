@@ -34,13 +34,13 @@ Concretely:
   only way to supply a variadic or alternate argument count. `spec/commands.md` (line 13) states
   it directly: "Signature is the canonical spelling and default arity. Alternate or variadic
   arities use the parenthesized call form such as `(print :a :b)`." The same pattern appears on
-  `word` (`spec/commands.md:1000`, `word word word`; `(word …)` variadic) and `sentence`
-  (`spec/commands.md:1017`, `sentence value value`; `(sentence …)` variadic).
+  `word` (`spec/commands.md#word`, `word word word`; `(word …)` variadic) and `sentence`
+  (`spec/commands.md#sentence`, `sentence value value`; `(sentence …)` variadic).
 - A `struct` constructor call is a prefix call whose fixed arity equals its declared field count
   (`spec/grammar.md#collections-records-and-comprehensions`): `struct point [ x y ]` then
   `point 3 4` — no parentheses needed because two fields means arity two is the *default*, not a
   variadic case.
-- Procedure calls follow the identical rule (`spec/commands.md:908`): "Procedure calls are prefix
+- Procedure calls follow the identical rule (`spec/commands.md#procedures`): "Procedure calls are prefix
   calls with fixed arity. Optional trailing parameters are specified on the `define` line and extra
   supplied arguments use the parenthesized call form."
 - Because each input to a prefix call is a full expression, infix operators bind *inside* an
@@ -48,7 +48,7 @@ Concretely:
   means `power 2 (3 * 4)`, not `(power 2 3) * 4`.
 - Commas never appear as syntax anywhere in the grammar — not in call arguments, not in list
   literals (`[1 2 3]`), not in dict literals (entries separated by whitespace or newlines,
-  `spec/grammar.md:208`, `spec/grammar.md:310`).
+  `spec/grammar.md#expressions-and-calls`, `spec/grammar.md#collections-records-and-comprehensions`).
 
 Validated against the runtime (`@openlogo/parser` + `@openlogo/runtime`, checked out at this
 commit):
@@ -109,7 +109,7 @@ a `parenthesized-expression ::= "(" expression ")"` (`spec/grammar.md#expression
 (`primary ::= … | fixed-call | …`), that includes wrapping a fixed call purely for visual grouping:
 `forward (:x + :y)` groups the sum inside `forward`'s one argument, and `(forward 100)` is equally
 valid grammar even though `forward`'s argument count already matches its default
-(`spec/grammar.md:272`: "`( )` groups expressions or wraps variadic and alternate-arity calls.").
+(`spec/grammar.md#blocks-and-bracket-roles`: "`( )` groups expressions or wraps variadic and alternate-arity calls.").
 Consequently, the convention this LDR describes is **a habit worth building, not a syntactic
 guarantee**: a non-default argument count *must* be parenthesized, so parentheses are a necessary
 signal in that direction, but their mere presence around a callable head does not, by itself, prove
@@ -160,7 +160,7 @@ the argument count differs from the default.
   are recognized by their leading keyword and take a bracketed body
   (`spec/grammar.md#collections-records-and-comprehensions`), not a lambda argument passed through
   parenthesized-call syntax — "OpenLogo v0.1 has no first-class functions and no `lambda`"
-  (`spec/data-structures.md:423`), so the parenthesized-call escape hatch this LDR describes is
+  (`spec/data-structures.md#map-filter-and-reduce-comprehensions`), so the parenthesized-call escape hatch this LDR describes is
   never used to simulate higher-order functions.
 - **Future primitives and procedures must declare one default arity up front.** Any new callable
   added to `spec/commands.md` needs an explicit default-arity signature, and only variadic or

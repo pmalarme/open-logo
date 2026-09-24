@@ -67,9 +67,13 @@ the measured churn and the rejected alternatives for *why* an anchor.
   clothing: it names a position, not a section, and drifts exactly the way a line number does.
   Rejected on the same terms.
 - **Never write a bare `:<number>` in a file that mentions a `spec/` document** — not in prose, not
-  in a comment, not as an incidental figure that was never meant as a citation. The gate reads such
-  a number as a line claim against a `spec/` document, so one you never intended as a citation is
-  caught by the rule above. Spell it in words, or restructure so that a colon and digits are not
+  in a comment, **not inside a string literal in live code**, and not as an incidental figure that
+  was never meant as a citation. There is no prose carve-out: the gate enumerates the form wherever
+  it appears, and a bare number attributed to a `spec/` document by an earlier citation in the same
+  file is read as a line claim. What it will *not* read as a citation is a colon preceded by a word
+  character, a digit, a `/`, or the closer of an interpolation or index — so `{a:1}`, `http://host:80`
+  and `` `${ratio}:1` `` are safe by construction. Spell it in words, or restructure so that a colon
+  and digits are not
   adjacent — a literal line number is never illustrative here.
 
 **What the gate proves.** `npm run spec-citations` **resolves** anchors (#1181): it reads the
@@ -87,12 +91,11 @@ the escaping set, raw inline HTML, a numeric reference whose digit count CommonM
 renderer disagree about — is **refused** rather than answered. Read the coverage statement
 the gate prints; never read a green run as "every citation is right".
 
-**What is not yet true.** The rule above binds you **now**; the tooling is catching up behind it.
-Today `npm run spec-citations` still **accepts** a line citation, and the corpus is still
-overwhelmingly line-form — the counters the gate prints are the live measure. The gate change that
-rejects the line form, the sweep that converts the corpus, and the deletion of the exceptions file
-are `@testing`'s, under saga #1180. Do not read the gate's silence as permission: a rule is not a
-preference because nothing rejects it yet.
+**What the tooling now does.** The rule above binds you, and the tooling enforces it. `npm run
+spec-citations` **rejects** a line citation in every spelling — explicit, comma-appended, bare, `#L`
+fragment, and prefix-less — the corpus is entirely section anchors, and the exceptions file and its
+machinery are gone. The counters the gate prints are the live measure. There is no baseline and
+nothing records that a line citation may stay.
 
 ## Procedure
 

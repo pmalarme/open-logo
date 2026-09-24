@@ -9,7 +9,7 @@ import type { TraceEvent, TurnPayload } from "@openlogo/core";
 
 /** How close a turn total may sit to a multiple of `360` and still count as "closes" — absorbs
  * the floating-point rounding the spec calls out for every derived shape ("subject only to
- * numeric rounding", `spec/geometry-module.md:65,184`). */
+ * numeric rounding", `spec/geometry-module.md#polygon-sides-size, spec/geometry-module.md#circle-radius-segments-36`). */
 const CLOSURE_TOLERANCE_DEGREES = 1e-6;
 
 /** Normalizes `degrees` into `[0, 360)`, matching the turtle heading convention used throughout
@@ -22,7 +22,7 @@ export function normalizeDegrees(degrees: number): number {
 }
 
 /** Converts an angle in degrees to radians, for use with `Math.sin`/`Math.cos` — the runtime's
- * own `sin`/`cos`/`tan` reporters take degrees (`spec/geometry-module.md:172-173`). */
+ * own `sin`/`cos`/`tan` reporters take degrees (`spec/geometry-module.md#circle-radius-segments-36`). */
 export function degreesToRadians(degrees: number): number {
   return (degrees * Math.PI) / 180;
 }
@@ -30,7 +30,7 @@ export function degreesToRadians(degrees: number): number {
 /**
  * Whether `turnTotal` degrees is a whole multiple of `360` — the closure condition every derived
  * shape shares ("the turtle returns to its starting position and original heading", e.g.
- * `spec/geometry-module.md:65`), within {@link CLOSURE_TOLERANCE_DEGREES} of floating-point
+ * `spec/geometry-module.md#polygon-sides-size`), within {@link CLOSURE_TOLERANCE_DEGREES} of floating-point
  * rounding. Each shape computes its own `turnTotal` from its own formula; this is only the shared
  * final degree test, not a per-shape closure formula.
  */

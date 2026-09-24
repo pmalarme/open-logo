@@ -43,7 +43,7 @@ import type { TurtleWorldState } from "./world-state.js";
  * versus world coordinates for speech — and neither should move because the other did.
  *
  * The alternative considered was the language's own `print` rule (at most 10 significant digits,
- * `spec/execution-model.md:19`). It was rejected on measurement: it renders the value this issue
+ * `spec/execution-model.md#value-and-type-model`). It was rejected on measurement: it renders the value this issue
  * was filed about, `1.4210854715202004e-14`, as `1.421085472e-14` — still an exponent — and
  * `84.8528137423857` as `84.85281374`, still eight decimals to speak.
  *
@@ -79,9 +79,9 @@ const DESCRIBED_NUMBER_PRECISION = 3;
 /**
  * Renders a number for a spoken description: rounded to {@link DESCRIBED_NUMBER_PRECISION} places,
  * then printed **without trailing zeros**, so a whole value stays whole (`100`, never `100.000`)
- * and `spec/rendering.md:193`'s worked example — `turtle at x 100 y 0 heading 90 degrees pen down
+ * and `spec/rendering.md#non-visual-state-descriptions`'s worked example — `turtle at x 100 y 0 heading 90 degrees pen down
  * color black width 1` — remains byte-identical. That no-trailing-zeros rule is the same one the
- * language itself uses for `print` (`spec/execution-model.md:19`, implemented as
+ * language itself uses for `print` (`spec/execution-model.md#value-and-type-model`, implemented as
  * `@openlogo/runtime`'s `formatNumber`), reimplemented here rather than imported because
  * `@openlogo/turtle` must not depend on `@openlogo/runtime`.
  *
@@ -100,7 +100,7 @@ function formatDescribedNumber(value: number): string {
 /**
  * Renders a heading for a spoken description. Identical to {@link formatDescribedNumber} except
  * that a heading which *rounds up* to a full turn is spoken as `0`, because
- * `spec/rendering.md:67` and `spec/execution-model.md:619` both normalize headings into `[0,360)`
+ * `spec/rendering.md#coordinate-mapping-and-viewport` and `spec/execution-model.md#turtle-and-canvas-state` both normalize headings into `[0,360)`
  * — `heading 360 degrees` names a value the model never holds.
  *
  * This is reachable, not defensive: measured on the base of this change, `right 359.9999` and
@@ -261,7 +261,7 @@ function describeState(
  *
  * This describes **one** turtle, so it never names an identity: with a single turtle there is
  * nothing to disambiguate. A host driving several turtles calls
- * {@link describeTurtleWorldState} instead, which satisfies `spec/rendering.md:193`'s
+ * {@link describeTurtleWorldState} instead, which satisfies `spec/rendering.md#non-visual-state-descriptions`'s
  * "Implementations with multiple turtles MUST identify the active turtle or addressed turtle set".
  *
  * Deterministic: the same state (and options) always produce the same string, with no locale,
@@ -321,12 +321,12 @@ function addressingClause(ids: readonly TurtleId[]): string {
  *   rejected: this is a single `aria-live="polite"` region a screen reader re-reads *in full* on
  *   every change, so `tell [ :a :b :c :d ]` / `repeat 100 [ forward 1 ]` would replace one sentence
  *   per tick with four — a wall of speech burying the change a learner was listening for — while
- *   `spec/rendering.md:193` asks only that the addressed set be *identified*. Every turtle's avatar
+ *   `spec/rendering.md#non-visual-state-descriptions` asks only that the addressed set be *identified*. Every turtle's avatar
  *   stays on the canvas, and the per-turtle states stay published on
  *   {@link TurtleWorldState.turtles} for a future inspect-each-turtle affordance.
  * - **Describe the turtle a command last drove.** The numbers are those of
  *   {@link TurtleWorldState.lastActedTurtleId}, because this region is also how a non-visual user
- *   follows *progress* (`spec/rendering.md:195`: the drawing surface must not be the only way to
+ *   follows *progress* (`spec/rendering.md#non-visual-state-descriptions`: the drawing surface must not be the only way to
  *   understand program progress). Describing the restored/current turtle instead would silently drop
  *   what just happened: after `ask :b [ set_color "blue" ]` the region would report `:a`, still
  *   black — never announcing that `:b` turned blue at all, since the block's restore lands in the
@@ -385,13 +385,13 @@ function describeAddressedTurtles(
  * `[lastActedTurtleId]` (#770) — two independent triggers, either of which can fire without the
  * other.
  *
- * `spec/rendering.md:193` makes that identification a MUST: "Implementations with multiple turtles
+ * `spec/rendering.md#non-visual-state-descriptions` makes that identification a MUST: "Implementations with multiple turtles
  * MUST identify the active turtle or addressed turtle set." A world holding several turtles is
  * therefore described as `turtle #<id> at x … y … heading … degrees pen … color … width …`, using
  * **exactly the identity the language itself prints** for a turtle value: `@openlogo/runtime`'s
  * `printedForm` renders a turtle as `turtle #<id>` from `@openlogo/core`'s `OLTurtle.id`
  * (`packages/runtime/src/evaluate.ts`), which is what a learner sees from `print who` or
- * `print :friend` (`spec/turtles-and-sprites.md:39`, `:85`). A screen-reader user therefore hears
+ * `print :friend` (`spec/turtles-and-sprites.md#turtle-creation`, `spec/turtles-and-sprites.md#addressing-model`). A screen-reader user therefore hears
  * the same name in the state region that the output pane gives them, and can match the two without
  * seeing the drawing. Any second numbering — a creation-order ordinal, say — would be off by one
  * against `print who` for every turtle, which defeats the purpose of the MUST.

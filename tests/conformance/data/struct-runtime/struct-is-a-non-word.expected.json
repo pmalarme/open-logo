@@ -1,5 +1,5 @@
 {
-  "description": "`is_a?` with a non-word type argument raises `ol-type` (issue #329, `spec/data-structures.md:287`): the type argument `5` is a number, not a type word — reusing the Core `is_a?` type-argument check unchanged.",
+  "description": "`is_a?` with a non-word type argument raises `ol-type` (issue #329, `spec/data-structures.md#record-operations`): the type argument `5` is a number, not a type word — reusing the Core `is_a?` type-argument check unchanged.",
   "profiles": ["core-language", "data"],
   "execute": true,
   "events": [

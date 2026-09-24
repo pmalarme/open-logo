@@ -102,16 +102,16 @@ export interface Token {
    * `procedure-name`, `type-name`, `field-name`, and `:variable` (a procedure's own `:param`)
    * — `true` at the binding site, `false` at every other (use/call) site. Consumed by
    * `semantic-tokens.ts` (issue #121) to compute the LSP `declaration`/`reference` modifiers
-   * from `spec/tooling.md:279`; absent on classes with no such split (e.g. `keyword`, `number`).
+   * from `spec/tooling.md#informative-lsp-style-editor-integration`; absent on classes with no such split (e.g. `keyword`, `number`).
    */
   readonly declaration?: boolean;
 }
 
 /**
- * Word-spelled operators (`spec/tooling.md:39`): `and`, `or`, `not`, and `mod` — always
+ * Word-spelled operators (`spec/tooling.md#normative-token-class-model`): `and`, `or`, `not`, and `mod` — always
  * `operator`, never `keyword`. Consulted before the {@link isKeyword} lookup so none of the four
- * falls through to `keyword`: all four are on the keyword list (`spec/grammar.md:373`), and
- * `spec/grammar.md:378` makes that list and the `keyword` **token class** "different sets on
+ * falls through to `keyword`: all four are on the keyword list (`spec/grammar.md#keywords-primitives-and-built-in-names`), and
+ * `spec/grammar.md#keywords-primitives-and-built-in-names` makes that list and the `keyword` **token class** "different sets on
  * purpose", so membership here is what decides the class.
  *
  * **Exported as the set classification actually reads, not as a copy of it.** The four are built-in
@@ -158,12 +158,12 @@ function isAtOrBefore(a: Position, b: Position): boolean {
  * it would be a trap for the checker and the highlighter to name it differently.
  *
  * `options.profiles` decides the class of the profile block-heads and the Sprites mode-switch
- * command `tell`: `spec/tooling.md:30` puts them in `keyword` "while their profile is active",
- * and `:31` puts "a profile word whose profile is inactive" in `primitive`. Omitted, it defaults
+ * command `tell`: `spec/tooling.md#normative-token-class-model` puts them in `keyword` "while their profile is active",
+ * and `spec/tooling.md#normative-token-class-model` puts "a profile word whose profile is inactive" in `primitive`. Omitted, it defaults
  * to {@link DEFAULT_CHECK_PROFILES} (Core Language alone) — the profile-neutral reading, and
  * exactly what every caller saw before this option existed. Profile *primitives* — the Sound
  * commands, Interaction's `wait`/`input`, the Sprites reporters — are `primitive` under every
- * profile set (`:31`, "profile primitives when enabled"), so this option never moves them.
+ * profile set (`spec/tooling.md#normative-token-class-model`, "profile primitives when enabled"), so this option never moves them.
  */
 export interface HighlightOptions {
   readonly profiles?: readonly CheckProfile[];
@@ -396,7 +396,7 @@ export function highlight(
     byEnd.set(posKey(token.source_span.end), index);
   });
 
-  // `dict-key` (`spec/tooling.md:41`) has two grammatical sources: a selector's bare-word key
+  // `dict-key` (`spec/tooling.md#normative-token-class-model`) has two grammatical sources: a selector's bare-word key
   // (`:dict[key]`, handled by `markSelectorKey` below) and a dict-*literal*'s bare key before its
   // `:` (`{ key: value }`, handled by the `"DictLit"` case in `visit()`, reusing the same
   // `markSelectorKey` helper for each entry). Both share the identical bare-identifier-vs-quoted
@@ -558,7 +558,7 @@ export function highlight(
   }
 
   /**
-   * `empty`/`member`/`of`/`a` are keywords in reader-recognized positions. `spec/tooling.md:97-99`
+   * `empty`/`member`/`of`/`a` are keywords in reader-recognized positions. `spec/tooling.md#reserved-words-for-tooling`
    * is the normative highlighter instruction and names two: "only inside an `is`-predicate or the
    * heritage `value of … for key` reader, and as ordinary names elsewhere". This function handles
    * the first, and {@link markValueOfKeyPreposition} below handles the second. `is` itself,
@@ -638,41 +638,41 @@ export function highlight(
   }
 
   /**
-   * `of` in the Heritage `value of <dict> for key <key>` reader (`spec/grammar.md:217`'s
+   * `of` in the Heritage `value of <dict> for key <key>` reader (`spec/grammar.md#expressions-and-calls`'s
    * `value-of-reader`) is `keyword`, alongside the `is`-predicate's `of` above.
    *
-   * `spec/tooling.md:97-99` is the normative highlighter instruction and names **both** positions:
+   * `spec/tooling.md#reserved-words-for-tooling` is the normative highlighter instruction and names **both** positions:
    * a highlighter marks `empty`/`member`/`of`/`a` as `keyword` "only inside an `is`-predicate or
    * the heritage `value of … for key` reader, and as ordinary names elsewhere". That sentence named
    * only the `is`-predicate until the maintainer's ruling on issue #785 added this reader; the spec
    * amendment and this marking ship in the same change, so no version of the tree has the code and
    * the spec disagreeing.
    *
-   * Supporting passages elsewhere in the spec: `spec/tooling.md:30` names `of` among the contextual
+   * Supporting passages elsewhere in the spec: `spec/tooling.md#normative-token-class-model` names `of` among the contextual
    * words that take the `keyword` class in the structural positions it describes;
-   * `spec/localization.md:80,82` lists
+   * `spec/localization.md#heritage-grammar-forms` lists
    * `value of dict for key key_value` among the Heritage grammar forms and states these forms "can
    * contain structural words such as `to`, `of`, `for`, and `key` in fixed grammar slots" — naming
    * `of` a structural word of this production, beside the three siblings that are reserved and so
-   * already `keyword`; and `spec/grammar.md:380` calls this `of` "the contextual preposition in the
+   * already `keyword`; and `spec/grammar.md#keywords-primitives-and-built-in-names` calls this `of` "the contextual preposition in the
    * heritage `value of … for key` reader".
    *
-   * Those passages now match. `spec/grammar.md:234`, `spec/execution-model.md:156-159`, and
-   * `spec/commands.md:461` each keep their "after `is`" claim scoped to their own subject and
-   * name this reader as `of`'s other structural position (#856); `spec/grammar.md:380` had already
+   * Those passages now match. `spec/grammar.md#expressions-and-calls`, `spec/execution-model.md#precedence-and-evaluation-order`, and
+   * `spec/commands.md#logic-and-predicates` each keep their "after `is`" claim scoped to their own subject and
+   * name this reader as `of`'s other structural position (#856); `spec/grammar.md#keywords-primitives-and-built-in-names` had already
    * folded its reader parenthetical into the sentence (#875), ending the tension it had carried
    * since the spec's initial commit. None of them governs token class in any case:
-   * `spec/grammar.md:7` scopes that document to "lexis, reader-visible syntax, expression
+   * `spec/grammar.md#grammar` scopes that document to "lexis, reader-visible syntax, expression
    * precedence, bracket roles, assignable places, keywords, and the built-in names a program may
-   * not declare", and `spec/commands.md:461` draws its contrast in keyword-membership terms ("Only
+   * not declare", and `spec/commands.md#logic-and-predicates` draws its contrast in keyword-membership terms ("Only
    * `is`, `strictly`, and `between` are keywords") — the *reservation* half of the claim comes
-   * from `spec/tooling.md:100` ("`is`, `between`, and `strictly` are globally reserved"). The
+   * from `spec/tooling.md#reserved-words-for-tooling` ("`is`, `between`, and `strictly` are globally reserved"). The
    * normative token-class model is `spec/tooling.md`'s.
    *
-   * It is emphatically not `primitive` **as a matrix claim**: `spec/tooling.md:31` scopes that
+   * It is emphatically not `primitive` **as a matrix claim**: `spec/tooling.md#normative-token-class-model` scopes that
    * sense to "Built-in commands, reporters, and aliases from the C3 primitive matrix", and
    * `of` is in no primitive table (`corePrimitiveArity("of") === undefined`; `spec/commands.md` has
-   * no `of` entry). `:31` does make `primitive` the grammar-safe *fallback* for an unclaimed bare
+   * no `of` entry). `spec/tooling.md#normative-token-class-model` does make `primitive` the grammar-safe *fallback* for an unclaimed bare
    * name, but it forbids reading matrix membership into that — whereas `semanticTokens` then
    * decorated `of` with `defaultLibrary`, asserting standard-library membership for a word that has
    * none (the residue tracked by #831).
@@ -722,7 +722,7 @@ export function highlight(
    *
    * `(:x\n) is empty` leaves both at once, which is why skipping either alone was insufficient:
    * each fix landed on the token the other would have skipped, marked nothing, and painted the
-   * predicate's own word `primitive` in a position `spec/tooling.md:30` gives the `keyword` class —
+   * predicate's own word `primitive` in a position `spec/tooling.md#normative-token-class-model` gives the `keyword` class —
    * in a program that parses with **zero diagnostics** (issue #959 rounds 4-5, issue #995).
    *
    * Only these two kinds can sit in any of these gaps, so the scan is bounded by the grammar rather
@@ -926,7 +926,7 @@ export function highlight(
   }
 
   // Comments live in the whitespace gaps `tokenize()` already skips; scan those gaps only, so
-  // string/name/number/operator tokens are never re-inspected (atomicity, spec/tooling.md:25-26).
+  // string/name/number/operator tokens are never re-inspected (atomicity, spec/tooling.md#normative-token-class-model).
   const comments = collectComments(source, document, lex);
 
   const mergedAway = new Set<number>();
@@ -987,10 +987,10 @@ export function highlight(
     }
     // A profile block-head — Sprites' `ask`/`each` and its mode-switch command `tell`, which takes
     // no block, and Interaction's `when`/`every`/`on_key`/`on_click` — joins the Core keywords, but
-    // only WHILE ITS PROFILE IS ACTIVE (`spec/tooling.md:30`, "Profile words — a profile's
+    // only WHILE ITS PROFILE IS ACTIVE (`spec/tooling.md#normative-token-class-model`, "Profile words — a profile's
     // block-heads and its mode-switch commands — take this class while their profile is active").
     // With the
-    // profile inactive it falls through to `primitive`, which is where `:31` puts "a profile word
+    // profile inactive it falls through to `primitive`, which is where `spec/tooling.md#normative-token-class-model` puts "a profile word
     // whose profile is inactive". Those two clauses are the whole rule, and they are why this
     // classifier needs an active-profile set at all (issue #740). Which words those are is declared
     // per name as `tokenClass` in `spec/built-in-names.json`, and `npm run built-in-names` re-paints
@@ -1000,7 +1000,7 @@ export function highlight(
     // an active profile's words — so the registry stays the single entry point rather than this
     // file re-deriving the disjunction.
     //
-    // Deliberately checked HERE, after symbol discovery rather than before it: `spec/tooling.md:30`
+    // Deliberately checked HERE, after symbol discovery rather than before it: `spec/tooling.md#normative-token-class-model`
     // says "[Disambiguating identifiers] is what demotes a token to `procedure-name`, `type-name`,
     // or `field-name` once parsing or symbol discovery resolves it", so a program's own
     // `define ask … end` stays `procedure-name` under an active Sprites profile. Hoisting this
@@ -1008,7 +1008,7 @@ export function highlight(
     //
     // Profile *primitives* are NOT affected and must not be: the Sound commands, Interaction's
     // `wait`/`input`, and the Sprites reporters are ordinary primitives under every profile set
-    // (`:31`, "profile primitives when enabled"). Only the block-heads and `tell` move.
+    // (`spec/tooling.md#normative-token-class-model`, "profile primitives when enabled"). Only the block-heads and `tell` move.
     if (isKeyword(lower, activeProfiles)) {
       return {
         class: "keyword",
@@ -1139,7 +1139,7 @@ export function highlight(
     if (splitValueStart !== undefined) {
       // A glued dict-entry value (`{ a:foo }`) lexed as one `variable`-kind token spanning
       // `:foo`; emit the operator `:` and the value's own real classification separately,
-      // matching a normally-spaced entry's two tokens (spec/tooling.md:39,41).
+      // matching a normally-spaced entry's two tokens (spec/tooling.md#normative-token-class-model).
       output.push({
         class: "operator",
         text: ":",

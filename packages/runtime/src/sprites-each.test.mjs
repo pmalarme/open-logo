@@ -231,7 +231,7 @@ test("a runtime error inside each surfaces its ol-type and emits no move", () =>
   //
   // They do NOT show which iteration failed: every addressed turtle runs the same failing command,
   // so a loop that kept going would raise the same code and still emit no move. Nor do they show
-  // the addressed-set restoration `spec/turtles-and-sprites.md:78` mandates, because no statement
+  // the addressed-set restoration `spec/turtles-and-sprites.md#addressing-model` mandates, because no statement
   // after the error runs either way. Contrast the `throw` test below, whose block moves before it
   // throws and which is followed by a trailing statement: there the move list does discriminate.
   //
@@ -251,10 +251,10 @@ test("a runtime error inside each surfaces its ol-type and emits no move", () =>
 
 test("a `throw` inside each halts the run after the first turtle's move", () => {
   // A `throw` on :a's run halts the program (v0.1 has no try/catch, so it stops like any runtime
-  // error, spec/commands.md:980) and surfaces `ol-user-error`. The loop stops on the first iteration
+  // error, spec/commands.md#throw) and surfaces `ol-user-error`. The loop stops on the first iteration
   // — :a's `forward 10` ran but :b never does.
   //
-  // The restoration `spec/turtles-and-sprites.md:78` mandates on this path is NOT what the moves
+  // The restoration `spec/turtles-and-sprites.md#addressing-model` mandates on this path is NOT what the moves
   // below show: no statement after the throw runs, so the absent :b move and the absent
   // `forward 30` are equally consistent with a restored and with a leaked set (issue #753). It is
   // proven from output next door, by sprites-addressing-events.test.mjs's "a throw unwinding each

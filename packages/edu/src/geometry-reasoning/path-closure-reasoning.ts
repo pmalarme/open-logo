@@ -7,7 +7,7 @@
  * them into both a positional and a heading verdict, so it can flag a path that never returns to
  * its start position and heading as a **structured signal**, never a thrown runtime error.
  *
- * Spec closure (`spec/geometry-module.md:65,184`) requires the turtle to return to **both** its
+ * Spec closure (`spec/geometry-module.md#polygon-sides-size, spec/geometry-module.md#circle-radius-segments-36`) requires the turtle to return to **both** its
  * start position **and** its start heading — a turn total that is a multiple of `360` is
  * necessary but not sufficient (a bare `forward 100` never turns at all, yet plainly does not
  * close). `headingCloses`/`positionCloses`/`closes` below are each computed straight from the

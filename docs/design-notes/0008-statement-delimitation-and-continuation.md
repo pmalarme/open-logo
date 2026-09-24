@@ -27,7 +27,7 @@ might make about how the language works:
 
 Each of these is a consequence of the same underlying design: statement delimitation is
 **token-driven, not arity-driven**, and the set of tokens that continue a statement across a
-newline is closed and exhaustive for the Core Language profile. `spec/grammar.md:34` now states the
+newline is closed and exhaustive for the Core Language profile. `spec/grammar.md#lexical-form-and-encoding` now states the
 complete rule; optional profiles such as Heritage may define additional continuation positions
 (documented in their respective spec sections).
 
@@ -36,7 +36,7 @@ complete rule; optional profiles such as Heritage may define additional continua
 A newline ends the current statement **unless a continuation is pending**. A continuation is pending
 when the token at the boundary — the last token of the current line or the first token of the next
 line — syntactically requires more input. The rule operates at two levels, both specified in
-`spec/grammar.md:34`:
+`spec/grammar.md#lexical-form-and-encoding`:
 
 **Expression-level continuation** keeps one expression open across a newline. The following three
 triggers are closed and exhaustive for the Core Language profile (optional profiles such as Heritage
@@ -120,7 +120,7 @@ print 10
 
 This is the sharpest surprise in the rule, so it deserves explanation first. The behaviour is **not**
 an independent design choice — it is a direct consequence of the lexical rule in
-`spec/grammar.md:17` (the "Numbers" paragraph): a `-` directly before a numeral **with no left
+`spec/grammar.md#lexical-form-and-encoding` (the "Numbers" paragraph): a `-` directly before a numeral **with no left
 operand** is part of the literal. That rule is what makes `:delta = -5` parse as an assignment of
 the number negative five rather than a subtraction with a missing left operand, which is clearly the
 right reading.
@@ -142,7 +142,7 @@ an expression, making the ambiguity visible without changing what the program me
 This is an exception to the general rule that horizontal whitespace is insignificant. The spec
 states it explicitly: "Because `- 5` and `-5` produce different programs, horizontal whitespace at
 the start of a line can affect tokenization and therefore statement structure"
-(`spec/grammar.md:34`).
+(`spec/grammar.md#lexical-form-and-encoding`).
 
 ### Why arity never opens a continuation
 
@@ -255,23 +255,23 @@ accommodating expressions that genuinely need more than one line.
   would convert a missing-argument error into a wrong-program bug.
 - **Leading and trailing operators are equally valid.** A learner can break a long expression at an
   operator and place the operator on either side of the line break. The language does not mandate a
-  style; the `ol-style-ambiguous-continuation` lint (`spec/tooling.md:254`) flags all leading
+  style; the `ol-style-ambiguous-continuation` lint (`spec/tooling.md#layer-3-style-lints`) flags all leading
   arithmetic operators (`+`, `-`, `*`, `/`, `mod`) on continuation lines to make the implicit
   continuation visible, and for the `-` case it additionally names both readings (subtraction vs
   negative literal) so the learner can verify which one the parser chose.
 - **The trigger set is closed and grows only by spec amendment.** The four continuation triggers
   (unclosed delimiter, trailing operator, leading operator, `else` after bracket-form `if`) are
-  enumerated in `spec/grammar.md:34` and described as "closed and exhaustive for the Core Language
+  enumerated in `spec/grammar.md#lexical-form-and-encoding` and described as "closed and exhaustive for the Core Language
   profile." Adding a new trigger requires a spec change, which prevents the continuation rules from
   growing ad hoc as new features are added.
 
 ## Spec references
 
-- `spec/grammar.md:34` — the normative paragraph defining statement delimitation, continuation
+- `spec/grammar.md#lexical-form-and-encoding` — the normative paragraph defining statement delimitation, continuation
   triggers (expression-level and statement-level), the arity-never-continues rule, and the `-5`
   tokenization exception.
-- `spec/grammar.md:17` — the "Numbers" paragraph defining the negative-literal lexing rule (a `-`
+- `spec/grammar.md#lexical-form-and-encoding` — the "Numbers" paragraph defining the negative-literal lexing rule (a `-`
   directly before a numeral with no left operand is part of the literal), which is the root cause
   of the `- 5` vs `-5` distinction at newline boundaries.
-- `spec/tooling.md:254` — the `ol-style-ambiguous-continuation` lint definition, which flags all
+- `spec/tooling.md#layer-3-style-lints` — the `ol-style-ambiguous-continuation` lint definition, which flags all
   leading arithmetic operators on continuation lines and names both readings for the `-` case.

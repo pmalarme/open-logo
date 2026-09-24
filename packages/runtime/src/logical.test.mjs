@@ -1,9 +1,9 @@
 // Unit tests for `not`/`and`/`or` (issue #95) — the boolean-only, short-circuit logic operators
-// at precedence levels 2/6/7 (spec/execution-model.md:133,137-144). Every case parses real source
+// at precedence levels 2/6/7 (spec/execution-model.md#precedence-and-evaluation-order). Every case parses real source
 // through @openlogo/parser and evaluates the resulting AST node, exercising `evaluate()` exactly
 // as `@openlogo/runtime`'s `execute()` does — including the parenthesized variadic form
 // (`(and a b c)`), which the parser lowers to the same callee/args shape as the nested-binary
-// infix form. There is no truthiness (spec/error-model.md:123): a non-boolean operand raises
+// infix form. There is no truthiness (spec/error-model.md#normative-code-registry): a non-boolean operand raises
 // `ol-not-boolean` rather than coercing.
 
 import assert from "node:assert/strict";
@@ -78,7 +78,7 @@ test("and left-associates over three or more operands", () => {
 
 test("and short-circuits at the first false — the right operand is never evaluated", () => {
   // `:missing` would raise `ol-undefined-var` if evaluated; `and` never reaches it once the
-  // left operand is `false` (spec/execution-model.md:141).
+  // left operand is `false` (spec/execution-model.md#precedence-and-evaluation-order).
   const result = evalExpr("false and :missing");
   assert.deepEqual(result, { ok: true, value: false });
 });

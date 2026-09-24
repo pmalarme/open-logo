@@ -1,5 +1,5 @@
 {
-  "description": "issue #397: with the data profile NOT active (core-language only), `list` is not a recognized command -- the reader still parses `:path = list` as a bare zero-argument Call (the profile-legality decision belongs to check(), not the reader -- mirroring how a Turtle & Rendering primitive like `forward` behaves when turtle-rendering is inactive, spec/tooling.md:175-176), so check() raises ol-unknown-command (with `last` as its nearest-Core-name did-you-mean suggestion).",
+  "description": "issue #397: with the data profile NOT active (core-language only), `list` is not a recognized command -- the reader still parses `:path = list` as a bare zero-argument Call (the profile-legality decision belongs to check(), not the reader -- mirroring how a Turtle & Rendering primitive like `forward` behaves when turtle-rendering is inactive, spec/tooling.md#layer-2-semantic-checking), so check() raises ol-unknown-command (with `last` as its nearest-Core-name did-you-mean suggestion).",
   "profiles": ["core-language"],
   "check": true,
   "events": [],

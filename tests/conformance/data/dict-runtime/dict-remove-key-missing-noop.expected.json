@@ -1,5 +1,5 @@
 {
-  "description": "`remove key ... from ...` is a no-op (no diagnostic, no event beyond the mutator instruction) when the key does not exist (issue #322, `spec/data-structures.md:219-231`); `count` is unchanged at 1.",
+  "description": "`remove key ... from ...` is a no-op (no diagnostic, no event beyond the mutator instruction) when the key does not exist (issue #322, `spec/data-structures.md#dictionary-operations`); `count` is unchanged at 1.",
   "profiles": ["core-language", "data"],
   "execute": true,
   "events": [

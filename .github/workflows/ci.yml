@@ -216,9 +216,9 @@ jobs:
       # list) and this is the half that fails until both land. It runs here rather than in its own
       # job because it shares this job's build and is measured in milliseconds.
       - run: npm run -s built-in-names
-      # Issue #934: every `spec/` citation in the tree must resolve to text, a section anchor must
+      # Issue #934: every `spec/` citation in the tree must name a SECTION, a section anchor must
       # name a heading that exists in the file it cites (#1181, ADR-0035), a quoted EBNF production
-      # must be inside the range cited, and a forward-looking status claim must name a tracking
+      # must be inside the section cited, and a forward-looking status claim must name a tracking
       # issue. The anchor is the only form to write (ADR-0036); its limits are stated in the skill
       # that owns the rule, `.github/skills/shared/spec-fidelity/SKILL.md`. Nothing checked any of
       # this before, so one spec edit silently invalidated line citations in bulk: #846 shifted 113
@@ -233,6 +233,16 @@ jobs:
       # two broken skill links sat in the tree until this gate landed. Needs no build and runs in
       # seconds, so it shares this job.
       - run: npm run -s adr-numbering
+      # Saga #1180: the citation gate above resolves an anchor, which proves a heading EXISTS and
+      # never that it is the RIGHT one. This scans for the second case, and it is deliberately a
+      # REPORT — a finding can never fail the build, because its measured sensitivity to seeded
+      # retargeting is roughly half and its flag count is a property of the scorer rather than of
+      # the corpus. What it CAN fail is itself: a seeded mutation control outside its band, or a
+      # scan that scored nothing. Those are instrument-health checks, and an instrument nobody runs
+      # is one whose rot is invisible — this saga found eight separate checks that reported success
+      # while measuring nothing, so the tool that exists to catch that class must not join it.
+      # Runs in seconds and needs no build, so it shares this job.
+      - run: npm run -s citation-suspects
       # TODO(@devops + @testing): add integration and a11y/pedagogy gates as those
       # suites land (DoD sections 5-9); wire them here so they block merge.
 

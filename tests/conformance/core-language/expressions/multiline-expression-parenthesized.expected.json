@@ -1,5 +1,5 @@
 {
-  "description": "A parenthesized group is newline-transparent throughout (`spec/grammar.md:34`): after the `(`, mid-expression, nested two deep, and nested inside a list literal. Every `)` here is matched, so none of them raises `ol-unmatched-paren` — issue #933's phantom cascade, which grew to four spurious diagnostics on the two-deep case alone.",
+  "description": "A parenthesized group is newline-transparent throughout (`spec/grammar.md#lexical-form-and-encoding`): after the `(`, mid-expression, nested two deep, and nested inside a list literal. Every `)` here is matched, so none of them raises `ol-unmatched-paren` — issue #933's phantom cascade, which grew to four spurious diagnostics on the two-deep case alone.",
   "profiles": ["core-language"],
   "execute": true,
   "events": [

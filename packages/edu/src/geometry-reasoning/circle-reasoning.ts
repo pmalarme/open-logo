@@ -1,6 +1,6 @@
 /**
  * Deterministic geometric reasoning for `circle :radius (:segments 36)`
- * (`spec/geometry-module.md:135-193`). A `circle` is normatively an *inscribed regular polygon
+ * (`spec/geometry-module.md#circle-radius-segments-36`). A `circle` is normatively an *inscribed regular polygon
  * approximation* — never a "real" curve — so this reasoning reports it as such rather than
  * claiming exact circle geometry.
  */
@@ -12,10 +12,10 @@ export interface CircleReasoning {
   readonly concept: "circle-inscribed-polygon-approximation";
   readonly radius: number;
   readonly segments: number;
-  /** `360 / segments` — the turn after every segment (`spec/geometry-module.md:176-180`). */
+  /** `360 / segments` — the turn after every segment (`spec/geometry-module.md#circle-radius-segments-36`). */
   readonly exteriorTurnPerSegment: number;
   /** `2 * radius * sin(180 / segments)` — the inscribed-polygon side length
-   * (`spec/geometry-module.md:170-174`), in degrees per the runtime's `sin` reporter. */
+   * (`spec/geometry-module.md#circle-radius-segments-36`), in degrees per the runtime's `sin` reporter. */
   readonly sideLength: number;
   /** `segments * exteriorTurnPerSegment` — the sum of every exterior turn around the whole
    * shape. */
@@ -24,12 +24,12 @@ export interface CircleReasoning {
    * heading. */
   readonly closes: boolean;
   /** Always `true`: a reminder that this is an inscribed-polygon approximation of a circle, not
-   * a mathematically exact curve (`spec/geometry-module.md:170,184`). */
+   * a mathematically exact curve (`spec/geometry-module.md#circle-radius-segments-36`). */
   readonly isApproximation: true;
 }
 
 /**
- * Reasons about the inscribed regular polygon `circle` draws (`spec/geometry-module.md:135-193`).
+ * Reasons about the inscribed regular polygon `circle` draws (`spec/geometry-module.md#circle-radius-segments-36`).
  * `radius` and `segments` are assumed already validated (a positive radius, a whole number of
  * segments `>= 3`, per the stdlib's own guards) — this function only computes the geometry.
  */

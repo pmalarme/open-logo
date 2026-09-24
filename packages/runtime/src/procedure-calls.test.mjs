@@ -1,5 +1,5 @@
 // Unit tests for procedure-call execution: scope, arity, return/stop/throw (issue #97,
-// spec/execution-model.md:338-385, 775-813). Conformance fixtures under
+// spec/execution-model.md#variables-scoping-and-procedures, spec/execution-model.md#trace-and-event-registry). Conformance fixtures under
 // tests/conformance/core-language/execution/procedure-*.expected.json cover the primary
 // event/diagnostic shapes end to end (basic call+return, optional-param defaults in both call
 // forms, both arity diagnostics, stop escaping a nested loop, return/stop outside any procedure,
@@ -55,7 +55,7 @@ test("recursion within the depth limit still completes normally and returns the 
 test("a later define of the same name is ol-duplicate-definition, not a silent override (issue #839)", () => {
   // Was: "a later define wins over an earlier one (matches the static checker)". It never matched
   // the checker — `check()` reported the collision while `execute()` ran the SECOND body and
-  // printed `2`, the exact silent override `spec/execution-model.md:86-88` forbids. The two bodies
+  // printed `2`, the exact silent override `spec/execution-model.md#reader-pipeline` forbids. The two bodies
   // differ deliberately (`return 1` vs `return 2`): under the old rule this printed `2`, under a
   // first-wins rule it would print `1`, and only the ruling's rule prints nothing at all.
   const result = execute(
@@ -265,7 +265,7 @@ test("a parenthesized statement-position procedure call with an unsupported argu
   assert.deepEqual(printed, []);
 });
 
-test("a procedure parameter binding folds case: a differently-cased :read in the body sees the argument (spec/grammar.md:13)", () => {
+test("a procedure parameter binding folds case: a differently-cased :read in the body sees the argument (spec/grammar.md#lexical-form-and-encoding)", () => {
   const result = execute("define echo :X\n  return :x\nend\nprint echo 5", doc);
   assert.deepEqual(result.diagnostics, []);
   const printed = result.events

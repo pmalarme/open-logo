@@ -246,9 +246,9 @@ export class TurtleAnimationController {
    *
    * Exists so a host can price the upcoming step *before* it runs without re-deriving the step
    * boundary. `@openlogo/studio` needs exactly that to pace playback against the program's logical
-   * tick clock (issue #985 F4, `spec/interaction-events.md:69-73` — rendering, animation and event
+   * tick clock (issue #985 F4, `spec/interaction-events.md#time-ticks-and-handlers` — rendering, animation and event
    * dispatch share one clock): the delay before a step must reflect the ticks that step will spend,
-   * and a trailing `wait` — the `:116-118` "hold the run open" case — has no following step to
+   * and a trailing `wait` — the `spec/interaction-events.md#trace-stream-integration` "hold the run open" case — has no following step to
    * charge them to.
    *
    * It reads {@link stepEndFrom}, so it is the **same** boundary rule stepping and seeking use.

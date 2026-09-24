@@ -1,5 +1,5 @@
 {
-  "description": "`sort` on a length-1 list still checks orderability — a singleton `[true]` raises `ol-type` the same as any other non-orderable element; there is no length exception (spec/data-structures.md:141). Issue #513 (M4 re-audit finding G6).",
+  "description": "`sort` on a length-1 list still checks orderability — a singleton `[true]` raises `ol-type` the same as any other non-orderable element; there is no length exception (spec/data-structures.md#derived-list-reporters-in-the-data-profile). Issue #513 (M4 re-audit finding G6).",
   "profiles": ["data"],
   "execute": true,
   "events": [

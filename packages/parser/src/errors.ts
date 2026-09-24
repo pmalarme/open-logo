@@ -29,14 +29,14 @@ function parseError(
 }
 
 /**
- * The Core keywords `spec/grammar.md:160-162` gives a real production — `alias-statement`,
+ * The Core keywords `spec/grammar.md#ebnf-notation` gives a real production — `alias-statement`,
  * `import-statement`, `export-statement` — that `parser.ts` does not implement, so each raises
  * `ol-bad-token` for its own grammar-correct spelling (`alias forward fd`, `export square`,
  * `import "shapes"`, all measured).
  *
  * They are excluded from {@link misplacedKeywordClause} because for them the sentence's **causality**
  * would be false. Everywhere else the reader rejects a keyword, the grammar is the reason: a keyword
- * in a position none of `spec/grammar.md:390`'s name-admitting positions cover *"has no derivation at
+ * in a position none of `spec/grammar.md#keywords-primitives-and-built-in-names`'s name-admitting positions cover *"has no derivation at
  * all and is a parse error"*. For these three the grammar permits the word exactly where it stands
  * and the **implementation** is behind, so blaming OpenLogo's ownership would teach a learner
  * something untrue about the language. They keep the bare message until the reader can read them.
@@ -52,7 +52,7 @@ export const KEYWORDS_WITH_NO_READER_PRODUCTION: ReadonlySet<string> = new Set([
  * or the empty string when it is not, which is the common case, since most `ol-bad-token` findings
  * name a stray delimiter, a number, or lexical garbage.
  *
- * `spec/error-model.md:110` asks this message to *"point at the unexpected text and mention the
+ * `spec/error-model.md#normative-code-registry` asks this message to *"point at the unexpected text and mention the
  * closest legal form when clear"*. The first half was already done; this adds the concept behind the
  * rejection (issue #878). It deliberately stops short of naming a form, and the reason is measured
  * rather than assumed — see {@link parseDiag.badToken}.
@@ -109,13 +109,13 @@ export const parseDiag = {
    * learner with nothing to think about.
    *
    * **It names the owner, not a repair, and that boundary is measured rather than chosen.**
-   * `spec/error-model.md:110` asks for *"the closest legal form when clear"*, and at the parse stage
+   * `spec/error-model.md#normative-code-registry` asks for *"the closest legal form when clear"*, and at the parse stage
    * it is not clear, for two independent reasons:
    *
    * - **The reader is profile-blind by design** (`reserved-word-value-position.test.mjs`; it is why
    *   issue #864 needed a semantic checker), yet every word issue #878 names is an optional-profile
-   *   word. `spec/conformance.md:102-104` puts `add`, `remove`, `clear`, `insert`, dicts and structs
-   *   in **Data**; `spec/grammar.md:390` says a bare `value` heads the heritage reader *"where
+   *   word. `spec/conformance.md#data` puts `add`, `remove`, `clear`, `insert`, dicts and structs
+   *   in **Data**; `spec/grammar.md#keywords-primitives-and-built-in-names` says a bare `value` heads the heritage reader *"where
    *   Heritage is present, and nothing at all where it is not"*. Quoting such a form would answer a
    *   learner who copies it with `ol-unknown-command` — for `make`, with `did you mean set?`,
    *   contradicting the hint that sent them there. This is the load-bearing reason.
@@ -130,17 +130,17 @@ export const parseDiag = {
    * *"…so it cannot be read as a name here"*, and review showed the causal tail is false often enough
    * to matter: substituting an ordinary name, `struct point wibble` and `remove 1 wibble :sizes` are
    * rejected too — those slots want `[` and `from` — so ownership is the actual cause at **four of
-   * the six** probed positions, not all six. `spec/grammar.md:390` guarantees only the weaker
+   * the six** probed positions, not all six. `spec/grammar.md#keywords-primitives-and-built-in-names` guarantees only the weaker
    * proposition, that a keyword outside its name-admitting positions is *"a parse error"* with *"no
    * derivation at all"*. Naming the cause correctly needs the grammar slot, which this shared builder
    * never sees, so the sentence asserts what is true everywhere and stops.
    *
-   * The wording is `ol-reserved-word`'s prescribed opening (`spec/error-model.md:125`) **verbatim,
+   * The wording is `ol-reserved-word`'s prescribed opening (`spec/error-model.md#normative-code-registry`) **verbatim,
    * capital and all**, so the two codes that answer the same learner question speak with one voice,
    * and the ban on the words *keyword*, *primitive*, and *alias* is honoured. Review measured that an
    * earlier lowercase `openlogo` broke that claim on the one word carrying it: `checker-reserved-word.ts`
-   * ships `OpenLogo`, `spec/error-model.md:125` writes `OpenLogo`, and 22 existing fixture rows carry
-   * it. Lowercasing has a real argument — `spec/error-model.md:18` asks for a *"warm, lowercase Logo
+   * ships `OpenLogo`, `spec/error-model.md#normative-code-registry` writes `OpenLogo`, and 22 existing fixture rows carry
+   * it. Lowercasing has a real argument — `spec/error-model.md#philosophy` asks for a *"warm, lowercase Logo
    * voice"*, and this is otherwise the message's only capital — but it is a house-wide question about
    * the product name, and starting the divergence in the smaller sibling would leave the two codes
    * saying the same sentence two ways. If the house style is settled as lowercase, sweep
@@ -148,13 +148,13 @@ export const parseDiag = {
    *
    * **The prescribed second clause, `choose another name.`, is deliberately dropped and must not be
    * restored here**: that advice is right for `ol-reserved-word`, which fires on a *declaration*, and
-   * wrong for this code, because `spec/grammar.md:386` makes binding a keyword legal — `local set` and
+   * wrong for this code, because `spec/grammar.md#keywords-primitives-and-built-in-names` makes binding a keyword legal — `local set` and
    * `for set in [ 1 2 3 ] [ print :set ]` are conforming programs — and renaming repairs only three
    * of the six positions above. A test pins the binding half, and another pins that the clause stays
    * out.
    *
    * The addition is prose only. `params` stays `{ text }` — the single entry the registry row lists,
-   * and the shape `spec/tooling.md:170`'s own worked `ol-bad-token` example uses while its message
+   * and the shape `spec/tooling.md#layer-1-lex-and-parse-checking`'s own worked `ol-bad-token` example uses while its message
    * names a legal form — so diagnostic identity is untouched and consumers matching on
    * `ol-bad-token` are unaffected. The first sentence stays byte-identical to the profile half of the
    * same rule (`checker-profile-word-position.ts`, issue #864).

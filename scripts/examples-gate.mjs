@@ -267,7 +267,7 @@ export function registersHostHandlers(source) {
     }
     const event = node.args[0];
     // Compared EXACTLY, not case-folded: a word literal preserves the case the learner wrote
-    // (`spec/execution-model.md:20`) and the runtime matches the delivered event word exactly, so
+    // (`spec/execution-model.md#value-and-type-model`) and the runtime matches the delivered event word exactly, so
     // `when "START"` is NOT the internally-delivered `"start"`. Measured: `when "start"` prints once
     // under an empty host, while `when "START"` and `when "Start"` print nothing and print once only
     // when a host delivers that exact word — so they need a schedule. Lower-casing here (review
