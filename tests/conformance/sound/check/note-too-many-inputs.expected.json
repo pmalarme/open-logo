@@ -1,5 +1,5 @@
 {
-  "description": "issue #690: the parenthesized form `(note \"c4\" 1 2)` supplies three inputs to the arity-2 Sound primitive `note`. With the `sound` profile active the Layer-2 checker (checker-arity.ts) flags `ol-too-many-inputs` at the callee span, mirroring how the runtime rejects the same call. The parenthesized form is the escape hatch the reader lets through, so arity for it is a Layer-2 concern (spec/tooling.md:175-176).",
+  "description": "issue #690: the parenthesized form `(note \"c4\" 1 2)` supplies three inputs to the arity-2 Sound primitive `note`. With the `sound` profile active the Layer-2 checker (checker-arity.ts) flags `ol-too-many-inputs` at the callee span, mirroring how the runtime rejects the same call. The parenthesized form is the escape hatch the reader lets through, so arity for it is a Layer-2 concern (spec/tooling.md#layer-2-semantic-checking).",
   "profiles": ["core-language", "sound"],
   "check": true,
   "events": [],

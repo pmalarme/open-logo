@@ -1,5 +1,5 @@
 {
-  "description": "issue #338: `polygon 2 100` (fewer than 3 sides) raises `ol-user-error` with the exact spec message \"a polygon needs at least 3 sides\" (spec/geometry-module.md:44-46).",
+  "description": "issue #338: `polygon 2 100` (fewer than 3 sides) raises `ol-user-error` with the exact spec message \"a polygon needs at least 3 sides\" (spec/geometry-module.md#polygon-sides-size).",
   "profiles": ["geometry"],
   "execute": true,
   "events": [

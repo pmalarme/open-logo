@@ -1,4 +1,4 @@
-# A list literal containing variable-read and dotted-place elements, per grammar.md:189-193,204.
+# A list literal containing variable-read and dotted-place elements, per spec/grammar.md#expressions-and-calls.
 :x = 5
 print [:x 1]
 :people.tom.age = 5

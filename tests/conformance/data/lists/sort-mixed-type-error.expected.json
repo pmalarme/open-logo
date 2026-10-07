@@ -1,5 +1,5 @@
 {
-  "description": "`sort` on a list mixing a number and a word raises `ol-type` before any partial sort happens — elements must be mutually orderable, all numbers or all words, per the same ordering rule `<`/`>`/`<=`/`>=` use (spec/data-structures.md:141). Issue #190.",
+  "description": "`sort` on a list mixing a number and a word raises `ol-type` before any partial sort happens — elements must be mutually orderable, all numbers or all words, per the same ordering rule `<`/`>`/`<=`/`>=` use (spec/data-structures.md#derived-list-reporters-in-the-data-profile). Issue #190.",
   "profiles": ["data"],
   "execute": true,
   "events": [

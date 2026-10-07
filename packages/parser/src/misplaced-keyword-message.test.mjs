@@ -1,7 +1,7 @@
 // Guard tests for issue #878 — an `ol-bad-token` raised for a **misplaced Core keyword** must say
 // more than the token's name.
 //
-// `spec/error-model.md:110` states the requirement on the message: an `ol-bad-token` *"message
+// `spec/error-model.md#normative-code-registry` states the requirement on the message: an `ol-bad-token` *"message
 // SHOULD point at the unexpected text and mention the closest legal form when clear."* The reader
 // did the first half only, so the issue's own repro — `repeat value [ ]` — said `i don't know how
 // to read value here.` and stopped, leaving the six words #853 had just stopped silently accepting
@@ -9,15 +9,15 @@
 // problem and not the concept behind it.
 //
 // **This delivers the ownership half only, and the omission is deliberate and measured.** The
-// message says `<word> is already part of OpenLogo.` and stops — `spec/error-model.md:125`'s
+// message says `<word> is already part of OpenLogo.` and stops — `spec/error-model.md#normative-code-registry`'s
 // prescribed opening for the sibling code that answers the same learner question, minus its `choose
-// another name.` second clause, which would be bad advice here because `spec/grammar.md:386` makes
+// another name.` second clause, which would be bad advice here because `spec/grammar.md#keywords-primitives-and-built-in-names` makes
 // binding a keyword legal. It names no form and claims no cause. Three measurements force that:
 //
 //   1. The reader is **profile-blind by design** (`reserved-word-value-position.test.mjs`, and it is
 //      why #864 needed a semantic checker), yet **every one of the six words the issue names is an
-//      optional-profile word**. `spec/conformance.md:102-104` assigns `add`/`remove`/`clear`/
-//      `insert`, dictionaries and structs to **Data**; `spec/grammar.md:390` says a bare `value`
+//      optional-profile word**. `spec/conformance.md#data` assigns `add`/`remove`/`clear`/
+//      `insert`, dictionaries and structs to **Data**; `spec/grammar.md#keywords-primitives-and-built-in-names` says a bare `value`
 //      heads the heritage reader *"where Heritage is present, and nothing at all where it is not"*.
 //      A form quoted at parse time could therefore be one the learner's profile set cannot run.
 //   2. A context-free did-you-mean repairs only **3 of 6** positions, pinned below. Getting it right
@@ -31,13 +31,13 @@
 // That 3-of-6 figure was **2 of 6** until review measured it. One probe, `define f (:x :set)`, was an
 // **incomplete program**: its only diagnostic is `ol-missing-end`, and the control `define f (:x :y)`
 // produces the identical one, so it measured the missing body and nothing about the substitution.
-// Completed with a body and an `end`, `:set` parses clean — as `spec/grammar.md:386` requires, since
+// Completed with a body and an `end`, `:set` parses clean — as `spec/grammar.md#keywords-primitives-and-built-in-names` requires, since
 // it names **procedure parameters** among the binding forms that MUST accept any name. The assertion
 // that let it through checked only that *some* diagnostic remained, never that the diagnostic was
 // *about* the substituted token; the loop below now guards every row with an ordinary-name control,
 // which is the control this header demands two paragraphs down and did not itself have.
 //
-// So `spec/error-model.md:110`'s *"when clear"* condition is not met, and the message names the
+// So `spec/error-model.md#normative-code-registry`'s *"when clear"* condition is not met, and the message names the
 // owner instead of guessing a repair. The sweeps below pin that boundary in both directions, so a
 // later slice that *does* have position information can move it deliberately rather than by
 // accident.
@@ -149,7 +149,7 @@ test("the issue's repro now names the owner", () => {
 });
 
 test("the sentence matches ol-reserved-word's prescribed opening, capital and all", () => {
-  // `spec/error-model.md:125` prescribes `{name} is already part of OpenLogo. choose another name.`
+  // `spec/error-model.md#normative-code-registry` prescribes `{name} is already part of OpenLogo. choose another name.`
   // for the sibling code that answers the same learner question. This pins both halves of how that
   // prose is reused: the opening is taken **verbatim**, and the second clause is **not**.
   //
@@ -172,7 +172,7 @@ test("the sentence matches ol-reserved-word's prescribed opening, capital and al
   );
 
   // ...and the prescribed second clause stays out, because binding a keyword is legal
-  // (`spec/grammar.md:386`) so renaming is not the repair. A mutant restoring it must fail here.
+  // (`spec/grammar.md#keywords-primitives-and-built-in-names`) so renaming is not the repair. A mutant restoring it must fail here.
   assert.doesNotMatch(message, /choose another name/u);
   assert.match(reservedWordMessage("value"), /choose another name\./u);
 });
@@ -300,7 +300,7 @@ test("ownership is stated, and no cause is claimed — because it is the cause i
   // with an ordinary-name control: where `wibble` parses clean, the keyword really is why the reader
   // stopped. Where `wibble` is rejected too, the slot wanted something else — `[` after a struct
   // name, `from` in a remove — so a tail like "so it cannot be read as a name here" would blame
-  // ownership for a rejection a rename would not fix. `spec/grammar.md:390` guarantees only the
+  // ownership for a rejection a rename would not fix. `spec/grammar.md#keywords-primitives-and-built-in-names` guarantees only the
   // weaker proposition, so the weaker proposition is all the message asserts.
   let explained = 0;
   for (const probe of PROBES) {
@@ -334,14 +334,14 @@ test("ownership is stated, and no cause is claimed — because it is the cause i
 
 test("the six words the issue names are all optional-profile, which is why no form is quoted", () => {
   // The second half of the reason, measured. Each word's own form belongs to Data or Heritage
-  // (`spec/conformance.md:102-104`, `spec/grammar.md:390`), while the reader is profile-blind — so a
+  // (`spec/conformance.md#data`, `spec/grammar.md#keywords-primitives-and-built-in-names`), while the reader is profile-blind — so a
   // form quoted at parse time could be one the learner's profile set cannot run. `value` is the
   // sharpest: its only production is the heritage reader, which Core rejects outright.
   //
   // NOTE for whoever fixes the `check()` profile gate: these two `deepEqual`s depend on a live
   // defect. `check()` does **not** currently profile-gate the Data structural forms — `:ages = {
   // tom: 8 }` and `struct point [ x y ]` both check clean under `["core-language"]` despite
-  // `spec/conformance.md:102-104`. When that is fixed the dict literal will add a diagnostic here
+  // `spec/conformance.md#data`. When that is fixed the dict literal will add a diagnostic here
   // and these assertions will need the Data profile added, or the dict operand replaced. The claim
   // under test is only that the *heritage head* is rejected, so widening them is safe.
   assert.deepEqual(
@@ -357,7 +357,7 @@ test("the six words the issue names are all optional-profile, which is why no fo
 });
 
 test("naming a variable after a keyword stays legal, as the prose implies", () => {
-  // `spec/grammar.md:386`: every binding form MUST accept any name. The sentence says openlogo owns
+  // `spec/grammar.md#keywords-primitives-and-built-in-names`: every binding form MUST accept any name. The sentence says openlogo owns
   // the word, never that nothing may be named it — this pins the difference.
   for (const source of [
     "local set",
@@ -405,7 +405,7 @@ test("the run-on path keeps its own message, which already names a legal form", 
 });
 
 test("the three words with no reader production keep the bare message", () => {
-  // `spec/grammar.md:160-162` gives all three a real production, so for them the sentence's
+  // `spec/grammar.md#ebnf-notation` gives all three a real production, so for them the sentence's
   // *causality* would be false: the grammar permits the word exactly where it stands and this
   // implementation is behind. Blaming openlogo's ownership would teach something untrue.
   const correctForms = {
@@ -446,10 +446,10 @@ test("the three words with no reader production keep the bare message", () => {
 /**
  * The keywords the `expression` grammar genuinely admits, so the reader never rejects them in a
  * value position and the sentence is unreachable for them: `true`/`false` are the `boolean-literal`
- * production (`spec/grammar.md:206`), `map`/`filter`/`reduce` open a `comprehension`
- * (`spec/grammar.md:133-136`), `not` is the prefix operator of `unary` (`spec/grammar.md:191`), and
+ * production (`spec/grammar.md#expressions-and-calls`), `map`/`filter`/`reduce` open a `comprehension`
+ * (`spec/grammar.md#ebnf-notation`), `not` is the prefix operator of `unary` (`spec/grammar.md#expressions-and-calls`), and
  * `thing` is matched as a `callable-name` because the C3 primitive matrix gives it a callable form —
- * `spec/grammar.md:390` names it outright, *"as it does for the `thing` reporter and for the variadic
+ * `spec/grammar.md#keywords-primitives-and-built-in-names` names it outright, *"as it does for the `thing` reporter and for the variadic
  * `( and … )` and `( or … )` forms"*. That same sentence predicts why `and` and `or` sit **outside**
  * this set: only their parenthesized spellings are callable, so they are still rejected elsewhere.
  *

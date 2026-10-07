@@ -1,6 +1,6 @@
 // Guard for issue #1005: the case-folded-identifier diagnostic-identity guarantee. Two diagnostics
 // name conditions keyed on case-insensitive identifiers, so the SAME condition must earn the SAME
-// `params` whatever the source casing — `spec/error-model.md:254-259` makes identity `code` + `params`
+// `params` whatever the source casing — `spec/error-model.md#localization-boundary` makes identity `code` + `params`
 // and tells tools to assert params, not English message text:
 //
 //   * `ol-undefined-var` — variable resolution folds case (`lookupVar`), so `:SomeVar` and `:somevar`
@@ -138,7 +138,7 @@ test("case-insensitive resolution control: a bound name read in another case is 
 // --- ol-unknown-field: the sibling case-folded identifier param (issue #1005, criterion 4) -------
 //
 // Record fields are ALSO case-insensitive identifiers (`values.ts` keys its slot map on the folded
-// field name; `spec/grammar.md:13`), so `.Missing` and `.MISSING` name the SAME absent field: one
+// field name; `spec/grammar.md#lexical-form-and-encoding`), so `.Missing` and `.MISSING` name the SAME absent field: one
 // condition. Before the fix both the runtime (`errors.ts`'s `unknownField`) and the checker
 // (`checker-type-field.ts`'s `resolveRecordField`) echoed the accessor's original casing, so one
 // condition earned different diagnostic identities depending on how it was typed. Both now fold

@@ -22,7 +22,7 @@
  * {@link MAIN_TURTLE_ID}. Alongside the per-turtle states it tracks the **addressed turtle set**
  * and its current turtle — folded from the addressing snapshots the stream carries (issue #770) —
  * plus the **last-acted** turtle, so the non-visual state description is never ambiguous about
- * which turtle or turtles it is describing (`spec/rendering.md:193`).
+ * which turtle or turtles it is describing (`spec/rendering.md#non-visual-state-descriptions`).
  *
  * Deterministic in, deterministic out: identical event input always folds to an identical world,
  * with no timing, randomness, or rendering concerns here.
@@ -66,7 +66,7 @@ export const MAIN_TURTLE_ID: TurtleId = 0;
  * - {@link TurtleWorldState.addressedTurtleIds} is the set a subsequent turtle command applies to,
  *   once for each (`spec/turtles-and-sprites.md`'s "Addressing model"), and
  *   {@link TurtleWorldState.currentTurtleId} is the turtle `who` reports between commands. Together
- *   they are what lets `describeTurtleWorldState` satisfy `spec/rendering.md:193` ("Implementations
+ *   they are what lets `describeTurtleWorldState` satisfy `spec/rendering.md#non-visual-state-descriptions` ("Implementations
  *   with multiple turtles MUST identify the active turtle or addressed turtle set") — for a *set*,
  *   which no single `turtle_id` can express — and what `why`/`debug` need to explain which turtles a
  *   command applied to.
@@ -75,13 +75,13 @@ export const MAIN_TURTLE_ID: TurtleId = 0;
  *   the shared scene ({@link SCENE_ONLY_TURTLE_KINDS}: `fill`, `stamp`).
  *
  * The last of those three is called *last-acted*, not *active*, on purpose, and it stays: what
- * every effect event carries is a `turtle_id` (`spec/turtles-and-sprites.md:113`: "Implementations
+ * every effect event carries is a `turtle_id` (`spec/turtles-and-sprites.md#per-turtle-state-and-turtle-commands`: "Implementations
  * MUST produce trace events with the appropriate turtle identity so animation, stepping, `why`, and
  * `debug` can explain **which turtle moved or changed**"), so what the reducer derives *from effect
  * events alone* is which turtle an event last acted on — which is exactly the question a
  * stepping/animation consumer asks. It is deliberately **not** the
  * addressed set: when an `ask :b [ … ]` block ends the runtime restores the previously addressed
- * set (`spec/turtles-and-sprites.md:58`), but the stream's last per-turtle effect is still `:b`'s,
+ * set (`spec/turtles-and-sprites.md#addressing-model`), but the stream's last per-turtle effect is still `:b`'s,
  * so `:b` stays the last-acted turtle here while the addressed set is back to whatever `tell` had
  * chosen. The two fields answer two different questions and both are kept.
  *
@@ -176,7 +176,7 @@ export function lastActedTurtleState(world: TurtleWorldState): TurtleState {
 /**
  * Per-turtle command kinds that act on a turtle without changing its own {@link TurtleState}:
  * `fill` and `stamp` both "use the current turtle's pen and shape state"
- * (`spec/turtles-and-sprites.md:109`) and write into the shared retained scene rather than into the
+ * (`spec/turtles-and-sprites.md#per-turtle-state-and-turtle-commands`) and write into the shared retained scene rather than into the
  * turtle. They carry the acting turtle's `turtle_id` once addressing is explicit, like any other
  * per-turtle effect, so they must still mark that turtle as the one that acted — otherwise
  * `tell :a` / `forward 10` / `ask :b [ stamp ]` would leave `:a` reported as the last turtle to act
@@ -243,7 +243,7 @@ function foldAddressing(
  * (`spec/turtles-and-sprites.md`'s "Turtle creation" section — a new turtle starts at the same
  * defaults as the main turtle but is nonetheless recorded from its own payload so a renderer never
  * has to assume them). Creating a turtle does **not** make it the last-acted one:
- * `:friend = new_turtle` leaves the addressed set alone (`spec/turtles-and-sprites.md:42`'s
+ * `:friend = new_turtle` leaves the addressed set alone (`spec/turtles-and-sprites.md#addressing-model`'s
  * "Addressing model" — only `tell`/`ask`/`each` change who acts), so a newly spawned turtle takes
  * that role only once a command actually drives it.
  *
@@ -269,13 +269,13 @@ function foldAddressing(
  * rather than any turtle, so it is not turtle-specific and carries no turtle identity", and
  * "consumers MUST NOT read a `clear` event as an instruction to move a turtle: a turtle's position
  * and heading change only through the events that report that turtle's movement"
- * (`spec/turtles-and-sprites.md:113`). One `clear_screen` homes **every** addressed turtle, which no
+ * (`spec/turtles-and-sprites.md#per-turtle-state-and-turtle-commands`). One `clear_screen` homes **every** addressed turtle, which no
  * single identity on one shared-surface event could name — the homing arrives instead as one
  * `move`/`turn` pair per addressed turtle, each carrying its own `turtle_id`, and those fold through
  * the ordinary per-turtle path above. Routing the un-stamped `clear` through the
  * {@link MAIN_TURTLE_ID} default instead would home the main turtle even when it was never
  * addressed. The single-turtle {@link reduceTurtleState} still folds the payload's `mode`, which is
- * the right reading *there*: it follows one turtle, so `spec/rendering.md:153`'s clear-and-home
+ * the right reading *there*: it follows one turtle, so `spec/rendering.md#clear-operations`'s clear-and-home
  * discriminator is all it needs, and a foreign producer's `clear`-only stream stays correct for it.
  * The retained-scene reducer (`scene.ts`) clears the drawing on the same event, so nothing is lost
  * by ignoring it here — this reducer holds turtle state only.

@@ -128,7 +128,7 @@ test("resolveRecordField returns undefined for a declared field", () => {
   assert.equal(result, undefined);
 });
 
-test("resolveRecordField folds field case: `.X` resolves against a declared `x` (spec/grammar.md:13)", () => {
+test("resolveRecordField folds field case: `.X` resolves against a declared `x` (spec/grammar.md#lexical-form-and-encoding)", () => {
   assert.equal(
     OL.resolveRecordField({
       type: "point",
@@ -225,7 +225,7 @@ test("leaves a declared field read on a struct-constructor result clean", () => 
   );
 });
 
-test("folds field case on a struct-constructor result (spec/grammar.md:13)", () => {
+test("folds field case on a struct-constructor result (spec/grammar.md#lexical-form-and-encoding)", () => {
   // The declared field is `X`; the access `.x` folds to match, so no static ol-unknown-field.
   assert.deepEqual(
     fieldFindings("struct point [ X Y ]\nprint (point 0 0).x", DATA),
@@ -257,7 +257,7 @@ test("stays silent on an `=` assignment target, leaving it to ol-not-a-place", (
 
 test("does not statically check a field on a variable base (runtime-authoritative)", () => {
   // The speculation boundary: inferring :p's struct type across assignments is exactly the
-  // inference `spec/tooling.md:196` forbids, so `:p.z` is left entirely to the runtime (#329).
+  // inference `spec/tooling.md#layer-2-semantic-checking` forbids, so `:p.z` is left entirely to the runtime (#329).
   assert.deepEqual(
     fieldFindings("struct point [ x y ]\n:p = point 0 0\nprint :p.z", DATA),
     [],

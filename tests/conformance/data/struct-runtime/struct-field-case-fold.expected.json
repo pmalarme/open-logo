@@ -1,5 +1,5 @@
 {
-  "description": "Struct field names case-fold at runtime (issue #512, `spec/grammar.md:13`): `point` declares fields `X`/`Y`, and a lower-case field read `:p.x`/`:p.y` folds to match, printing `3`/`4` rather than raising `ol-unknown-field`. The declared spelling stays authoritative for display; only access folds.",
+  "description": "Struct field names case-fold at runtime (issue #512, `spec/grammar.md#lexical-form-and-encoding`): `point` declares fields `X`/`Y`, and a lower-case field read `:p.x`/`:p.y` folds to match, printing `3`/`4` rather than raising `ol-unknown-field`. The declared spelling stays authoritative for display; only access folds.",
   "profiles": ["core-language", "data"],
   "execute": true,
   "events": [

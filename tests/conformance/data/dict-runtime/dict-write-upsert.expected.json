@@ -1,5 +1,5 @@
 {
-  "description": "Dict place-writes upsert in place: `.field =`, `[:var] =`, and `set ... to` create new keys or overwrite existing ones (issue #322, `spec/data-structures.md:196-207`). Writing `max`, `who` (via a `:key` variable), then re-assigning `lee` all land in the same dict; `keys`/`values` confirm insertion order and final values.",
+  "description": "Dict place-writes upsert in place: `.field =`, `[:var] =`, and `set ... to` create new keys or overwrite existing ones (issue #322, `spec/data-structures.md#malformed-dictionary-literal-entries`). Writing `max`, `who` (via a `:key` variable), then re-assigning `lee` all land in the same dict; `keys`/`values` confirm insertion order and final values.",
   "profiles": ["core-language", "data"],
   "execute": true,
   "events": [

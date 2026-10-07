@@ -362,7 +362,7 @@ test("execute runs the else-branch of a bracketed `if` when the condition is fal
 });
 
 test("execute runs the long-form `if ... end if` identically to the bracketed form", () => {
-  // Per `spec/grammar.md:119-124` the long-form body parses to the same `BlockNode` shape as the
+  // Per `spec/grammar.md#ebnf-notation` the long-form body parses to the same `BlockNode` shape as the
   // bracketed body, so comparing event kinds/payloads (ignoring source spans, which necessarily
   // differ across the two distinct sources) proves the two forms execute identically.
   const bracketed = execute("if true [ print 1 ]", "main.logo");
@@ -420,7 +420,7 @@ test("execute raises ol-not-boolean for a non-boolean `if` condition", () => {
 });
 
 test("execute discards a trailing bare value inside an `if` body per the block-result rule", () => {
-  // `spec/execution-model.md:214-227`: `if`/`while` bodies run for effect only, so `1 + 1`'s
+  // `spec/execution-model.md#brackets-blocks-and-body-forms, spec/execution-model.md#the-block-result-rule`: `if`/`while` bodies run for effect only, so `1 + 1`'s
   // value is silently discarded — no value-producing event, no diagnostic.
   const result = execute("if true [ 1 + 1 ]\nprint 2", "main.logo");
   assert.equal(result.diagnostics.length, 0);

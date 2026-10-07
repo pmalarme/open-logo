@@ -1,5 +1,5 @@
 {
-  "description": "issue #338: `circle 0` (non-positive `:radius`) raises `ol-user-error` with the exact spec message \"a circle needs a positive radius\" (spec/geometry-module.md:153-155).",
+  "description": "issue #338: `circle 0` (non-positive `:radius`) raises `ol-user-error` with the exact spec message \"a circle needs a positive radius\" (spec/geometry-module.md#circle-radius-segments-36).",
   "profiles": ["geometry"],
   "execute": true,
   "events": [

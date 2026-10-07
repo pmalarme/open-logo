@@ -61,7 +61,7 @@ test('`thing "name"` reads the same binding as `:name`', () => {
   });
 });
 
-test("variable reads fold case: `:X` finds a binding made as `x` (spec/grammar.md:13)", () => {
+test("variable reads fold case: `:X` finds a binding made as `x` (spec/grammar.md#lexical-form-and-encoding)", () => {
   const env = envWith("x", 5);
   assert.deepEqual(evaluate(parseExpr(":X"), env), { ok: true, value: 5 });
   assert.deepEqual(evaluate(parseExpr(":x"), env), { ok: true, value: 5 });
@@ -72,7 +72,7 @@ test("variable reads fold case: `:X` finds a binding made as `x` (spec/grammar.m
   });
 });
 
-test("assignment folds case: `:X = …` mutates the binding `:x` reads (spec/grammar.md:13)", () => {
+test("assignment folds case: `:X = …` mutates the binding `:x` reads (spec/grammar.md#lexical-form-and-encoding)", () => {
   const env = createEnvironment();
   executeAssign(parseStatement(":count = 1"), env);
   executeAssign(parseStatement(":COUNT = :count + 1"), env);
@@ -220,7 +220,7 @@ test('creates a global binding on first assignment via heritage `make "name" val
   const env = createEnvironment();
   const node = parseStatement('make "count" 1');
   // The heritage `make` spelling lowers to the exact same `Assign` shape as `set … to`, so the
-  // form-agnostic `executeAssign` binds it identically (`spec/conformance.md:270` — alternate
+  // form-agnostic `executeAssign` binds it identically (`spec/conformance.md#feature-to-profile-table` — alternate
   // spelling, no new semantics).
   assert.equal(node.kind, "Assign");
   assert.equal(node.form, "make");
@@ -272,7 +272,7 @@ test("raises ol-not-a-place for a parenthesized reporter call target", () => {
 
 test("raises ol-not-a-place for a bare number-literal assignment target", () => {
   // The parser structurally accepts a literal in target position (`checker-not-a-place.ts`'s
-  // doc comment; `spec/tooling.md:213-219`) precisely so this rule — not an internal-invariant
+  // doc comment; `spec/tooling.md#layer-2-semantic-checking`) precisely so this rule — not an internal-invariant
   // throw — can explain the mistake with its full surface text.
   const env = createEnvironment();
   const result = executeAssign(parseStatement("3 = 5"), env);

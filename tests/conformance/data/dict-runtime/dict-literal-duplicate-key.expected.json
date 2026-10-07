@@ -1,5 +1,5 @@
 {
-  "description": "A repeated key in a dict literal — the last entry wins the value, but the key keeps its first-insertion position for iteration (issue #322, `spec/data-structures.md:160-168`). `{ speed: 1 speed: 3 }` reads back `3`, and `keys` reports a single `speed` entry, not two.",
+  "description": "A repeated key in a dict literal — the last entry wins the value, but the key keeps its first-insertion position for iteration (issue #322, `spec/data-structures.md#dictionaries`). `{ speed: 1 speed: 3 }` reads back `3`, and `keys` reports a single `speed` entry, not two.",
   "profiles": ["core-language", "data"],
   "execute": true,
   "events": [

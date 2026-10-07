@@ -1,5 +1,5 @@
 {
-  "description": "issue #338: `area [\"hexagon\" 5]` (unsupported shape word) raises `ol-user-error` with the exact spec message \"area knows only the polygon and circle shapes\" (spec/geometry-module.md:354).",
+  "description": "issue #338: `area [\"hexagon\" 5]` (unsupported shape word) raises `ol-user-error` with the exact spec message \"area knows only the polygon and circle shapes\" (spec/geometry-module.md#area-shape).",
   "profiles": ["geometry"],
   "execute": true,
   "events": [

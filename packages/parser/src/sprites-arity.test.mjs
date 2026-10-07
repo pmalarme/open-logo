@@ -7,7 +7,7 @@ import * as OL from "@openlogo/parser";
  * (issue #673, `spec/turtles-and-sprites.md`'s "Canonical forms" table: each is a Kind-R reporter,
  * arity 0). Like the Geometry overlay primitives, the reader must gather zero arguments for them
  * regardless of active profile (the reader has no profile concept — that is `check()`'s job,
- * `spec/tooling.md:175-176`). This slice only registers their arities in the reader's tables; the
+ * `spec/tooling.md#layer-2-semantic-checking`). This slice only registers their arities in the reader's tables; the
  * checker's profile-gated visibility of these names is a later slice (#678), so these tests
  * deliberately assert only Layer-1 (reader/arity) behavior, never `check()` recognition.
  *

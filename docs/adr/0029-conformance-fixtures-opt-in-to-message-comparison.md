@@ -154,7 +154,7 @@ forward (`AGENTS.md`; [ADR-0000](0000-record-architecture-decisions.md)).
 - **This ADR cites `spec/` by section anchor and quotation rather than by line, deliberately**, and
   the evidence is two observed cases plus one limit of the amendment rules — stated separately,
   because each carries a different part of the argument. First, **line citations in immutable prose
-  do rot, and that is observed here rather than predicted.** ADR-0010's `error-model.md:193-194`
+  do rot, and that is observed here rather than predicted.** ADR-0010's `spec/error-model.md#did-you-mean`
   pointed at exactly the text it claims when ADR-0010 was added at `1abbf732` (those lines then read
   *"…the same `ol-*` code and structured params for the same condition. Tests and editor tools SHOULD
   assert codes and params, not English text."*); at `492cdff7` they hold a blank and the
@@ -172,10 +172,10 @@ forward (`AGENTS.md`; [ADR-0000](0000-record-architecture-decisions.md)).
   ADR-0010's escapes twice over, by either of the two independent accidents described next — each
   sufficient on its own. This ADR declines to rely on them.
 - **Two independent blind spots keep ADR-0010's own stale citation invisible, and each would suffice
-  alone.** ADR-0010 cites `error-model.md:193-194` for "identity is `code` +
+  alone.** ADR-0010 cites `spec/error-model.md#did-you-mean` for "identity is `code` +
   `params`"; those lines now hold a blank and the `## Did-you-mean` heading, while the statement
   meant sits under `## Localization boundary`. Running the gate's own `collectCitations()` over
-  ADR-0010 returns exactly one citation — its `error-model.md:28-38` reference to the diagnostic
+  ADR-0010 returns exactly one citation — its `spec/error-model.md#diagnostic-shape` reference to the diagnostic
   shape, which is written with the prefix — while the `193-194` reference is **never collected at
   all**, because the scan pattern requires a literal `spec/` prefix that it omits. Written *with*
   the prefix it is collected, and then **resolves cleanly**: `## Did-you-mean` is text, and the gate

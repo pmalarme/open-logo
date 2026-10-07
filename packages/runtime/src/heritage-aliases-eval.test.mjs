@@ -171,8 +171,8 @@ test("aliases and Core spellings intermixed in one program are equivalent statem
 //
 // These tests are kept — not deleted — as regression locks pointing the other way. Each still runs
 // the exact program that used to exercise the shadow path, and asserts that phase-1 registration
-// (`spec/execution-model.md:82-89`) now rejects the declaration outright with `ol-reserved-word`
-// (`spec/error-model.md:125`). If anyone ever re-legalises `define fd` / `define forward`, these go
+// (`spec/execution-model.md#reader-pipeline`) now rejects the declaration outright with `ol-reserved-word`
+// (`spec/error-model.md#normative-code-registry`). If anyone ever re-legalises `define fd` / `define forward`, these go
 // red again and the reader is led straight back to why the shadow paths existed.
 
 test("a user procedure whose name is an alias is rejected at registration, so it can never shadow the alias", () => {
@@ -233,7 +233,7 @@ test("#787: the reporter-position crash repro is now rejected at registration", 
 test("#787: a reporter-position alias over a BUILT-IN canonical still behaves exactly like that canonical", () => {
   // What survives of #787's rule once the user-procedure route is gone: `fd` in reporter position
   // must be indistinguishable from `forward` there — same events, same diagnostics — because
-  // Heritage is "alternate spellings only, no new semantics" (`spec/conformance.md:150`). Asserted
+  // Heritage is "alternate spellings only, no new semantics" (`spec/conformance.md#heritage`). Asserted
   // as full-result equivalence rather than against a named diagnostic, because these calls do not
   // currently produce one: a command in reporter position is accepted leniently and yields no value,
   // no `print` event and no `ol-*` code at all. That leniency is NOT this slice's to change (it is

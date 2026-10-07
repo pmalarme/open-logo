@@ -1,5 +1,5 @@
 {
-  "description": "`struct [ x ]` with no type name reports ol-bad-token at the offending `[` (grammar.md's `struct-declaration ::= \"struct\" type-name field-list`); the declaration is not silently accepted. Parse-only negative fixture.",
+  "description": "`struct [ x ]` with no type name reports ol-bad-token at the offending `[` (grammar.md's `struct-declaration ::= \"struct\" declared-type-name field-list`); the declaration is not silently accepted. Parse-only negative fixture.",
   "profiles": ["core-language", "data"],
   "expect": "match",
   "events": [],

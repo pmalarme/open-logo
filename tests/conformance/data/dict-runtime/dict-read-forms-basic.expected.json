@@ -1,5 +1,5 @@
 {
-  "description": "`:d.key`, `:d[key]`, and `:d[:var]` all read the same dict entry — the three uniform-access read forms (issue #322, `spec/data-structures.md:173-191`). `:ages.tom` (literal field key), `:ages[tom]` (bare selector, a literal word key), and `:ages[:who]` (variable-valued key, `:who = \"tom\"`) each print `8`.",
+  "description": "`:d.key`, `:d[key]`, and `:d[:var]` all read the same dict entry — the three uniform-access read forms (issue #322, `spec/data-structures.md#dictionaries, spec/data-structures.md#malformed-dictionary-literal-entries`). `:ages.tom` (literal field key), `:ages[tom]` (bare selector, a literal word key), and `:ages[:who]` (variable-valued key, `:who = \"tom\"`) each print `8`.",
   "profiles": ["core-language", "data"],
   "execute": true,
   "events": [

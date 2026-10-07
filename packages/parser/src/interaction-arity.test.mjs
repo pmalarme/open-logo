@@ -6,11 +6,11 @@ import * as OL from "@openlogo/parser";
  * Unit tests for the Interaction & Events profile's reader arity registration — `wait <n>` (issue
  * #680, slice I1, `spec/interaction-events.md`'s `### wait <n>`) and `input <prompt-word>` (issue
  * #681, slice I2, `### input <prompt-word>`), the profile's two ordinary calls
- * (`spec/interaction-events.md:65`). `wait` is an ordinary Kind-C command taking one input and
+ * (`spec/interaction-events.md#profile-grammar`). `wait` is an ordinary Kind-C command taking one input and
  * `input` a Kind-R reporter taking one prompt, so the reader must group each one's single argument.
  * Legality gating (whether either is callable under the program's active profile set) is a Layer-2
  * checker concern — the reader has no notion of an active profile
- * (`spec/tooling.md:175-176`), so it registers their arity profile-blind, exactly like every
+ * (`spec/tooling.md#layer-2-semantic-checking`), so it registers their arity profile-blind, exactly like every
  * other profile's table. Behavior is verified against the built `@openlogo/parser` entry point per
  * the shared black-box test convention.
  */

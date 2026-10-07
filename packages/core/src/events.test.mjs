@@ -192,7 +192,7 @@ test("primitive payload names each event-registration form", () => {
 });
 
 test("primitive payload accepts a non-interaction primitive name (generic catch-all)", () => {
-  // `primitive` is the profile-neutral generic catch-all (spec/execution-model.md:703), so its
+  // `primitive` is the profile-neutral generic catch-all (spec/execution-model.md#trace-and-event-registry), so its
   // `name` is open-ended: a future primitive from any profile must be representable without
   // re-opening the contract. This guards against the type silently narrowing back to a closed set.
   const event = {
@@ -206,7 +206,7 @@ test("primitive payload accepts a non-interaction primitive name (generic catch-
 });
 
 test("the registry marks exactly the per-turtle effect kinds as turtle-specific (issue #764)", () => {
-  // spec/execution-model.md:638 — the envelope's `turtle-id` is "present only when the event is
+  // spec/execution-model.md#trace-and-event-registry — the envelope's `turtle-id` is "present only when the event is
   // turtle-specific, otherwise absent". This partition is what lets a producer stamp envelopes and a
   // consumer validate them from one list instead of each hard-coding its own. It answers "may this
   // kind carry an id at all", NOT "may a producer label it with whichever turtle is acting" — the
@@ -222,14 +222,14 @@ test("the registry marks exactly the per-turtle effect kinds as turtle-specific 
     "stamp",
     "shape-change",
     "visibility-change",
-    // `spawn-turtle`'s envelope names the turtle just created (spec/turtles-and-sprites.md:34), so
+    // `spawn-turtle`'s envelope names the turtle just created (spec/turtles-and-sprites.md#turtle-creation), so
     // it is turtle-specific even though it carries that id authoritatively rather than by stamping.
     "spawn-turtle",
   ];
   // Program/scene kinds are not turtle-specific — including `primitive`, whose addressing payload
   // describes a SET of turtles, and `clear`, which describes the shared drawing surface: one
   // `clear_screen` homes EVERY addressed turtle, so no single identity on the canvas event could
-  // name them, and spec/turtles-and-sprites.md:113 says so outright — "A `clear` event describes the
+  // name them, and spec/turtles-and-sprites.md#per-turtle-state-and-turtle-commands says so outright — "A `clear` event describes the
   // shared surface rather than any turtle, so it is not turtle-specific and carries no turtle
   // identity" (issue #738). The homing is carried by the per-turtle `move`/`turn` events instead.
   const notTurtleSpecific = [
@@ -277,7 +277,7 @@ test("the registry marks exactly the per-turtle effect kinds as turtle-specific 
 test("primitive payload carries the addressed turtle set for tell/ask/each (issue #766)", () => {
   // The Sprites addressing primitives are the only `primitive` emitters that carry an
   // `addressing` snapshot: the whole addressed set plus the current turtle, which is what makes
-  // spec/rendering.md:193 ("MUST identify the active turtle or addressed turtle set") reachable
+  // spec/rendering.md#non-visual-state-descriptions ("MUST identify the active turtle or addressed turtle set") reachable
   // from the stream. The snapshot is absolute, so a consumer folds it by assignment.
   for (const name of ["tell", "ask", "each"]) {
     const event = {
@@ -295,7 +295,7 @@ test("primitive payload carries the addressed turtle set for tell/ask/each (issu
     assert.equal(event.payload.addressing.current_turtle_id, 1);
     // An addressing event describes a SET, so it is never turtle-specific: the envelope's
     // `turtle_id` is "present only when the event is turtle-specific"
-    // (spec/execution-model.md:638) and the current turtle travels in the payload instead.
+    // (spec/execution-model.md#trace-and-event-registry) and the current turtle travels in the payload instead.
     assert.equal(event.turtle_id, undefined);
   }
 });

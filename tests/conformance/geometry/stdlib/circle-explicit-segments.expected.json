@@ -1,5 +1,5 @@
 {
-  "description": "issue #338: `(circle 50 72)` supplies the optional trailing `:segments` and draws a 72-segment approximation without diagnostics (spec/geometry-module.md:186-191).",
+  "description": "issue #338: `(circle 50 72)` supplies the optional trailing `:segments` and draws a 72-segment approximation without diagnostics (spec/geometry-module.md#circle-radius-segments-36).",
   "profiles": ["geometry"],
   "execute": true,
   "events": [

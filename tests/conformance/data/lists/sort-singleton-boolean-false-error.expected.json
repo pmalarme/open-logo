@@ -1,5 +1,5 @@
 {
-  "description": "`sort` on `[false]` raises `ol-type` too — the singleton orderability check applies to every boolean value, not just `true` (spec/data-structures.md:141). Issue #513 (M4 re-audit finding G6).",
+  "description": "`sort` on `[false]` raises `ol-type` too — the singleton orderability check applies to every boolean value, not just `true` (spec/data-structures.md#derived-list-reporters-in-the-data-profile). Issue #513 (M4 re-audit finding G6).",
   "profiles": ["data"],
   "execute": true,
   "events": [

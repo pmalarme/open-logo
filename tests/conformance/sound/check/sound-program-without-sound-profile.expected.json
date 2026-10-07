@@ -1,5 +1,5 @@
 {
-  "description": "issue #692 (S4 tooling): the Core-only negative of `sound-program-checks-clean`. The reader groups every Sound call's arguments by registered arity regardless of profile (`spec/tooling.md:175-176`), so this parses cleanly; but without the `sound` profile the Layer-2 checker does not know `set_tempo`/`note`/`rest`/`play`/`beep` as callees and flags each `ol-unknown-command` at its own span - even nested inside a `[ ... ]` block, inside `repeat`, and in a procedure body. The user procedure `melody` and its call stay known. `note`/`rest` also carry a did-you-mean to their nearest Core word.",
+  "description": "issue #692 (S4 tooling): the Core-only negative of `sound-program-checks-clean`. The reader groups every Sound call's arguments by registered arity regardless of profile (`spec/tooling.md#layer-2-semantic-checking`), so this parses cleanly; but without the `sound` profile the Layer-2 checker does not know `set_tempo`/`note`/`rest`/`play`/`beep` as callees and flags each `ol-unknown-command` at its own span - even nested inside a `[ ... ]` block, inside `repeat`, and in a procedure body. The user procedure `melody` and its call stay known. `note`/`rest` also carry a did-you-mean to their nearest Core word.",
   "profiles": ["core-language"],
   "check": true,
   "events": [],

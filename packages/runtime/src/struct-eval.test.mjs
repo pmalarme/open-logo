@@ -1,5 +1,6 @@
-// Unit tests for the Data-profile record/struct runtime (issue #329, spec/data-structures.md:
-// 252-327): phase-1 `struct` registration + `ol-reserved-word` collisions, the type-name
+// Unit tests for the Data-profile record/struct runtime (issue #329,
+// spec/data-structures.md#records-and-structs, spec/data-structures.md#record-operations): phase-1
+// `struct` registration + `ol-reserved-word` collisions, the type-name
 // constructor (arity == declared field count), `:record.field` read/write, `type_of`, `is_a?` on
 // records, and structural record equality. Conformance fixtures under
 // tests/conformance/data/struct-runtime/ prove the primary end-to-end shapes; these unit tests
@@ -89,7 +90,7 @@ test("a record is a reference type — aliases observe in-place mutation", () =>
   assert.deepEqual(printedValues(result), [99]);
 });
 
-test("field reads fold case: `:p.x` reads a field declared `X` (spec/grammar.md:13)", () => {
+test("field reads fold case: `:p.x` reads a field declared `X` (spec/grammar.md#lexical-form-and-encoding)", () => {
   const result = execute(
     "struct point [ X Y ]\n:p = point 3 4\nprint :p.x\nprint :p.Y",
     doc,
@@ -98,7 +99,7 @@ test("field reads fold case: `:p.x` reads a field declared `X` (spec/grammar.md:
   assert.deepEqual(printedValues(result), [3, 4]);
 });
 
-test("field writes fold case: `:p.X = …` mutates the slot `:p.x` reads (spec/grammar.md:13)", () => {
+test("field writes fold case: `:p.X = …` mutates the slot `:p.x` reads (spec/grammar.md#lexical-form-and-encoding)", () => {
   const result = execute(
     "struct point [ x y ]\n:p = point 3 4\n:p.X = 10\nprint :p.x",
     doc,

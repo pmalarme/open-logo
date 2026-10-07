@@ -194,7 +194,7 @@ test("produce preserves nested params with underscores", () => {
   assert.equal(result.diagnostics.length, 1);
   assert.equal(result.diagnostics[0].code, "ol-unclosed-string");
   assert.ok(result.diagnostics[0].params.opened_at); // underscore!
-  // Also verify spec-required message field is present (spec/error-model.md:28-38)
+  // Also verify spec-required message field is present (spec/error-model.md#diagnostic-shape)
   assert.ok(
     result.diagnostics[0].message,
     "Actual diagnostic must have message field per spec",
@@ -458,8 +458,8 @@ test("compare() compares a diagnostic message when — and only when — the fix
   // The opt-in is the explicit per-fixture `"compareMessages": true`, NOT the presence of a
   // `message` key: the corpus carried 306 messages written while the documented behaviour was
   // "message is not compared", and reading those as consent would have frozen ~275 English
-  // sentences that spec/error-model.md:261-263 positively permits an implementation to reword.
-  // spec/error-model.md:254-259 stays the default — identity is code+params. :125 is the case this
+  // sentences that spec/error-model.md#localization-boundary positively permits an implementation to reword.
+  // spec/error-model.md#localization-boundary stays the default — identity is code+params. spec/error-model.md#normative-code-registry is the case this
   // exists for: it prescribes the sentence AND makes *keyword*/*primitive*/*alias* a MUST NOT
   // inside it, and #751 and #871 both shipped a message violating that while the corpus stayed
   // green, because compare() dropped `message` unconditionally.
@@ -1620,7 +1620,7 @@ const RESERVED_WORD_SOURCE = "define forward :n\n  print :n\nend\n";
 /**
  * A fixture that opts into message comparison and is wrong in EXACTLY ONE way: its expected
  * `ol-reserved-word` sentence is the wording issues #751/#871 shipped, which
- * `spec/error-model.md:125` forbids (it leaks the word *primitive* at a learner). Identity — code,
+ * `spec/error-model.md#normative-code-registry` forbids (it leaks the word *primitive* at a learner). Identity — code,
  * span, params, stage, severity — matches what `check()` really produces, so the only thing that
  * can make the streams disagree is the message.
  *
@@ -2686,7 +2686,7 @@ test("loadFixture rejects a non-array executeOptions.hostInput.responses", () =>
 
 test("loadFixture rejects a non-string entry in executeOptions.hostInput.responses", () => {
   // The bare JSON number `42` is the tempting mistake: it would look like proof of the number branch
-  // while skipping the very parse (`spec/interaction-events.md:136-137`) that branch is about. An
+  // while skipping the very parse (`spec/interaction-events.md#input-prompt-word`) that branch is about. An
   // answer is the raw TEXT the learner typed, so it must be written `"42"`.
   const loaded = loadHostInputFixture("host-input-responses-not-string", {
     profiles: ["core-language"],
@@ -2852,7 +2852,7 @@ test("produce forwards executeOptions.hostInput to execute() so a headless fixtu
 
 test("produce forwards executeOptions.hostInput.responses to execute() so a headless fixture can answer a read", () => {
   // The other half of the same seam (issue #681): scripted answers reach `execute()` verbatim, so a
-  // fixture's `input` read reports the value `spec/interaction-events.md:136-137` prescribes.
+  // fixture's `input` read reports the value `spec/interaction-events.md#input-prompt-word` prescribes.
   const result = produce(
     'print input "q"',
     "test-doc",
@@ -3559,7 +3559,7 @@ test("a fixture's executeOptions.randomSeed actually reaches execute() (issue #8
 // `"execute": true` fixture it never reached `execute()` at all, so a fixture whose source used
 // Sprites forms passed with "sprites" deleted from its array. Measured on the parent commit, the
 // real corpus had 8 such fixtures (all in core-language/execution/, all executing `:nums[i]` — Data
-// by spec/conformance.md:269 — while declaring Core only), and none of them failed anything.
+// by spec/conformance.md#feature-to-profile-table — while declaring Core only), and none of them failed anything.
 
 test("profileGateErrors fails an executed fixture whose source uses an undeclared profile", () => {
   const errors = profileGateErrors(
@@ -3602,7 +3602,7 @@ test("profileGateErrors expands the declared set to its dependency closure", () 
   );
 });
 
-test("profileGateErrors leaves parse-only fixtures alone (postfix-read grammar is unconditional Core syntax, spec/conformance.md:120)", () => {
+test("profileGateErrors leaves parse-only fixtures alone (postfix-read grammar is unconditional Core syntax, spec/conformance.md#data)", () => {
   assert.deepEqual(
     profileGateErrors(
       { profiles: ["core-language"], execute: false, check: false },

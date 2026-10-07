@@ -3,7 +3,7 @@
 # is 2, giving the familiar pentagram when :points is 5.
 #
 # @command star :points :size (:step 2)
-# @spec spec/geometry-module.md:75-133
+# @spec spec/geometry-module.md#star-points-size-step-2
 # @param points whole number of points, SHOULD be at least 5 for a recognizable star
 # @param size   length of each side
 # @param step   optional vertex skip (default 2), whole number with 1 < step < points

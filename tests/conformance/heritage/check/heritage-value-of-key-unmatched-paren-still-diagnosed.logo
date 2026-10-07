@@ -11,7 +11,7 @@
 # split across a newline, i.e. exactly the shape the fix now carries the parse through — the `(`
 # is still genuinely unmatched, so the report must survive.
 #
-# The reader operates on a dict, so Heritage also needs Data (`spec/conformance.md:305`).
+# The reader operates on a dict, so Heritage also needs Data (`spec/conformance.md#profile-dependency-dag`).
 :d = { a: 7 b: "a" }
 print (value of :d
 for key "a"

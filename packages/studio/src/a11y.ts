@@ -82,7 +82,7 @@
  * #749 made that region read the per-turtle `turtleWorld` rather than a single merged turtle
  * state: with several turtles the text now names **which** turtle it is describing, as
  * `turtle #<id>` — the same identity `print who` gives the learner — satisfying
- * `spec/rendering.md:193`'s "Implementations with multiple turtles MUST identify the active turtle
+ * `spec/rendering.md#non-visual-state-descriptions`'s "Implementations with multiple turtles MUST identify the active turtle
  * or addressed turtle set". A Turtle & Rendering program's text is unchanged, byte for byte.
  *
  * #770 closes the other half of that MUST — the **addressed turtle set**, which no single turtle
@@ -120,7 +120,7 @@
  * text to hand over, `@openlogo/turtle` owns how it is worded, exactly as for the position/heading
  * half. The same issue renders `x`/`y`/`heading`/`width` for speech, also in `@openlogo/turtle`. A
  * single-line instruction keeps its wording (surrounding whitespace is trimmed) and so does a
- * position that rounds to itself — `spec/rendering.md:193`'s worked example included.
+ * position that rounds to itself — `spec/rendering.md#non-visual-state-descriptions`'s worked example included.
  */
 
 import type { SourceSpan } from "@openlogo/core";
@@ -174,7 +174,7 @@ export interface FocusStop {
  * ("focus movement between source, output, state text, and canvas"); the source editor's own
  * `textbox` stop (#315/#279) is unchanged. #952 adds `canvas-activate` immediately after the canvas:
  * `on_click` fires when the drawing surface "is clicked **or activated by an equivalent accessible
- * action**" (`spec/interaction-events.md:241-242`), and a tab-reachable button beside the surface it
+ * action**" (`spec/interaction-events.md#on_click-block`), and a tab-reachable button beside the surface it
  * activates is that action — see `canvas-interaction.ts` for why it is a separate control rather
  * than Enter/Space on the canvas itself.
  */
@@ -482,7 +482,7 @@ function describeCurrentInstruction(
 }
 
 /** The full non-visual turtle-state text: `describeTurtleWorldState`'s wording — which names the
- * turtle it describes once the world holds more than one live turtle (`spec/rendering.md:193`,
+ * turtle it describes once the world holds more than one live turtle (`spec/rendering.md#non-visual-state-descriptions`,
  * #749) and
  * identifies the addressed turtle set whenever that set is not exactly the turtle a command last drove
  * (#770), and is byte-identical to `describeTurtleState`'s wording while one

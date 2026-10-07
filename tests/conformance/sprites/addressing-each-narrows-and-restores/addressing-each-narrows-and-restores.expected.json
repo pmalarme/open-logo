@@ -1,5 +1,5 @@
 {
-  "description": "issue #766: `each` runs its block once per turtle in the current set (spec/turtles-and-sprites.md:78), narrowing the addressed set to that one turtle for the iteration — so it emits one addressing `primitive` event per iteration, in the set's insertion order, and one more when the set it iterated is restored. A consumer folding the stream therefore knows which single turtle each iteration's effects belong to, and that `tell [ :a :b ]`'s pair is addressed again afterwards.",
+  "description": "issue #766: `each` runs its block once per turtle in the current set (spec/turtles-and-sprites.md#addressing-model), narrowing the addressed set to that one turtle for the iteration — so it emits one addressing `primitive` event per iteration, in the set's insertion order, and one more when the set it iterated is restored. A consumer folding the stream therefore knows which single turtle each iteration's effects belong to, and that `tell [ :a :b ]`'s pair is addressed again afterwards.",
   "profiles": ["sprites"],
   "execute": true,
   "events": [

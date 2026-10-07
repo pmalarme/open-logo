@@ -20,10 +20,10 @@ depending on position, and a friendly on-ramp for anyone arriving with classic L
 
 ## Decision
 
-OpenLogo's grammar assigns three ways and never lets `=` compare (`spec/grammar.md`'s
-[EBNF notation](../../spec/grammar.md#ebnf-notation) section, grammar productions at lines 103–105):
+OpenLogo's grammar assigns three ways and never lets `=` compare:
 
-- `<place> = <value>` — the colon-form assignment (`assignment ::= colon-place "=" expression`).
+- `<place> = <value>` — the colon-form assignment (`assignment ::= colon-place "=" expression`, in
+  `spec/grammar.md`'s [EBNF notation](../../spec/grammar.md#ebnf-notation) section).
   The target's leading `:` marks it as a place: `:size = 100`, `:nums[1] = 9`.
 - `set <place> to <value>` — the worded assignment (`set-assignment ::= "set" bare-place "to"
   expression`), the same place rules without the leading colon, including postfix selectors such as
@@ -40,11 +40,12 @@ OpenLogo's grammar assigns three ways and never lets `=` compare (`spec/grammar.
 worded `is`-predicates sit alongside them at the same expression level (`spec/grammar.md`'s
 [Expressions and calls](../../spec/grammar.md#expressions-and-calls) section, `comparison ::=
 additive ( is-predicate | { compare-op additive } )` and `compare-op ::= "==" | "!=" | "<" | ">" |
-"<=" | ">="`, lines 179–180). What all of them share, and what this decision is actually about, is
+"<=" | ">="`). What all of them share, and what this decision is actually about, is
 that every comparison is an expression-level reporter, never a statement, while every assignment
 form (`=`, `set … to`, and Heritage `make`) is a statement, and none of them compares.
 `spec/grammar.md` states explicitly: *"Assignment `=` and `set ... to` are statement forms, not
-expression operators"* and `=` "never compares" (`spec/commands.md`'s notation section, line 48).
+expression operators"* and `=` "never compares" (`spec/commands.md`'s
+[Notation and language surface](../../spec/commands.md#notation-and-language-surface) section).
 
 `make` is not Core: it is gated behind the Heritage profile alongside the other classic-Logo
 spellings (`fd`, `bk`, `to … end`, …), so a program written entirely in canonical OpenLogo never
@@ -96,8 +97,10 @@ Three deliberate choices are packed into this decision:
    idiom is equivalent to `set … to` for simple variable names but reads backwards to a modern eye
    (a command named "make" that takes a quoted word first) and its quoting convention (`"var` — an
    *open*-quote word, no closing quote) is exactly the kind of surprising lexical special case
-   OpenLogo's grammar avoids everywhere else (`spec/grammar.md` line 19: *"Classic Logo open-quote
-   word syntax such as `"word` is not OpenLogo"*). Keeping `make` as a fully-quoted assignment
+   OpenLogo's grammar avoids everywhere else (`spec/grammar.md`'s
+   [Lexical form and encoding](../../spec/grammar.md#lexical-form-and-encoding) section: *"Classic
+   Logo open-quote word syntax such as `"word` is not OpenLogo"*). Keeping `make` as a fully-quoted
+   assignment
    special form (`make "var" value`) under the Heritage profile gives migrating learners and ported
    programs a working alias without importing that lexical exception into Core, and without making
    it the form curriculum teaches first.
@@ -155,9 +158,9 @@ Three deliberate choices are packed into this decision:
 ## Spec references
 
 - `spec/grammar.md` — [EBNF notation](../../spec/grammar.md#ebnf-notation): the `assignment`/
-  `set-assignment`/`make-assignment` grammar productions (lines 103–105); [Expressions and
+  `set-assignment`/`make-assignment` grammar productions; [Expressions and
   calls](../../spec/grammar.md#expressions-and-calls): the `comparison`/`compare-op` productions
-  (lines 179–180) and the explicit statement-vs-operator rule for `=`/`set … to` vs `==`/`!=`.
+  and the explicit statement-vs-operator rule for `=`/`set … to` vs `==`/`!=`.
 - `spec/commands.md` — [Variables and output](../../spec/commands.md#variables-and-output): the
   `<place> = <value>` and `set … to` primitive entries, including the Heritage `make "n" v` alias
   noted on `set … to`'s entry, and the notation section's canonical example block showing all three

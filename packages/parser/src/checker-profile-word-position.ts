@@ -1,6 +1,6 @@
 /**
  * `ol-bad-token` for a **profile word read as a callee** — issue #864, the profile-conditional half
- * of the value-position rule `spec/grammar.md:390` states:
+ * of the value-position rule `spec/grammar.md#keywords-primitives-and-built-in-names` states:
  *
  * > A keyword in a position none of these cover has no derivation at all and is a parse error,
  * > never a silently accepted name: `repeat key [ ]` does not read as a call to a procedure named
@@ -34,21 +34,21 @@
  * `interaction-events/block-heads-reserved-under-core-only` pins the declaration diagnostic itself. A
  * profile-blind reader therefore cannot tell `ask`-the-block-head from
  * `ask`-the-learner's-procedure. The **checker** can, because it is handed
- * the active profile set (`spec/tooling.md:175-176` — a semantic rule "MUST use the active
+ * the active profile set (`spec/tooling.md#layer-2-semantic-checking` — a semantic rule "MUST use the active
  * conformance profile set when deciding which primitives and profile block-heads are available").
  * So the rule is profile-gated here, in exactly the shape `checker-names.ts` already registers those
  * same words as visible statement-form heads.
  *
  * **Scope: position, not reservation.** This rule decides *what happens when an active profile's
  * word appears where the grammar gives it no callable form*. It deliberately does **not** decide
- * whether those words are built-in names — `spec/grammar.md:408` ("Profile words are built-in names
+ * whether those words are built-in names — `spec/grammar.md#keywords-primitives-and-built-in-names` ("Profile words are built-in names
  * unconditionally") is `checker-reserved-word.ts`'s subject, and since issue #841 that rule answers
  * it with no profile set at all. The two rules therefore disagree about profiles on purpose: a
  * Core-only program may not **declare** `when`, yet `when` in a value position is an ordinary
  * unknown name rather than an `ol-bad-token`, because nothing has given it a structural role. That
  * is why the gate below is `isProfileKeyword(name, profiles)` and not a profile-blind lookup.
  *
- * **Why the callee, rather than a value-slot walk.** `spec/grammar.md:390` draws the line at what a
+ * **Why the callee, rather than a value-slot walk.** `spec/grammar.md#keywords-primitives-and-built-in-names` draws the line at what a
  * word is *matched as*: a keyword "is matched as `callable-name` only where the
  * [C3 primitive matrix](commands.md) also gives that word a callable form". That sentence is also
  * what scopes this rule to **six of the seven** profile words — see
@@ -62,23 +62,23 @@
  * rule.
  *
  * **Why `ol-bad-token` at `stage: "semantic"`.** The code is the one
- * `spec/error-model.md:110` assigns to "a token that is itself a valid OpenLogo token but is not
+ * `spec/error-model.md#normative-code-registry` assigns to "a token that is itself a valid OpenLogo token but is not
  * permitted at the current grammar position and no more-specific parse diagnostic applies", which is
  * precisely this defect and precisely what the six Core words already report — so the two halves of
  * the rule are finally the same diagnostic rather than one raising and the other saying nothing. The
- * stage is `semantic` because `spec/error-model.md:77` defines it that way: "The `code` remains the
+ * stage is `semantic` because `spec/error-model.md#stages` defines it that way: "The `code` remains the
  * same; the `stage` records **when it was found**." Its neighbouring sentence — "If an
  * implementation can detect a condition earlier without changing behavior, it SHOULD report the
  * earlier stage" — does not apply, since detecting this in the reader *would* change behavior, for
  * exactly the Core-only programs the paragraph above protects.
  *
  * `ol-unknown-command` would have been wrong twice over: the name **is** known when its profile is
- * active (that is the whole premise), and `spec/tooling.md:181` scopes that code to a name that is
+ * active (that is the whole premise), and `spec/tooling.md#layer-2-semantic-checking` scopes that code to a name that is
  * not known at all. Core-only, where the word genuinely is unknown, `ol-unknown-command` is what
  * still fires — from `checker-unknown-command.ts`, unchanged.
  *
- * **On the `parse`/`semantic` split for one code.** `spec/error-model.md:95` heads its registry
- * column *"**Usual** stage"*, not "Stage", and `:77` makes the stage a property of detection, so one
+ * **On the `parse`/`semantic` split for one code.** `spec/error-model.md#normative-code-registry` heads its registry
+ * column *"**Usual** stage"*, not "Stage", and `spec/error-model.md#stages` makes the stage a property of detection, so one
  * code reaching two stages is the model working as specified rather than an anomaly. Twelve codes in
  * the corpus already do it on the `semantic`/`runtime` axis, for exactly this reason and with the
  * same reasoning recorded at the raise site — see `@openlogo/runtime`'s `errors.ts` ("Registry stage
@@ -112,7 +112,7 @@ function isCallLike(node: AnyNode): node is CallNode | ParenCallNode {
 
 /**
  * The profile words the C3 matrix classifies **Kind S — special form**, and therefore the only ones
- * this rule may reject. `spec/grammar.md:390` matches a keyword as `callable-name` "only where the
+ * this rule may reject. `spec/grammar.md#keywords-primitives-and-built-in-names` matches a keyword as `callable-name` "only where the
  * [C3 primitive matrix](commands.md) also gives that word a callable form", so the C3 **Kind**
  * column is the whole test, and it does not answer the same for all seven profile words:
  *
@@ -131,7 +131,7 @@ function isCallLike(node: AnyNode): node is CallNode | ParenCallNode {
  * (all four block-heads **S**).
  *
  * **`tell` is deliberately exempt, and this is the one distinction the rule turns on.** It is a
- * *command*, not a special form — `spec/grammar.md:408` itself calls it "the Sprites command `tell`
+ * *command*, not a special form — `spec/grammar.md#keywords-primitives-and-built-in-names` itself calls it "the Sprites command `tell`
  * — a mode switch that takes no block". A command has a callable form, so `tell` genuinely *is* a
  * `callable-name` and `( tell :t )` is a legitimate `parenthesized-call`, exactly as `( forward 5 )`
  * is. Rejecting it here would turn a valid program into an error: measured, `( tell :t )` checked
@@ -171,10 +171,10 @@ const SPECIAL_FORM_PROFILE_WORDS: ReadonlySet<string> = new Set([
 ]);
 
 /**
- * The one learner-facing sentence, in the lowercase Logo voice `spec/error-model.md:18` requires.
+ * The one learner-facing sentence, in the lowercase Logo voice `spec/error-model.md#philosophy` requires.
  * Its first half is byte-identical to the reader's own `ol-bad-token` prose (`errors.ts`'s
  * `badToken`), so the profile half of the rule reads exactly like the Core half a learner may
- * already have met; the second half is the "closest legal form" `spec/error-model.md:110` asks for —
+ * already have met; the second half is the "closest legal form" `spec/error-model.md#normative-code-registry` asks for —
  * every one of these words heads a statement of its own.
  *
  * `word` is the learner's **surface** spelling, so a mixed-case `When` is quoted back as written.
@@ -198,7 +198,7 @@ function badTokenDiagnostic(node: CallNode | ParenCallNode): Diagnostic {
  * Report every place an **active** profile's special-form head was read as a callee, in source order
  * (which the pre-order {@link walk} gives directly).
  *
- * The span covers just the head word, not the enclosing call: `spec/error-model.md:41-42` wants "the
+ * The span covers just the head word, not the enclosing call: `spec/error-model.md#diagnostic-shape` wants "the
  * most local repair site", and the word itself is what the learner has to replace.
  *
  * Two gates, in order, and both are load-bearing: {@link isProfileKeyword} keys the rule to the

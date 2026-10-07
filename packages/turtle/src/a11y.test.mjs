@@ -126,7 +126,7 @@ test("every color-independent cue kind is distinct", () => {
   assert.equal(kinds.size, 4);
 });
 
-// --- describeTurtleWorldState (#749, spec/rendering.md:193) ------------------------------------
+// --- describeTurtleWorldState (#749, spec/rendering.md#non-visual-state-descriptions) ------------------------------------
 
 /** A `TurtleWorldState` over `states` (`[id, state]` pairs in creation order) with `lastActedId`
  * as the last-acted turtle. */
@@ -154,7 +154,7 @@ test("describeTurtleWorldState of a single-turtle world is byte-identical to des
 });
 
 test("describeTurtleWorldState names the described turtle once there is more than one", () => {
-  // spec/rendering.md:193 — "Implementations with multiple turtles MUST identify the active turtle
+  // spec/rendering.md#non-visual-state-descriptions — "Implementations with multiple turtles MUST identify the active turtle
   // or addressed turtle set." The #749 defect was that this text named no turtle at all while
   // reporting one particular turtle's attributes.
   const world = turtleWorld(
@@ -181,7 +181,7 @@ test("describeTurtleWorldState names the described turtle once there is more tha
 
 test("describeTurtleWorldState names the turtle by its id, matching the identity an OpenLogo program prints", () => {
   // `print who` / `print :friend` render a turtle value as `turtle #<id>` (@openlogo/runtime's
-  // printedForm, over @openlogo/core's OLTurtle.id; spec/turtles-and-sprites.md:39,:85). A
+  // printedForm, over @openlogo/core's OLTurtle.id; spec/turtles-and-sprites.md#turtle-creation, spec/turtles-and-sprites.md#addressing-model). A
   // screen-reader user has only text channels, so the state region must use that same name — a
   // creation-order ordinal would read "turtle 2" for the turtle the output pane calls "turtle #7".
   const world = turtleWorld(
@@ -236,7 +236,7 @@ test("describeTurtleWorldState never announces an identity no live turtle has", 
   assert.equal(world.turtles.size > 1, true);
 });
 
-// --- the addressed turtle set (#770, spec/rendering.md:193) ------------------------------------
+// --- the addressed turtle set (#770, spec/rendering.md#non-visual-state-descriptions) ------------------------------------
 
 /** A `TurtleWorldState` carrying addressing, as `reduceTurtleWorldState` folds it from the
  * stream's addressing snapshots. `currentId` defaults to the addressed set's first member — what
@@ -260,7 +260,7 @@ const BLUE_HIDDEN = {
 };
 
 test("describeTurtleWorldState identifies the whole addressed set once more than one turtle is addressed", () => {
-  // spec/rendering.md:193 — "Implementations with multiple turtles MUST identify the active turtle
+  // spec/rendering.md#non-visual-state-descriptions — "Implementations with multiple turtles MUST identify the active turtle
   // OR ADDRESSED TURTLE SET." After `tell [ :a :b ]` no single turtle is the answer, so the text
   // leads with the set — and still reports the position/heading/pen of the turtle that last acted,
   // because this region is also how a non-visual learner follows what just changed.
@@ -300,7 +300,7 @@ test("describeTurtleWorldState identifies the addressed turtle after an ask bloc
   // The #770 defect, in its smallest form: `tell :a` / `ask :b [ forward 10 ]`. The addressed set
   // is back to { :a }, so naming only `:b` would identify neither "the active turtle" nor "the
   // addressed turtle set" — but `:b` is what just changed, and a non-visual learner must still hear
-  // that (spec/rendering.md:195), so the sentence carries both.
+  // that (spec/rendering.md#non-visual-state-descriptions), so the sentence carries both.
   const world = addressedWorld(
     [
       [0, OL.INITIAL_TURTLE_STATE],
@@ -335,7 +335,7 @@ test("describeTurtleWorldState keeps the wording exactly as #749 baselined it wh
 
 test("describeTurtleWorldState of a folded single-turtle world stays byte-identical to the spec's worked example", () => {
   // The compatibility property, now through the *folded* addressing path a real Turtle & Rendering
-  // program takes (its addressed set is the single default turtle, spec/turtles-and-sprites.md:44)
+  // program takes (its addressed set is the single default turtle, spec/turtles-and-sprites.md#addressing-model)
   // rather than only through a hand-built world.
   const state = { ...OL.INITIAL_TURTLE_STATE, position: [100, 0], heading: 90 };
   const world = addressedWorld(
@@ -699,7 +699,7 @@ test("describeCurrentStepCue omits the trailing label when the slice has no head
 });
 
 test("describeTurtleState speaks a heading that rounds up to a full turn as 0 (#778)", () => {
-  // `spec/rendering.md:67` and `spec/execution-model.md:619` normalize headings into [0,360), so
+  // `spec/rendering.md#coordinate-mapping-and-viewport` and `spec/execution-model.md#turtle-and-canvas-state` normalize headings into [0,360), so
   // `heading 360 degrees` names a value the model never holds. Reachable, not hypothetical:
   // `right 359.9999` and `repeat 3 / right 119.99999999 / end repeat` both reach it, with no
   // diagnostics, on a plain Turtle & Rendering program.
@@ -787,7 +787,7 @@ test("describeCurrentStepCue summarizes a multi-line instruction (#778)", () => 
 });
 
 test("the #778 presentation rules leave spec/rendering.md's worked example byte-identical", () => {
-  // The compatibility property the whole change is built around (`spec/rendering.md:193`).
+  // The compatibility property the whole change is built around (`spec/rendering.md#non-visual-state-descriptions`).
   assert.equal(
     OL.describeTurtleState({
       ...OL.INITIAL_TURTLE_STATE,

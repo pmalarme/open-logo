@@ -1,5 +1,5 @@
 {
-  "description": "Slice #330 — the no-auto-vivify rule composes at ANY position in a longer chain, not just the first segment (`spec/data-structures.md:203`). `:db.people = dict` creates a dict-valued key `people` inside `:db`; `:db.people.tom.age = 5` then walks `.people` (intermediate, resolves fine) then `.tom` (intermediate, missing on the nested dict) — the miss is raised immediately as `ol-unknown-key` for `tom`, and `.age` (the would-be final segment) is never reached, proving the write walk never upserts an intermediate regardless of how deep it sits in the chain.",
+  "description": "Slice #330 — the no-auto-vivify rule composes at ANY position in a longer chain, not just the first segment (`spec/data-structures.md#malformed-dictionary-literal-entries`). `:db.people = dict` creates a dict-valued key `people` inside `:db`; `:db.people.tom.age = 5` then walks `.people` (intermediate, resolves fine) then `.tom` (intermediate, missing on the nested dict) — the miss is raised immediately as `ol-unknown-key` for `tom`, and `.age` (the would-be final segment) is never reached, proving the write walk never upserts an intermediate regardless of how deep it sits in the chain.",
   "profiles": ["core-language", "data"],
   "execute": true,
   "events": [

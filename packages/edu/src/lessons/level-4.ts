@@ -1,11 +1,11 @@
 /**
- * Level 4 — conditions (`spec/educational-model.md:123-154`, issue #326). The learner question
+ * Level 4 — conditions (`spec/educational-model.md#level-4--conditions`, issue #326). The learner question
  * is "How can the program choose?": a condition must already be `true` or `false` — OpenLogo
  * never guesses a boolean from a number, word, or list. `if … else` chooses between blocks;
  * `==`/`!=`/`<`/`>`/`<=`/`>=` are the comparisons that build a boolean; `and`/`or`/`not` combine
  * booleans; worded predicates such as `is between` read like English and still make a strict
  * boolean. Only Level 1-4 vocabulary appears here — no `define`/procedures (Level 5), per
- * educational-model.md:37's discovery guardrail.
+ * spec/educational-model.md#the-8-progressive-levels's discovery guardrail.
  */
 
 import type { Lesson } from "../lesson.js";
@@ -13,7 +13,7 @@ import type { Exercise } from "./exercise.js";
 
 /**
  * The single Level 4 lesson: a condition must already be a strict boolean before `if … else` can
- * choose between two blocks. The first worked example reproduces `spec/educational-model.md:139-152`'s
+ * choose between two blocks. The first worked example reproduces `spec/educational-model.md#level-4--conditions`'s
  * `:sides == 4` color-choice program verbatim, so the lesson never drifts from the normative
  * sample. The remaining worked examples stay on the same `:sides`/`:size` vocabulary while
  * introducing the rest of Level 4's comparisons, `and`/`or`/`not`, and a worded predicate.
@@ -111,7 +111,7 @@ export const level4Lessons: readonly Lesson[] = [
  * Graded Level 4 exercises for `l4-shape-color-condition`, ramping from a single comparison-
  * operator change, to a second single comparison-operator change on the same shape and value, to
  * composing the concept into a recognizable house (reusing Level 3's house shape) whose color is
- * chosen by a condition — per the compose-a-recognizable-object rule (`spec/educational-model.md:23`,
+ * chosen by a condition — per the compose-a-recognizable-object rule (`spec/educational-model.md#discovery-philosophy`,
  * issue #359). The guided and practice exercises are literal single-line diffs of one another
  * (see level-4.test.mjs's diff assertions): guided changes only `==` to `!=` from the lesson's
  * first worked example, and practice changes only `!=` to `>=` from guided — `:sides = 4` and

@@ -1,5 +1,5 @@
 {
-  "description": "issue #338: `print perimeter [\"polygon\" 5 100]` reports `n * s` and emits no turtle/draw events (spec/geometry-module.md:370-415).",
+  "description": "issue #338: `print perimeter [\"polygon\" 5 100]` reports `n * s` and emits no turtle/draw events (spec/geometry-module.md#perimeter-shape).",
   "profiles": ["geometry"],
   "execute": true,
   "events": [

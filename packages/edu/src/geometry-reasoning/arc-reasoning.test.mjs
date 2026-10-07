@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { reasonAboutArc } from "@openlogo/edu";
 
-test("reasonAboutArc: a 90-degree arc from [0, 0] heading 0 ends at heading 270, center [-50, 0], final position [-50, 50] (spec/geometry-module.md:243-254)", () => {
+test("reasonAboutArc: a 90-degree arc from [0, 0] heading 0 ends at heading 270, center [-50, 0], final position [-50, 50] (spec/geometry-module.md#arc-angle-radius)", () => {
   const reasoning = reasonAboutArc(90, 50, [0, 0], 0);
   assert.equal(reasoning.concept, "arc-heading-position");
   assert.equal(reasoning.angle, 90);

@@ -102,7 +102,7 @@ test("reads true and false as boolean literals", () => {
 });
 
 test("normalizes a multi-line word literal exactly as spec/grammar.md's worked example", () => {
-  // Mirrors spec/grammar.md:21-30: the newline after the opening """ and before the closing
+  // Mirrors spec/grammar.md#lexical-form-and-encoding: the newline after the opening """ and before the closing
   // """ are dropped, and the two spaces common to both content lines are stripped, so "Hello"
   // keeps its extra two-space indent while "World" does not.
   const source = ':poem = """\n    Hello\n  World\n"""\nprint :poem';

@@ -1,5 +1,5 @@
 {
-  "description": "issue #676 (SP4): `each` closed by `end ask` raises `ol-mismatched-end` (spec/turtles-and-sprites.md:170), the long-form counterpart of `ask` closed by `end each`. The mismatched labeled `end` fails the parse, so no events are produced.",
+  "description": "issue #676 (SP4): `each` closed by `end ask` raises `ol-mismatched-end` (spec/turtles-and-sprites.md#profile-grammar), the long-form counterpart of `ask` closed by `end each`. The mismatched labeled `end` fails the parse, so no events are produced.",
   "profiles": ["sprites"],
   "execute": true,
   "events": [],

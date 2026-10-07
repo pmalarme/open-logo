@@ -41,7 +41,7 @@ import {
  * `add`/`remove`/`clear`/`insert` collection-mutation forms.
  *
  * `ValueOfKey` (the Heritage `value of … for key` dictionary reader) is deliberately NOT in this
- * set: `spec/conformance.md:277` classifies that spelling as **Heritage**, which *also*
+ * set: `spec/conformance.md#feature-to-profile-table` classifies that spelling as **Heritage**, which *also*
  * depends on **Data** because the reader operates on dicts — so a source using it needs BOTH
  * profiles, not just Data. It gets its own check below so it can add both.
  *
@@ -101,7 +101,7 @@ export const SPRITES_CALLEE_NAMES = new Set([
 ]);
 
 /**
- * Call-site name `spec/conformance.md:284` reserves for the **Tutor (AI)** profile's
+ * Call-site name `spec/conformance.md#feature-to-profile-table` reserves for the **Tutor (AI)** profile's
  * Socratic-challenge entry point. Kept as a bare-name hand-list identical in kind to
  * `SOUND_CALLEE_NAMES`/`SPRITES_CALLEE_NAMES`/`INTERACTION_EVENTS_CALLEE_NAMES` above. The
  * `definedProcedureNames` shadow-guard (checked before any of these hand-lists are consulted)
@@ -122,7 +122,7 @@ export const SPRITES_CALLEE_NAMES = new Set([
 export const TUTOR_AI_CALLEE_NAMES = new Set(["challenge"]);
 
 /**
- * The **Heritage** profile's closed short-alias list (`spec/conformance.md:148-160`,`:275-276`):
+ * The **Heritage** profile's closed short-alias list (`spec/conformance.md#heritage`,`spec/conformance.md#feature-to-profile-table`):
  * `fd`/`bk`/`lt`/`rt`/`pu`/`pd`/`st`/`ht`/`cs`/`pr` plus the list-reporter alias spellings
  * `bf`/`bl`/`se` — each an ordinary zero-arity `Call` whose *callee name* is detectable here.
  * The Heritage assignment spelling `make "name" value` is NOT in this set: since issue #151 it
@@ -150,7 +150,7 @@ export const HERITAGE_CALLEE_NAMES = new Set([
 
 /**
  * The Geometry profile's derived standard-library procedures (`spec/geometry-module.md`,
- * `spec/conformance.md:265`): `polygon`, `star`, `circle`, `arc`, `area`, `perimeter`. Unlike
+ * `spec/conformance.md#feature-to-profile-table`): `polygon`, `star`, `circle`, `arc`, `area`, `perimeter`. Unlike
  * `grid`/`axes`/`measure` (renderer-backed overlay primitives with a `geometryPrimitiveArity()`
  * table entry), these are **discoverable OpenLogo source** a program is expected to `define`
  * for itself (`spec/examples/13-geometry-stdlib.logo`), never a parser primitive — but a call
@@ -162,7 +162,7 @@ export const HERITAGE_CALLEE_NAMES = new Set([
  * defining it, while declaring only an unrelated unimplemented profile, reached SKIP with the
  * missing `geometry` declaration never surfaced.
  *
- * `area` and `perimeter` specifically also add `data`: `spec/conformance.md:265` states their
+ * `area` and `perimeter` specifically also add `data`: `spec/conformance.md#feature-to-profile-table` states their
  * canonical stdlib implementation "read[s] a shape spec by list index, so they also need Data" —
  * the same "this construct's own semantics always need a second profile" reasoning already
  * applied to `ValueOfKey` above, scoped to just the two names the spec calls out.
@@ -182,8 +182,8 @@ export const GEOMETRY_STDLIB_ALSO_DATA_NAMES = new Set(["area", "perimeter"]);
 /**
  * Reserved words that have no `Call`/`ParenCall` — or any other — AST production at all today, so no
  * AST walk can ever see them: the Modules/Localization `import`/`export`/`alias`
- * module-and-keyword-pack-aliasing forms (`spec/conformance.md:181-190`,`:281-282`;
- * `spec/localization.md:18-21`'s `alias new_name existing_name`). `struct` is deliberately excluded
+ * module-and-keyword-pack-aliasing forms (`spec/conformance.md#modules, spec/conformance.md#localization`,`spec/conformance.md#feature-to-profile-table`;
+ * `spec/localization.md#alias-special-form`'s `alias new_name existing_name`). `struct` is deliberately excluded
  * from this map: unlike these three, it DOES have a dedicated production (`parser.ts`'s
  * `parseStructDef`, reached via its own statement-level dispatch), so it already surfaces as a
  * `StructDef` node in {@link DATA_NODE_KINDS} and needs no diagnostic-based fallback.
@@ -284,7 +284,7 @@ export const AST_SHAPE_RULE_IDS = Object.freeze([
  * | Turtle & Rendering | *(not detected)* | every program needs it; never contradicts a declaration |
  * | Geometry | `geometryPrimitiveArity()` (`grid`/`axes`/`measure`) plus `GEOMETRY_STDLIB_CALLEE_NAMES`
  *   (`polygon`/`star`/`circle`/`arc`/`area`/`perimeter`, the latter two also adding `data` per
- *   `spec/conformance.md:265`) | implemented profile — a live masking case |
+ *   `spec/conformance.md#feature-to-profile-table`) | implemented profile — a live masking case |
  * | Heritage | `HERITAGE_CALLEE_NAMES`, `ValueOfKey` (adds `data` too), `Assign form:"make"`,
  *   `ProcedureDef keyword:"to"`, and `Return keyword:"output"/"op"` (all via the AST walk) | |
  * | Sprites | `SPRITES_CALLEE_NAMES` | |
@@ -294,7 +294,7 @@ export const AST_SHAPE_RULE_IDS = Object.freeze([
  * | Modules | `RESERVED_WORD_PROFILES` (`import`/`export`, via diagnostics) | |
  * | Localization | `RESERVED_WORD_PROFILES` (`alias`, via diagnostics) | depends on Modules,
  *   expanded by `closureOf` on the declared side |
- * | Tutor (AI) | `TUTOR_AI_CALLEE_NAMES` (`challenge`, `spec/conformance.md:284`) | |
+ * | Tutor (AI) | `TUTOR_AI_CALLEE_NAMES` (`challenge`, `spec/conformance.md#feature-to-profile-table`) | |
  *
  * `import`/`export`/`alias` (Modules/Localization) have no `Call`/`ParenCall` — or any other — AST
  * production at all today (`packages/parser/src/parser.ts`'s `NON_PRIMARY_NAMES`), so the AST walk
@@ -399,8 +399,8 @@ export function detectUsedProfiles(source) {
   //
   // Matched on the diagnostic `code` plus an exact, case-insensitive `params.text` value — never on
   // `message` prose, which is not part of a diagnostic's stable identity
-  // (`spec/localization.md:223`, "localized prose is separate from diagnostic identity"; the
-  // normative statement is `spec/error-model.md:256`, "Diagnostic identity is `code` plus `params`;
+  // (`spec/localization.md#tooling-expectations`, "localized prose is separate from diagnostic identity"; the
+  // normative statement is `spec/error-model.md#localization-boundary`, "Diagnostic identity is `code` plus `params`;
   // prose is presentation"). The Heritage `to`/`output`/`op` words are NOT here anymore: since
   // issue #667 they parse into real AST nodes and are detected in the walk below (see
   // `RESERVED_WORD_PROFILES`'s doc comment and #701).
@@ -492,8 +492,8 @@ export function detectUsedProfiles(source) {
       return;
     }
     if (node.kind === "Assign" && node.form === "make") {
-      // The Heritage assignment spelling `make "name" value` (`spec/grammar.md:107`,
-      // `spec/conformance.md:274`). Since issue #151 it parses as an `Assign` node whose
+      // The Heritage assignment spelling `make "name" value` (`spec/grammar.md#ebnf-notation`,
+      // `spec/conformance.md#feature-to-profile-table`). Since issue #151 it parses as an `Assign` node whose
       // `form` records the surface spelling — NOT a `Call` — so it is detected here by that form,
       // not by a callee name in `HERITAGE_CALLEE_NAMES`. It is an alternate spelling with no new
       // semantics, so no other profile is implied.
@@ -501,7 +501,7 @@ export function detectUsedProfiles(source) {
       return;
     }
     if (node.kind === "ProcedureDef" && node.keyword === "to") {
-      // The Heritage procedure-definition spelling `to name … end` (`spec/grammar.md:148`,
+      // The Heritage procedure-definition spelling `to name … end` (`spec/grammar.md#ebnf-notation`,
       // `spec/conformance.md#heritage`). As of issue #667 (slice H2) it parses into the SAME
       // `ProcedureDef` node as Core `define`, discriminated by `keyword` — NOT the parse-time
       // `ol-bad-token` it produced before, so it is detected here by that `keyword` (see #701:
@@ -514,7 +514,7 @@ export function detectUsedProfiles(source) {
       node.kind === "Return" &&
       (node.keyword === "output" || node.keyword === "op")
     ) {
-      // The Heritage return spellings `output value` / `op value` (`spec/grammar.md:152`,
+      // The Heritage return spellings `output value` / `op value` (`spec/grammar.md#ebnf-notation`,
       // `spec/conformance.md#heritage`). As of issue #667 (slice H2) they parse into the SAME
       // `Return` node as Core `return`, discriminated by `keyword` — NOT the parse-time
       // `ol-bad-token` they produced before — so they are detected here by that `keyword` (see
@@ -523,8 +523,8 @@ export function detectUsedProfiles(source) {
       return;
     }
     if (node.kind === "ValueOfKey") {
-      // The Heritage `value of ... for key` dictionary reader (`spec/conformance.md:277`, which
-      // states it directly — "operates on dicts, so it also needs Data" — and `:296`, the DAG's
+      // The Heritage `value of ... for key` dictionary reader (`spec/conformance.md#feature-to-profile-table`, which
+      // states it directly — "operates on dicts, so it also needs Data" — and `spec/conformance.md#profile-dependency-dag`, the DAG's
       // `Heritage (also depends on Data and Turtle & Rendering)` annotation): classified as
       // Heritage, but it "also needs Data" because it operates on dicts — a
       // program using it must declare BOTH, or the missing one goes undetected (issue #519
@@ -592,7 +592,7 @@ export function detectUsedProfiles(source) {
       used.add("geometry");
     } else if (GEOMETRY_STDLIB_CALLEE_NAMES.has(name)) {
       // The Geometry profile's derived stdlib procedures `polygon`/`star`/`circle`/`arc`/`area`/
-      // `perimeter` (`spec/geometry-module.md`, `spec/conformance.md:265`) — an ordinary,
+      // `perimeter` (`spec/geometry-module.md`, `spec/conformance.md#feature-to-profile-table`) — an ordinary,
       // recognizable call site a program either `define`s for itself (already excluded above by
       // the `definedProcedureNames` shadow-guard) or calls while relying on the profile's
       // stdlib semantics (fifth review round, issue #519).

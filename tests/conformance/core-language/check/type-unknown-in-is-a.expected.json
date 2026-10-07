@@ -1,5 +1,5 @@
 {
-  "description": "ol-unknown-type (issue #112): a worded `is a <type-word>` predicate whose literal type word (spec/execution-model.md:161-166) names no built-in Core type and no declared struct raises ol-unknown-type at the type word's span, with params { name } and stage semantic (spec/error-model.md). The type position is `is a`'s literal word, never a callable position (that is ol-unknown-command).",
+  "description": "ol-unknown-type (issue #112): a worded `is a <type-word>` predicate whose literal type word (spec/execution-model.md#precedence-and-evaluation-order) names no built-in Core type and no declared struct raises ol-unknown-type at the type word's span, with params { name } and stage semantic (spec/error-model.md). The type position is `is a`'s literal word, never a callable position (that is ol-unknown-command).",
   "profiles": ["core-language"],
   "check": true,
   "events": [],

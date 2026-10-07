@@ -1,5 +1,5 @@
 {
-  "description": "issue #674 (SP2): the same `tell :x` program is rejected under Core only — with the `sprites` profile inactive, `tell` is not a visible command name, so the checker reports `ol-unknown-command` naming `tell`. This proves `tell` is gated on the active profile set (spec/tooling.md:175-176), not unconditionally visible.",
+  "description": "issue #674 (SP2): the same `tell :x` program is rejected under Core only — with the `sprites` profile inactive, `tell` is not a visible command name, so the checker reports `ol-unknown-command` naming `tell`. This proves `tell` is gated on the active profile set (spec/tooling.md#layer-2-semantic-checking), not unconditionally visible.",
   "profiles": ["core-language"],
   "check": true,
   "events": [],

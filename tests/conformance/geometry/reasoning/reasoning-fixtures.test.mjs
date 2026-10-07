@@ -87,11 +87,11 @@ test("arc-quarter-turn: reasonAboutArc's center/finalPosition/finalHeading match
 
   assert.deepEqual(reasoning.startPosition, [0, 0]);
   assert.equal(reasoning.startHeading, 0);
-  // Center: `radius` units to the turtle's left of the start (spec/geometry-module.md:243-247).
+  // Center: `radius` units to the turtle's left of the start (spec/geometry-module.md#arc-angle-radius).
   assert.ok(Math.abs(reasoning.center[0] - -50) < 1e-6);
   assert.ok(Math.abs(reasoning.center[1] - 0) < 1e-6);
   // Final position/heading match the actual stepped-chord execution within numeric tolerance
-  // (spec/geometry-module.md:256: "MUST preserve the direction, center, final position, and
+  // (spec/geometry-module.md#arc-angle-radius: "MUST preserve the direction, center, final position, and
   // final heading within documented numeric tolerance").
   assert.ok(
     Math.abs(reasoning.finalPosition[0] - actualFinalPosition[0]) < 1e-6,

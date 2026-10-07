@@ -1,5 +1,5 @@
 {
-  "description": "A `struct` constructor call builds a record whose fields are set in declared order (issue #329, `spec/data-structures.md:252-286`): `point 3 4` makes a `point` record, `:p.x`/`:p.y` read `3`/`4`, `type_of :p` reports the struct type name `\"point\"`, and `is_a? :p \"point\"` is `true`.",
+  "description": "A `struct` constructor call builds a record whose fields are set in declared order (issue #329, `spec/data-structures.md#records-and-structs, spec/data-structures.md#record-operations`): `point 3 4` makes a `point` record, `:p.x`/`:p.y` read `3`/`4`, `type_of :p` reports the struct type name `\"point\"`, and `is_a? :p \"point\"` is `true`.",
   "profiles": ["core-language", "data"],
   "execute": true,
   "events": [

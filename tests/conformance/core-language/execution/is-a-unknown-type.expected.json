@@ -1,5 +1,5 @@
 {
-  "description": "`is a <type-word>` with a word that is not a recognized Core type raises `ol-unknown-type` naming the word (spec/execution-model.md:146-166, error-model.md `ol-unknown-type`). Raised at stage=runtime, mirroring the checker's own stage=semantic copy of this rule since `execute()` runs `parse()` only, not `check()` (issues #94/#104/#114 convention). Execution halts, so only the `instruction` event is kept. Issue #99.",
+  "description": "`is a <type-word>` with a word that is not a recognized Core type raises `ol-unknown-type` naming the word (spec/execution-model.md#precedence-and-evaluation-order, error-model.md `ol-unknown-type`). Raised at stage=runtime, mirroring the checker's own stage=semantic copy of this rule since `execute()` runs `parse()` only, not `check()` (issues #94/#104/#114 convention). Execution halts, so only the `instruction` event is kept. Issue #99.",
   "profiles": ["core-language"],
   "execute": true,
   "events": [

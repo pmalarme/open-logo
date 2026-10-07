@@ -6,18 +6,18 @@
 // file locks the grammar-derived *tooling* contract those slices left implicit:
 //
 //   1. Highlighting — a Sound command name is an ordinary primitive call, not a block-head, so
-//      `highlight()` classifies it `primitive` (`spec/tooling.md:28-44`) and `semanticTokens()`
-//      layers `defaultLibrary` on it (`spec/tooling.md:278-280`), exactly as a Core command like
+//      `highlight()` classifies it `primitive` (`spec/tooling.md#normative-token-class-model`) and `semanticTokens()`
+//      layers `defaultLibrary` on it (`spec/tooling.md#informative-lsp-style-editor-integration`), exactly as a Core command like
 //      `forward` is treated. Since issue #740 the highlighter DOES take an active-profile set, and
-//      that is precisely why this file matters: `spec/tooling.md:30` moves only "a profile's
+//      that is precisely why this file matters: `spec/tooling.md#normative-token-class-model` moves only "a profile's
 //      block-heads and its mode-switch commands" into `keyword` while
-//      their profile is active, and `:31` keeps "profile primitives when enabled" in `primitive`.
+//      their profile is active, and `spec/tooling.md#normative-token-class-model` keeps "profile primitives when enabled" in `primitive`.
 //      Sound has no block-heads at all, so all five commands must be unmoved in BOTH directions —
 //      this file is the control case that separates "classify by block-head-ness" from the wrong
 //      rule "classify by profile membership".
 //   2. Checker recognition — under an active `sound` profile a Sound program checks clean, and
 //      under Core-only the same program is `ol-unknown-command`. Legality gating is the checker's
-//      job, never the reader's or the highlighter's: `spec/interaction-events.md:47` says "`input`
+//      job, never the reader's or the highlighter's: `spec/interaction-events.md#profiles-and-reservation` says "`input`
 //      and `wait` are ordinary primitives rather than block-heads, as are the Sound command names;
 //      all of them are built-in names on the same unconditional terms, and their profile decides
 //      only whether they work" — so declaring one IS blocked, while its token class stays
@@ -107,8 +107,8 @@ test("highlight: every Sound command stays primitive nested in a whole program u
 test("highlight: a Sound command name is never a keyword — a same-named procedure highlights as procedure-name", () => {
   // Block-heads (`if`/`repeat`/`define`, and an active profile's own heads) reach the `keyword`
   // class; Sound commands never do, so a user procedure literally named `note` resolves to
-  // `procedure-name` at its call site via symbol discovery (`spec/tooling.md:30`'s demotion
-  // clause). This is a *token-class* claim only: `spec/interaction-events.md:47` makes the Sound
+  // `procedure-name` at its call site via symbol discovery (`spec/tooling.md#normative-token-class-model`'s demotion
+  // clause). This is a *token-class* claim only: `spec/interaction-events.md#profiles-and-reservation` makes the Sound
   // names built-in unconditionally, so the checker separately rejects this very declaration —
   // legality is not what the highlighter answers.
   const source = "define note\nend\nnote";
@@ -133,7 +133,7 @@ test("semanticTokens: each Sound command call carries the defaultLibrary modifie
 
 test("semanticTokens: every Sound command carries defaultLibrary when nested in a whole program", () => {
   // The nested counterpart of the top-level check above: all five commands, in awkward positions,
-  // must still surface as `primitive` + `defaultLibrary` semantic tokens (spec/tooling.md:278-280).
+  // must still surface as `primitive` + `defaultLibrary` semantic tokens (spec/tooling.md#informative-lsp-style-editor-integration).
   const tokens = OL.semanticTokens(NESTED_SOUND_PROGRAM, doc);
   for (const name of Object.keys(SOUND_CALLS)) {
     const token = tokens.find((t) => t.text === name);
@@ -149,9 +149,9 @@ test("semanticTokens: every Sound command carries defaultLibrary when nested in 
 // --- The control case for #740: an ACTIVE profile must NOT move a Sound command ---------------
 
 test("highlight: every Sound command stays primitive with the sound profile ACTIVE", () => {
-  // `spec/tooling.md:30` moves only "a profile's block-heads and its mode-switch
-  // commands" into `keyword` while their profile is active; `:31` keeps "profile primitives
-  // when enabled" in `primitive`. `spec/interaction-events.md:47` says the same in words:
+  // `spec/tooling.md#normative-token-class-model` moves only "a profile's block-heads and its mode-switch
+  // commands" into `keyword` while their profile is active; `spec/tooling.md#normative-token-class-model` keeps "profile primitives
+  // when enabled" in `primitive`. `spec/interaction-events.md#profiles-and-reservation` says the same in words:
   // "`input` and `wait` are ordinary primitives rather than block-heads, as are the Sound command
   // names".
   //

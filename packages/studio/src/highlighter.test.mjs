@@ -127,8 +127,8 @@ test("every token's start/end positions round-trip onto the exact source substri
 
 // #740 — the active profile set reaches the studio's highlighter.
 //
-// `spec/tooling.md:30` puts the profile block-heads, plus the Sprites mode-switch command `tell`,
-// in the `keyword` class "while their profile is active"; `:31` puts "a profile word whose profile
+// `spec/tooling.md#normative-token-class-model` puts the profile block-heads, plus the Sprites mode-switch command `tell`,
+// in the `keyword` class "while their profile is active"; `spec/tooling.md#normative-token-class-model` puts "a profile word whose profile
 // is inactive" in `primitive`. Both directions are asserted below over the same fixture, because a
 // highlighter that ignored the profile set entirely would still satisfy either one alone.
 
@@ -142,7 +142,7 @@ test("every token's start/end positions round-trip onto the exact source substri
  * Ownership is kept, not flattened away: each entry carries the profile that owns the word, so the
  * tests can state — and check — that every registry profile is one the studio actually has active,
  * which is what makes `keyword` the right expectation for all of them today. A future block-head
- * from a profile this build does not claim must stay `primitive` (`spec/tooling.md:31`); the tests
+ * from a profile this build does not claim must stay `primitive` (`spec/tooling.md#normative-token-class-model`); the tests
  * assert that precondition rather than branching on it, because a branch no test can reach would
  * fail the 100%-branch gate.
  */
@@ -151,7 +151,7 @@ const PROFILE_BLOCK_HEADS = Object.entries(OL_PROFILE_KEYWORDS).flatMap(
 );
 
 /**
- * The seven profile words the registry holds today (`spec/tooling.md:30`'s "a profile's
+ * The seven profile words the registry holds today (`spec/tooling.md#normative-token-class-model`'s "a profile's
  * block-heads and its mode-switch commands"). Asserted so the derivation
  * above cannot silently *shrink* — a `words.slice(0, 1)` slip would otherwise drop five words from
  * every profile test and stay green. Unlike a hand-written list, this pins the derivation's shape
@@ -165,9 +165,9 @@ const PROFILE_BLOCK_HEAD_COUNT = 7;
  * A well-formed program (zero parse diagnostics, and zero `check()` findings under the studio's
  * profile set) exercising all seven of them. Every form matches its normative signature —
  * `tell <turtle|turtle-list>` and `ask <turtle|turtle-list> <block>`
- * (`spec/turtles-and-sprites.md:22-23`) take turtle *values*, not words, and
+ * (`spec/turtles-and-sprites.md#canonical-forms`) take turtle *values*, not words, and
  * `when <event-word> <block>`/`on_key <key-word> <block>`
- * (`spec/interaction-events.md:27,29`) take words, not conditions.
+ * (`spec/interaction-events.md#profiles-and-reservation`) take words, not conditions.
  */
 const PROFILE_BLOCK_HEAD_SOURCE = [
   ":t = new_turtle",
@@ -182,7 +182,7 @@ const PROFILE_BLOCK_HEAD_SOURCE = [
 
 /**
  * The control case: Sound's commands and Interaction's `wait`/`input` are ordinary profile
- * *primitives*, not block-heads, so `spec/tooling.md:30`'s "while their profile is active" clause
+ * *primitives*, not block-heads, so `spec/tooling.md#normative-token-class-model`'s "while their profile is active" clause
  * never applied to them — `primitive` is their correct class under every profile set.
  */
 const PROFILE_PRIMITIVES = [
@@ -301,7 +301,7 @@ test("createParserHighlighter defaults to the studio's profile set, not the pars
 });
 
 test("the studio's classes match batch highlight() token-for-token for the same profile set", () => {
-  // The token classes are normative (`spec/tooling.md:8`), so this adapter has no licence to
+  // The token classes are normative (`spec/tooling.md#tooling`), so this adapter has no licence to
   // classify differently from a batch `highlight()` on the same source and profile set. Asserted
   // for a non-default set too: before #740 the two agreed only because both were profile-blind.
   for (const profiles of [STUDIO_PROFILES, DEFAULT_CHECK_PROFILES]) {

@@ -1,6 +1,6 @@
 /**
  * Deterministic geometric reasoning for `star :points :size (:step 2)`
- * (`spec/geometry-module.md:75-133`). A star's exterior turn skips `:step` vertices instead of
+ * (`spec/geometry-module.md#star-points-size-step-2`). A star's exterior turn skips `:step` vertices instead of
  * one, so its turn total — and therefore its closure condition — is a genuinely different
  * computation from a plain polygon's, even though both end up testing "is this a multiple of
  * `360`?" at the end.
@@ -13,7 +13,7 @@ export interface StarReasoning {
   readonly concept: "star-skip-turn";
   readonly points: number;
   readonly step: number;
-  /** `360 * step / points` — the turn after every point (`spec/geometry-module.md:110-122`). */
+  /** `360 * step / points` — the turn after every point (`spec/geometry-module.md#star-points-size-step-2`). */
   readonly exteriorTurn: number;
   /** `points * exteriorTurn` — the sum of every exterior turn around the whole star. This is
    * `360 * step`, a distinct quantity from a polygon's `turnTotal` (which is always exactly
@@ -26,7 +26,7 @@ export interface StarReasoning {
 }
 
 /**
- * Reasons about a star polygon `{points/step}` (`spec/geometry-module.md:75-133`). `points` and
+ * Reasons about a star polygon `{points/step}` (`spec/geometry-module.md#star-points-size-step-2`). `points` and
  * `step` are assumed already validated (whole numbers, `1 < step < points`, per the stdlib's own
  * guards) — this function only computes the geometry.
  */

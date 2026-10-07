@@ -1,7 +1,7 @@
 /**
  * The static arity rule (issue #111): the checker rule that raises `ol-not-enough-inputs` and
  * `ol-too-many-inputs` for a call site whose input count disagrees with the callee's
- * statically-known arity (`spec/tooling.md:181-182`, `spec/error-model.md:97-98`). It is the
+ * statically-known arity (`spec/tooling.md#layer-2-semantic-checking`, `spec/error-model.md#normative-code-registry`). It is the
  * static counterpart to the runtime call-time arity check (issue #97) and shares that code's
  * `callable`/`expected`/`actual` param shape, differing only in `stage` (`semantic` here).
  *
@@ -41,7 +41,7 @@
  *   only be supplied via the parenthesized form, so both too-few and too-many are checked in
  *   either call form. A `struct`'s constructor (issue #405) is likewise exact and non-variadic —
  *   its declared field count is both floor and ceiling, always
- *   (`spec/data-structures.md:252-266`) — checked identically in either call form.
+ *   (`spec/data-structures.md#records-and-structs, spec/data-structures.md#record-operations`) — checked identically in either call form.
  *
  * A callee that is none of these is *not* statically known — that is `ol-unknown-command`'s job
  * (issue #117); this rule does nothing for it, so the two rules never double-report. Since #874
@@ -69,7 +69,7 @@
  *
  * ## `params.callable` is the name as its definition declares it
  * Diagnostic identity is `code` plus `params`, and the same condition MUST carry the same
- * structured params (`spec/error-model.md:254-259`). OpenLogo identifiers are case-insensitive, so
+ * structured params (`spec/error-model.md#localization-boundary`). OpenLogo identifiers are case-insensitive, so
  * the *call site's* spelling can never be the identity: `(SQ 1 2)` and `(sq 1 2)` are one condition
  * and must report one `callable`. The rule is therefore **the spelling the name's definition
  * declares**, which resolves both kinds of callee without special-casing either:
@@ -77,7 +77,7 @@
  * - **A built-in** is declared by OpenLogo itself, and its declared spelling is the canonical
  *   lowercase name in `signatures.ts`. So `(REVERSE 1 2)` reports `reverse`, and a Heritage alias
  *   reports its canonical twin (`(bf 1 2)` → `butfirst`) — Heritage is "alternate spellings only,
- *   no new semantics" (`spec/conformance.md:146`), the behaviour issues #670/#733/#741/#787 pinned.
+ *   no new semantics" (`spec/conformance.md#heritage`), the behaviour issues #670/#733/#741/#787 pinned.
  *   Before #874 only Core and Heritage did this while Data/Geometry/Sound/Interaction echoed the
  *   surface spelling, so one condition had two identities depending on which profile owned it.
  * - **A user procedure or struct constructor** is declared by the learner, and *its* declared
@@ -152,7 +152,7 @@ function isStructDef(node: AnyNode): node is StructDefNode {
 /**
  * Every `struct` type's constructor arity, keyed by its canonical lowercase name — the required
  * floor and ceiling are both its declared field count, since a constructor call is always exact
- * (`spec/data-structures.md:252-266`), never optional/variadic. Mirrors
+ * (`spec/data-structures.md#records-and-structs, spec/data-structures.md#record-operations`), never optional/variadic. Mirrors
  * {@link collectProcedureArities} exactly, including "a later `struct` of the same name overwrites
  * the earlier one here" (redefinition collisions are `ol-duplicate-definition`'s concern,
  * `checker-reserved-word.ts`, not this rule's) — and mirrors `@openlogo/runtime`'s own phase-1
@@ -305,7 +305,7 @@ export function arityRule(
     ? collectStructConstructorArities(program)
     : undefined;
   // A Heritage short alias (`pr`/`fd`/…) is arity-checked exactly like the Core-spelled command it
-  // spells — Heritage adds no semantics (`spec/conformance.md:146`). The reader already recorded
+  // spells — Heritage adds no semantics (`spec/conformance.md#heritage`). The reader already recorded
   // that canonical on the node, so resolve through it, but only when the Heritage profile is
   // active: with it inactive the alias is an unknown callee owned by `ol-unknown-command` (issue
   // #117), never double-reported here — mirroring `collectVisibleNames`'s own heritage gate.

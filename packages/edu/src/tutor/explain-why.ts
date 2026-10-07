@@ -1,10 +1,11 @@
 /**
  * The deterministic, offline, template-based `explain`/`why` baseline meta-commands
  * (`spec/educational-model.md#explain`, `spec/educational-model.md#why`), the Educational
- * profile's M3 slice A3 (issue #336). Pure functions over the shared {@link TutorContext}
- * contract from A0 (#324) — no parsing, no runtime dispatch, no AI: same input always produces
- * byte-identical output, and neither ever prints a complete ready-to-run solution
- * (`spec/conformance.md#educational`).
+ * profile's M3 slice A3 (issue #336). "Baseline means **no AI is required**. These commands are
+ * deterministic and template-based" (`spec/educational-model.md#baseline-meta-commands`). Pure
+ * functions over the shared {@link TutorContext} contract from A0 (#324) — no parsing, no runtime
+ * dispatch, no AI: same input always produces byte-identical output, and neither ever prints a
+ * complete ready-to-run solution (`spec/conformance.md#educational`).
  */
 
 import {
@@ -164,7 +165,7 @@ const KNOWN_COMMAND_DESCRIPTIONS: Readonly<Record<string, CommandDescription>> =
 /**
  * Maps an AST node kind that is a control/binding special form (rather than a `Call`) to its
  * canonical name, for {@link resolveCommandName} when the caller's {@link TutorContext} does not
- * supply {@link TutorCommandMetadata} (`spec/educational-model.md:451`'s "Name the command or
+ * supply {@link TutorCommandMetadata} (`spec/educational-model.md#explain`'s "Name the command or
  * special form" requirement covers these forms too).
  */
 const SPECIAL_FORM_NAMES: Readonly<Partial<Record<AnyNode["kind"], string>>> = {
@@ -226,7 +227,7 @@ function describeCommand(resolved: ResolvedCommand): CommandDescription {
 /**
  * Short curriculum-level concept phrases, one per {@link TutorLearnerLevel}, drawn verbatim from
  * `spec/educational-model.md`'s "Concept to command map" table so `explain`'s level-link bullet
- * (`spec/educational-model.md:454`) stays grounded in the normative level table rather than
+ * (`spec/educational-model.md#explain`) stays grounded in the normative level table rather than
  * inventing new wording per command.
  */
 const LEVEL_CONCEPTS: Readonly<Record<TutorLearnerLevel, string>> = {
@@ -452,10 +453,12 @@ function findInstructionAtSpan(
 }
 
 /**
- * The two `kind`s the runtime pushes as bookkeeping *before* their effect
- * (`spec/execution-model.md:575`, `packages/core/src/events.ts`'s `OL_EVENT_KINDS`): every
- * statement — including the `why`/`explain` meta-command's own — gets an `instruction` start
- * event, and every procedure call gets a `procedure-enter` start event before its body runs.
+ * The two `kind`s the runtime pushes as bookkeeping *before* their effect — the two timing classes
+ * of `spec/execution-model.md#trace-and-event-registry` ("**Start events** are emitted before their
+ * effect: `instruction` and `procedure-enter`"), mirrored by `packages/core/src/events.ts`'s
+ * `OL_EVENT_KINDS`: every statement — including the `why`/`explain` meta-command's own — gets an
+ * `instruction` start event, and every procedure call gets a `procedure-enter` start event before
+ * its body runs.
  * Neither describes anything that actually happened yet, so `findRelevantEvent` must never
  * select one as "the effect" to explain (issue #435).
  */

@@ -1,6 +1,6 @@
 // Unit tests for `semanticTokens()` (issue #121): the LSP `textDocument/semanticTokens`-shaped
 // contract layered over `highlight()`'s token-class + delimiter-role output
-// (`spec/tooling.md:273-279`). Coverage mirrors that section's exact modifier vocabulary —
+// (`spec/tooling.md#informative-lsp-style-editor-integration`). Coverage mirrors that section's exact modifier vocabulary —
 // `declaration`, `reference`, `readonly`, `defaultLibrary`, `listRole`, `blockRole`,
 // `selectorRole` — plus one end-to-end corpus fixture exercising every one of `highlight()`'s 15
 // token classes and 5 bracket delimiter roles at once (integrating issues #119 and #120).
@@ -299,7 +299,7 @@ test("corpus: one source exercises all 15 token classes and all 5 bracket delimi
 
 /**
  * Interaction's `when` is `keyword` while its profile is active and `primitive` while it is not
- * (`spec/tooling.md:30-31` — `:30` states the active half, `:31` the inactive one).
+ * (`spec/tooling.md#normative-token-class-model`, which states the active and inactive halves in consecutive rows).
  */
 const PROFILE_HEAD_SOURCE = 'when "start" [ print 1 ]\n';
 

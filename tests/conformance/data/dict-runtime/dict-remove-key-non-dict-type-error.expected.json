@@ -1,5 +1,5 @@
 {
-  "description": "`remove key` requires a dict target; removing a key from a number raises `ol-type` (issue #322, `spec/error-model.md:126`).",
+  "description": "`remove key` requires a dict target; removing a key from a number raises `ol-type` (issue #322, `spec/error-model.md#normative-code-registry`).",
   "profiles": ["core-language", "data"],
   "execute": true,
   "events": [
