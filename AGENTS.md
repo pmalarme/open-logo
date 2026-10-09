@@ -255,9 +255,10 @@ spelling and the tree carries no line citation. The rule, its limits and the evi
 
 **Read the coverage statement it prints, which names what it does *not* check.** A stale citation
 fails in four ways and only two are mechanically detectable: it **does not resolve** (missing file,
-past EOF, inverted range, or a region holding no text — covered); it resolves but points at the
+or no heading in it publishes the named anchor — covered; line-form citations are rejected rather
+than resolved); it resolves but points at the
 **wrong passage while paraphrasing** (*not* covered, except where the site **quotes an EBNF
-production**, which must then be inside the section cited); the line is right and the **prose beside it
+production**, which must then be inside the section cited); the section is right and the **prose beside it
 misstates it** (*not* covered); or it is a **stale implementation-status claim** — "not yet
 implemented", "a later slice will…" — which is a claim about the repository, not the spec, and must
 name a tracking issue so something can re-check it (the sweep for the ones that predate the gate is
