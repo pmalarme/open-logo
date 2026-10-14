@@ -1,5 +1,5 @@
 {
-  "description": "Case-folding stops at identifiers: dict keys stay case-sensitive (issue #512 guard, `spec/grammar.md:13` folds keywords/identifiers only, not word data). `Tom` and `tom` are two distinct keys, so `:ages.Tom` prints `8` and `:ages.tom` prints `9` — the fold that makes struct fields case-insensitive must not leak into dicts, which share the same postfix `.key` syntax.",
+  "description": "Case-folding stops at identifiers: dict keys stay case-sensitive (issue #512 guard, `spec/grammar.md#lexical-form-and-encoding` folds keywords/identifiers only, not word data). `Tom` and `tom` are two distinct keys, so `:ages.Tom` prints `8` and `:ages.tom` prints `9` — the fold that makes struct fields case-insensitive must not leak into dicts, which share the same postfix `.key` syntax.",
   "profiles": ["core-language", "data"],
   "execute": true,
   "events": [

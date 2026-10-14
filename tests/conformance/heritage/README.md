@@ -79,7 +79,7 @@ Its per-slice behavior is proven here fixture-by-fixture, slice by slice:
   `operation: "index"`. Pairing the container cases with `[key]` is precisely what produced #784.
 - `execution/heritage-value-of-key-record-container-rejected` — deliberately NOT a `-like-core`
   fixture, and the one container type with **no** Core twin: the reader's operand is typed
-  `dictExpr` (`spec/data-structures.md:268`) so a record is out of range and raises `ol-type`,
+  `dictExpr` (`spec/data-structures.md#dictionary-operations`) so a record is out of range and raises `ol-type`,
   while the Core `.field` selector it otherwise mirrors accepts records and reports
   `ol-unknown-field`. The divergence is spec-mandated, not accidental; the fixture pins it so any
   future change is a reviewed `spec/` decision (#784).

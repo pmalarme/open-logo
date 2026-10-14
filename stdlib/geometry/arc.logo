@@ -3,7 +3,7 @@
 # ends facing the true tangent direction, exactly as if it had walked the middle of the arc.
 #
 # @command arc :angle :radius
-# @spec spec/geometry-module.md:195-266
+# @spec spec/geometry-module.md#arc-angle-radius
 # @param angle  degrees to sweep, 0 or more
 # @param radius positive number
 # @formula segments = int (angle / 5) + 1

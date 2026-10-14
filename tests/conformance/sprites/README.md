@@ -15,7 +15,7 @@ RUNS in the examples gate rather than being SKIPped.
 
 ## What the per-turtle fixtures actually prove
 
-`spec/turtles-and-sprites.md:113` makes two demands of a turtle command: it "applies once for each
+`spec/turtles-and-sprites.md#per-turtle-state-and-turtle-commands` makes two demands of a turtle command: it "applies once for each
 addressed turtle", and its trace events carry "the appropriate turtle identity". Two distinct
 fixture shapes are used here, and they are **not** interchangeable — keep the distinction when
 citing one as proof:
@@ -34,7 +34,7 @@ citing one as proof:
 
 ### Per-turtle command coverage
 
-The 16 per-turtle commands of `spec/turtles-and-sprites.md:107`, `:109`, and `:110`, and how each is
+The 16 per-turtle commands of `spec/turtles-and-sprites.md#per-turtle-state-and-turtle-commands`, and `spec/turtles-and-sprites.md#per-turtle-state-and-turtle-commands`, and how each is
 proven per-turtle under explicit Sprites addressing. **This table is hand-derived and nothing checks
 it** — a coverage claim in prose or in an unchecked table drifts the moment coverage changes, so
 treat it as a reader's index into the corpus, not as an asserted invariant. The authority is the
@@ -42,22 +42,22 @@ fixtures themselves; when they disagree with this table, the fixtures win and th
 
 | Spec line | Command | Shape | Representative fixture |
 |---|---|---|---|
-| `:107` | `forward` | direct fan-out | `tell-two-turtles-move` |
-| `:107` | `back` | direct fan-out | `back-tell-two-turtles` |
-| `:107` | `left` | direct fan-out | `left-tell-two-turtles` |
-| `:107` | `right` | direct fan-out | `each-two-turtles-who` (stamps a `turn` for turtles 1 and 2) |
-| `:107` | `home` | direct fan-out | `ask-turtles-each-canonical` |
-| `:107` | `set_xy` | direct fan-out | `set-xy-tell-two-turtles` |
-| `:107` | `set_heading` | direct fan-out | `set-heading-tell-two-turtles` |
-| `:109` | `pen_up` | direct fan-out + state isolation | `ask-turtles-each-canonical`, `pen-state-per-turtle` |
-| `:109` | `pen_down` | direct fan-out | `ask-turtles-each-canonical` |
-| `:109` | `set_color` | state isolation | `color-width-per-turtle` |
-| `:109` | `set_width` | state isolation | `color-width-per-turtle` |
-| `:109` | `fill` | direct fan-out | `fill-tell-two-turtles`, `fill-each-per-turtle-color` |
-| `:109` | `stamp` | direct fan-out | `stamp-per-turtle-shape` |
-| `:110` | `show_turtle` | direct fan-out | `show-turtle-tell-two-turtles` |
-| `:110` | `hide_turtle` | direct fan-out | `visibility-each-two-turtles` |
-| `:110` | `set_shape` | direct fan-out | `shape-tell-two-turtles` |
+| `spec/turtles-and-sprites.md#per-turtle-state-and-turtle-commands` | `forward` | direct fan-out | `tell-two-turtles-move` |
+| `spec/turtles-and-sprites.md#per-turtle-state-and-turtle-commands` | `back` | direct fan-out | `back-tell-two-turtles` |
+| `spec/turtles-and-sprites.md#per-turtle-state-and-turtle-commands` | `left` | direct fan-out | `left-tell-two-turtles` |
+| `spec/turtles-and-sprites.md#per-turtle-state-and-turtle-commands` | `right` | direct fan-out | `each-two-turtles-who` (stamps a `turn` for turtles 1 and 2) |
+| `spec/turtles-and-sprites.md#per-turtle-state-and-turtle-commands` | `home` | direct fan-out | `ask-turtles-each-canonical` |
+| `spec/turtles-and-sprites.md#per-turtle-state-and-turtle-commands` | `set_xy` | direct fan-out | `set-xy-tell-two-turtles` |
+| `spec/turtles-and-sprites.md#per-turtle-state-and-turtle-commands` | `set_heading` | direct fan-out | `set-heading-tell-two-turtles` |
+| `spec/turtles-and-sprites.md#per-turtle-state-and-turtle-commands` | `pen_up` | direct fan-out + state isolation | `ask-turtles-each-canonical`, `pen-state-per-turtle` |
+| `spec/turtles-and-sprites.md#per-turtle-state-and-turtle-commands` | `pen_down` | direct fan-out | `ask-turtles-each-canonical` |
+| `spec/turtles-and-sprites.md#per-turtle-state-and-turtle-commands` | `set_color` | state isolation | `color-width-per-turtle` |
+| `spec/turtles-and-sprites.md#per-turtle-state-and-turtle-commands` | `set_width` | state isolation | `color-width-per-turtle` |
+| `spec/turtles-and-sprites.md#per-turtle-state-and-turtle-commands` | `fill` | direct fan-out | `fill-tell-two-turtles`, `fill-each-per-turtle-color` |
+| `spec/turtles-and-sprites.md#per-turtle-state-and-turtle-commands` | `stamp` | direct fan-out | `stamp-per-turtle-shape` |
+| `spec/turtles-and-sprites.md#per-turtle-state-and-turtle-commands` | `show_turtle` | direct fan-out | `show-turtle-tell-two-turtles` |
+| `spec/turtles-and-sprites.md#per-turtle-state-and-turtle-commands` | `hide_turtle` | direct fan-out | `visibility-each-two-turtles` |
+| `spec/turtles-and-sprites.md#per-turtle-state-and-turtle-commands` | `set_shape` | direct fan-out | `shape-tell-two-turtles` |
 
 Notes on the table:
 
@@ -71,7 +71,7 @@ Notes on the table:
   Turtle & Rendering corpus (`turtle-rendering/movement/setxy-alias`, `seth-alias`) but have no
   Sprites-addressed execution fixture of their own; the canonical `set_xy`/`set_heading` fan-out is
   covered above and the aliases dispatch through the same predicate.
-- Each `:107`/`:110` fixture above was **mutation-checked** (issue #792): stamping the acting
+- Each `spec/turtles-and-sprites.md#per-turtle-state-and-turtle-commands`/`spec/turtles-and-sprites.md#per-turtle-state-and-turtle-commands` fixture above was **mutation-checked** (issue #792): stamping the acting
   turtle's id as the main turtle's makes every one FAIL (proving per-turtle identity), and making the
   command read the main turtle's state instead of the addressed turtle's also makes each FAIL
   (proving the per-turtle state read), because the two addressed turtles share the single main

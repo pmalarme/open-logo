@@ -4,7 +4,7 @@
 // ## Why this file exists
 //
 // Diagnostic identity is `code` plus structured `params`, and the SAME condition MUST keep the same
-// code AND the same params (`spec/error-model.md:254-259`, "Localization boundary"). Heritage is
+// code AND the same params (`spec/error-model.md#localization-boundary`, "Localization boundary"). Heritage is
 // defined as "alternate spellings only, no new semantics" (`spec/conformance.md#heritage`), so a
 // Heritage spelling and its Core twin are the same condition: their diagnostics must be
 // byte-identical in `code` and `params`. Only the prose `message` may echo the learner's own word.
@@ -18,7 +18,7 @@
 // second worded form CANNOT land without either extending the twin corpus below or failing this
 // test. A comment would not have caught instances two and three.
 //
-// Those registries cover every spelling `spec/conformance.md:146-157`'s Heritage inventory writes
+// Those registries cover every spelling `spec/conformance.md#heritage`'s Heritage inventory writes
 // in code formatting, and saying so is itself a guarded claim (issue #755): until that issue,
 // `heritageSurfaceSpellings()` was the two SINGLE-WORD tables only and its doc comment nevertheless
 // called itself "the enumerable definition of a Heritage surface spelling" — so a reader trusting
@@ -160,7 +160,7 @@ const SURFACE_SUBJECT_PARAMS = {
     name:
       "the word the language does not know. Its Core twin is VALID and raises nothing " +
       "(`set x to 1` is fine while a Core-only `make` is not), so there is no same-condition " +
-      "pair. `spec/error-model.md:96` defines `name` as the unknown word itself.",
+      "pair. `spec/error-model.md#normative-code-registry` defines `name` as the unknown word itself.",
     suggestion:
       "points at a name that IS visible, which with Heritage active legitimately includes an " +
       "alias — `bff` is closest to `bf`. Ties deliberately resolve to the full canonical name " +
@@ -169,26 +169,26 @@ const SURFACE_SUBJECT_PARAMS = {
   },
   "ol-reserved-word": {
     name:
-      "names the registration the learner wrote (`spec/error-model.md:124`). The subject is that " +
+      "names the registration the learner wrote (`spec/error-model.md#normative-code-registry`). The subject is that " +
       "very name at that very span.",
   },
   "ol-not-a-place": {
     text:
-      "`spec/tooling.md:218-219` MANDATES the surface value: `count :nums = 3` → " +
+      "`spec/tooling.md#layer-2-semantic-checking` MANDATES the surface value: `count :nums = 3` → " +
       '`params={ text: "count :nums" }`. It is a machine-readable quotation of the span, not an ' +
       "identifier — canonicalizing it would make the param disagree with its own source_span, " +
       "and a target such as `1 + 2` or `(first :x)` has no canonical form at all.",
   },
   "ol-style-name-case": {
     name:
-      "a CASING lint over user identifiers and keywords alike (`spec/tooling.md:240`): its whole " +
+      "a CASING lint over user identifiers and keywords alike (`spec/tooling.md#layer-3-style-lints`): its whole " +
       "subject is the literal source slice, so a surface value is the point. A canonical value " +
       'would report `name: "return"` for a learner who wrote `OUTPUT` — advice to lowercase a ' +
       "word that is already lowercase and that they never typed.",
   },
   "ol-bad-token": {
     text:
-      '`spec/error-model.md:109` — `text` "names the offending token in every case". A ' +
+      '`spec/error-model.md#normative-code-registry` — `text` "names the offending token in every case". A ' +
       "parse-stage quotation of the token the parser could not place.",
   },
 };
@@ -288,7 +288,7 @@ const TWINS = [
   // coverage would let one form's twin stand in for the other's, which is exactly the
   // looks-like-coverage-but-is-not defect this issue closes.
   //
-  // Its Core twin is the `[]`/`.` selector syntax (`spec/data-structures.md:265-268`) rather than
+  // Its Core twin is the `[]`/`.` selector syntax (`spec/data-structures.md#dictionary-operations`) rather than
   // a Core word, so these pairs differ by a whole expression shape and not just a spelling — which
   // is exactly what makes them worth asserting: the two forms must still report the SAME condition
   // identically.
@@ -372,7 +372,7 @@ test("the registries enumerate every code-formatted Heritage spelling the spec l
   // covered a form nothing named. Restating the inventory here would reproduce the same failure one
   // level up, so the inventory is read from `spec/conformance.md`'s Heritage bullet list itself.
   //
-  // The bullets are the normative inventory (`spec/conformance.md:146-153`, "It includes:"). Every
+  // The bullets are the normative inventory (`spec/conformance.md#heritage`, "It includes:"). Every
   // code span in them is either a Heritage surface spelling, the phrase of a worded form, or a CORE
   // canonical the list names as the thing a Heritage spelling stands for (`return`, for
   // `output`/`op`) — and the registries know all three, so the check closes in both directions with
@@ -735,7 +735,7 @@ test("the twin corpus is not vacuous — every pair raises at least one diagnost
   // param KEY SET, which is still what would break if a spelling changed a diagnostic's shape. The
   // pairs that do compare canonical values are the escape twins (`keyword`) and the reporter
   // aliases (`callable`). `to print` used to be a third, comparing `namespace`; issue #838 dropped
-  // that param from `ol-reserved-word` (`spec/error-model.md:125`), and its one remaining param
+  // that param from `ol-reserved-word` (`spec/error-model.md#normative-code-registry`), and its one remaining param
   // `name` is an audited surface subject above, so that twin has joined the structural group. This
   // is not a gap that can be closed by a better program: `cs 1` and `cs 1 2` only add another
   // `ol-bad-token`, also `text`-only.
@@ -806,7 +806,7 @@ test("a Heritage program's diagnostics are byte-identical to its Core twin's in 
           `${twin.note}: diagnostic ${index} (${actual.code}) param "${field}" diverged with the ` +
             `spelling — ${JSON.stringify(value)} vs ${JSON.stringify(expected.params[field])}. ` +
             `Diagnostic identity is code + params and the same condition must keep the same ` +
-            `params (spec/error-model.md:254-259); Heritage adds no new semantics ` +
+            `params (spec/error-model.md#localization-boundary); Heritage adds no new semantics ` +
             `(spec/conformance.md#heritage). Canonicalize the param at its source, or — if this ` +
             `FIELD's subject genuinely IS the learner's own text — add it to ` +
             `SURFACE_SUBJECT_PARAMS with the spec citation that says so.`,
@@ -831,7 +831,7 @@ test("no diagnostic param carries a Heritage surface spelling, outside the audit
             !pattern.test(rendered),
             `${twin.note}: ${diagnostic.code} param "${field}" = ${rendered} contains the ` +
               `Heritage spelling "${spelling}". Params are canonical; prose is presentation ` +
-              `(spec/error-model.md:254-259).`,
+              `(spec/error-model.md#localization-boundary).`,
           );
         }
       }

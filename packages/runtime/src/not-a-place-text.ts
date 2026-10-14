@@ -2,7 +2,7 @@
  * The `ol-not-a-place` target-text derivation shared by the runtime's own `executeAssign` guard
  * (issue #94/#156) — mirrors the semantic checker's identical rule
  * (`packages/parser/src/checker-not-a-place.ts`, issue #79/#113) so both stages report the FULL
- * target surface text (`spec/tooling.md:213-219`'s worked example: `count :nums = 3` →
+ * target surface text (`spec/tooling.md#layer-2-semantic-checking`'s worked example: `count :nums = 3` →
  * `{text:"count :nums"}`), not just the offending callee's name. Deliberately duplicated rather
  * than imported: `checker-not-a-place.ts`'s renderer is a parser-internal module, not part of
  * `@openlogo/parser`'s public `index.ts` surface, so the runtime cannot depend on its internals
@@ -192,7 +192,7 @@ function renderComprehension(node: ComprehensionNode): string {
   return `${node.form} ${binderText} in ${renderChild(node.iterable)} [ ${bodyText} ]`;
 }
 
-/** Renders the tail of a worded `is`-predicate (`spec/grammar.md`'s `is-test`). */
+/** Renders the tail of a worded `is`-predicate (`spec/grammar.md#expressions-and-calls`'s `is-predicate`). */
 function renderIsTest(test: IsTest): string {
   switch (test.form) {
     case "empty":

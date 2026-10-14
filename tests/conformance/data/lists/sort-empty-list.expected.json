@@ -1,5 +1,5 @@
 {
-  "description": "`sort` on the empty list is trivially valid and returns `[]` — the only length that skips the orderability check entirely (spec/data-structures.md:141). Issue #513 (M4 re-audit finding G6).",
+  "description": "`sort` on the empty list is trivially valid and returns `[]` — the only length that skips the orderability check entirely (spec/data-structures.md#derived-list-reporters-in-the-data-profile). Issue #513 (M4 re-audit finding G6).",
   "profiles": ["data"],
   "execute": true,
   "events": [

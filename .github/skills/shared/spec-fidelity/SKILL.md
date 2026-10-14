@@ -3,9 +3,10 @@ name: spec-fidelity
 description: >-
   How to keep OpenLogo code faithful to the merged spec — the canonical vocabulary (not classic
   Logo) plus a verification checklist to run before writing code and before opening a PR. Use in
-  every parser, runtime, docs, curriculum, or test change.
+  every parser, runtime, docs, curriculum, or test change. Owns the citation convention: cite the
+  spec by section anchor, not by line.
 created: 2025-06-01T00:00
-updated: 2025-06-01T00:00
+updated: 2026-09-14T00:00
 ---
 
 ## Purpose
@@ -39,6 +40,63 @@ matching it exactly and catching the common "classic Logo" mistakes.
 - Every feature belongs to exactly one **profile**; respect the dependency DAG and the minimal path
   **Core Language → Turtle & Rendering** (`spec/conformance.md`).
 
+## Citing the spec — by section anchor, only
+
+**Write `spec/<file>.md#a-heading`. Never a line number.** A heading does not move when text is
+inserted above it; a line number does, so every `spec/` edit used to drag a mechanical re-pointing
+pass behind it. An anchor is not unbreakable — it breaks when its heading is renamed or removed, and
+where the file has duplicate headings another one can inherit your slug and retarget the citation
+**silently**, since it still resolves — but all of those are rarer and more deliberate than
+inserting a paragraph. The rule is absolute; the reasoning is in
+[ADR-0036](../../../../docs/adr/0036-cite-the-spec-by-section-anchor-only.md), which supersedes
+[ADR-0034](../../../../docs/adr/0034-cite-the-spec-by-section-anchor.md) — that record still holds
+the measured churn and the rejected alternatives for *why* an anchor.
+
+- **The anchor is the whole citation** — `spec/conformance.md#educational`.
+- **Never a line number.** Not alone, not beside an anchor, not "where precision is genuinely
+  required". There is no carve-out, no exception and no grandfathering: the line form is
+  **rejected**, not tolerated, and there is no migration window in which it is acceptable.
+- **Quote the words you rely on** where a claim rests on one production, one table row or one
+  sentence — the anchor, then the fragment your claim rests on in quotation marks. This is what
+  replaces line precision, and unlike a line number a quotation is checkable.
+- **Keep a citation on one line**, even if the line runs long. Anchors are long, and an anchor split
+  by a line wrap becomes a different, non-existent one — the site in this tree that read as
+  `#collections-` was repaired by #1181, whose gate now **fails** on that shape rather than passing
+  it unseen.
+- **`#L30` / `#L28-L84` is not an anchor.** GitHub's line fragment is a line claim in anchor
+  clothing: it names a position, not a section, and drifts exactly the way a line number does.
+  Rejected on the same terms.
+- **Never write a bare `:<number>` in a file that mentions a `spec/` document** — not in prose, not
+  in a comment, **not inside a string literal in live code**, and not as an incidental figure that
+  was never meant as a citation. There is no prose carve-out: the gate enumerates the form wherever
+  it appears, and a bare number attributed to a `spec/` document by an earlier citation in the same
+  file is read as a line claim. What it will *not* read as a citation is a colon preceded by a word
+  character, a digit, a `/`, or the closer of an interpolation or index — so `{a:1}`, `http://host:80`
+  and `` `${ratio}:1` `` are safe by construction. Spell it in words, or restructure so that a colon
+  and digits are not
+  adjacent — a literal line number is never illustrative here.
+
+**What the gate proves.** `npm run spec-citations` **resolves** anchors (#1181): it reads the
+headings of the file an anchor names — from a GFM parse, slugged the way GitHub slugs — and fails
+when none matches, naming the closest heading as a did-you-mean that is **reported and never acted
+on**. A near miss fails exactly like a wild one. What it proves is **the heading exists and nothing
+more**. A resolving anchor does **not** mean the section supports the claim beside it, and a quote
+check proves the words are still present, not that they mean what your sentence says — the
+wrong-passage and misstating-prose modes survive an anchor exactly as they survived a line number.
+Two further limits are worth knowing before you rely on one: duplicate headings are numbered
+positionally, so inserting, removing or renaming a colliding heading silently **retargets** a
+resolving anchor at a different section while the gate stays green; and a cited document whose
+headings use a construct the reader will not guess at — an emoji shortcode shape, an entity outside
+the escaping set, raw inline HTML, a numeric reference whose digit count CommonMark and GitHub's
+renderer disagree about — is **refused** rather than answered. Read the coverage statement
+the gate prints; never read a green run as "every citation is right".
+
+**What the tooling now does.** The rule above binds you, and the tooling enforces it. `npm run
+spec-citations` **rejects** a line citation in every spelling — explicit, comma-appended, bare, `#L`
+fragment, and prefix-less — the corpus is entirely section anchors, and the exceptions file and its
+machinery are gone. The counters the gate prints are the live measure. There is no baseline and
+nothing records that a line citation may stay.
+
 ## Procedure
 
 1. **Before coding**, open the owning spec file(s) and the C3 row in `spec/commands.md`; note the
@@ -53,3 +111,4 @@ matching it exactly and catching the common "classic Logo" mistakes.
 - [ ] Feature assigned to the correct profile; dependencies honored.
 - [ ] No commas / lambda / arrays / hidden drawing shortcuts introduced.
 - [ ] Behavior matches the exact C3 signature and error cases.
+- [ ] Every citation written or touched names a section anchor; no line number, no line fragment.

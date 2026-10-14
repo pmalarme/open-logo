@@ -1,5 +1,5 @@
 // Unit tests for the Sprites-profile `turtle` value type in the runtime's value machinery
-// (issue #665, `spec/turtles-and-sprites.md:13`, `spec/execution-model.md:25,540`): identity
+// (issue #665, `spec/turtles-and-sprites.md#profile-status-and-dependency`, `spec/execution-model.md#value-and-type-model, spec/execution-model.md#equality-and-ordering`): identity
 // equality, a stable/deterministic printed form, and snapshot leaf-handling that preserves turtle
 // identity inside containers. `new_turtle` (SP1, #673) does not exist yet, so a turtle value cannot
 // be produced through `.logo` source; these tests drive the exported value helpers (`valuesEqual`,
@@ -13,7 +13,7 @@ import { test } from "node:test";
 import { OLDict, OLTurtle } from "@openlogo/core";
 import { printedForm, snapshotValue, valuesEqual } from "@openlogo/runtime";
 
-// --- identity equality (spec/execution-model.md:540 — turtle row is "Same turtle identity") ----
+// --- identity equality (spec/execution-model.md#equality-and-ordering — turtle row is "Same turtle identity") ----
 
 test("a turtle equals itself under `==`", () => {
   const a = new OLTurtle(0);
@@ -69,7 +69,7 @@ test("two lists of turtles compare structurally by turtle identity", () => {
   assert.equal(valuesEqual([a], [b]), false);
 });
 
-// --- printed form (stable & deterministic, spec/turtles-and-sprites.md:13) ---------------------
+// --- printed form (stable & deterministic, spec/turtles-and-sprites.md#profile-status-and-dependency) ---------------------
 
 test("a turtle's printed form is the stable `turtle #<id>` tag", () => {
   assert.equal(printedForm(new OLTurtle(0)), "turtle #0");

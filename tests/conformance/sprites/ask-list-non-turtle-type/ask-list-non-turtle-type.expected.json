@@ -1,5 +1,5 @@
 {
-  "description": "issue #679 (SP7): spec/turtles-and-sprites.md:177 requires `ol-type` for a list passed to `tell` OR `ask` that contains a non-turtle value. The `tell` half was already proven by tell-list-non-turtle-type; this is the missing `ask` half. `ask [ :a 5 ] [ … ]` fails on the non-turtle item `5`, so the block never runs and no `move` is emitted; the diagnostic points at the list-argument span, and `operation` is `ask` — the only param that differs from its `tell` twin.",
+  "description": "issue #679 (SP7): spec/turtles-and-sprites.md#errors-and-diagnostics requires `ol-type` for a list passed to `tell` OR `ask` that contains a non-turtle value. The `tell` half was already proven by tell-list-non-turtle-type; this is the missing `ask` half. `ask [ :a 5 ] [ … ]` fails on the non-turtle item `5`, so the block never runs and no `move` is emitted; the diagnostic points at the list-argument span, and `operation` is `ask` — the only param that differs from its `tell` twin.",
   "profiles": ["sprites"],
   "execute": true,
   "events": [

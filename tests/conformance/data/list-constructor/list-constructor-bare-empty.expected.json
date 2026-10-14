@@ -1,5 +1,5 @@
 {
-  "description": "The bare-word `list` reporter (issue #397, `spec/data-structures.md:77`) returns a fresh, empty, mutable list; `add ... to` then mutates it in place.",
+  "description": "The bare-word `list` reporter (issue #397, `spec/data-structures.md#mutating-list-operations`) returns a fresh, empty, mutable list; `add ... to` then mutates it in place.",
   "profiles": ["core-language", "data"],
   "execute": true,
   "events": [

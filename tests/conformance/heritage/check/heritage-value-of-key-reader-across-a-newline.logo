@@ -1,5 +1,5 @@
-# Issue #962. The Heritage `value of … for key …` reader (`spec/grammar.md:217`'s
-# `value-of-reader`) is ONE expression, so `spec/grammar.md:34` — "Within a single expression, list
+# Issue #962. The Heritage `value of … for key …` reader (`spec/grammar.md#expressions-and-calls`'s
+# `value-of-reader`) is ONE expression, so `spec/grammar.md#lexical-form-and-encoding` — "Within a single expression, list
 # literal, dict literal, or parenthesized group, newlines are insignificant" — governs the slots
 # inside it. Before the fix the reader stopped at a newline before its required `for key` tail, so
 # each spelling below raised `ol-bad-token`, and the parenthesized one additionally raised
@@ -11,7 +11,7 @@
 # reading additionally produced an entry keyed `key` in place of the entry that was written, a
 # misreading no diagnostic described.
 #
-# The reader operates on a dict, so Heritage also needs Data (`spec/conformance.md:305`).
+# The reader operates on a dict, so Heritage also needs Data (`spec/conformance.md#profile-dependency-dag`).
 :d = { a: 7 b: "a" }
 :k = "a"
 
@@ -60,7 +60,7 @@ for
 key :k }
 
 # Case is the third axis of the cross-product. Keywords are case-insensitive
-# (`spec/grammar.md:13`), so an UPPERCASE or mixed-case tail must continue across a newline exactly
+# (`spec/grammar.md#lexical-form-and-encoding`), so an UPPERCASE or mixed-case tail must continue across a newline exactly
 # as the lowercase one does — a continuation comparing surface text would break only these rows.
 #
 # No diagnostic appears, but NOT because this fixture leaves `style` off: measured, turning `style`

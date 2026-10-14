@@ -1,15 +1,15 @@
 /**
- * Level 5 — functions and procedures (`spec/educational-model.md:156-203`, issue #327). The
+ * Level 5 — functions and procedures (`spec/educational-model.md#level-5--functions-and-procedures`, issue #327). The
  * learner question is "How can I teach OpenLogo a new idea?": `define … end` names a reusable
  * idea, parameters such as `:sides` and `:size` are variables scoped to that idea, `return` hands
  * a value back from a reporter, a command procedure may draw without returning a value, and
  * `local` names a variable that lives only inside the procedure. Heritage spellings `to … end`
- * and `output` are recognized but are taught second, after `define`/`return` (educational-model.md
- * :160) — this lesson only mentions them in prose, per the maintainer's scope-trim comment on
+ * and `output` are recognized but are taught second, after `define`/`return`
+ * (`spec/educational-model.md#level-5--functions-and-procedures`) — this lesson only mentions them in prose, per the maintainer's scope-trim comment on
  * issue #327, which also moves any *recursive* exercise (the "tree"/"xmas tree" idea) out to
  * Level 6 (Geometry): this slice's payoff is procedure reuse, not recursion.
  *
- * Per the discovery guardrail (educational-model.md:541), `polygon` is always **built up** from
+ * Per the discovery guardrail (spec/educational-model.md#educational-conformance-notes), `polygon` is always **built up** from
  * `repeat` here — it is never handed to the learner as an opaque primitive — and the
  * `triangle`/`house` composition reuses `spec/examples/06-geometry.logo`'s validated `house 70`
  * program verbatim, so the lesson never drifts from that normative example.
@@ -21,9 +21,9 @@ import type { Exercise } from "./exercise.js";
 /**
  * The single Level 5 lesson: `define … end` names a reusable procedure, parameters are variables
  * scoped to it, `return` hands back a reporter's value, and `local` keeps a scratch variable
- * inside the procedure. The first worked example reproduces `spec/educational-model.md:171-182`'s
+ * inside the procedure. The first worked example reproduces `spec/educational-model.md#level-5--functions-and-procedures`'s
  * `polygon` example verbatim — built up from `repeat`, never an opaque primitive — and the second
- * reproduces :186-191's `double` reporter verbatim, so neither worked example drifts from the
+ * reproduces spec/educational-model.md#level-5--functions-and-procedures's `double` reporter verbatim, so neither worked example drifts from the
  * normative sample.
  */
 export const level5Lessons: readonly Lesson[] = [
@@ -92,7 +92,7 @@ export const level5Lessons: readonly Lesson[] = [
  * (which sets an absolute heading), both a Level 6 concept (`spec/educational-model.md`'s
  * concept→level table) — to draw a small row of houses (challenge), per the maintainer's
  * scope-trim comment on issue #327
- * (compose-a-recognizable-object, `spec/educational-model.md:23`/issue #359 — procedure reuse,
+ * (compose-a-recognizable-object, `spec/educational-model.md#discovery-philosophy`/issue #359 — procedure reuse,
  * not recursion). The guided exercise is a literal single-line diff of the lesson's first worked
  * example (see level-5.test.mjs's diff assertion): only the `polygon 5 60` call changes, to
  * `polygon 6 50`, leaving the `define polygon …` body untouched.

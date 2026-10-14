@@ -56,7 +56,7 @@ export type DiagnosticCode = (typeof OL_DIAGNOSTIC_CODES)[number];
 
 /**
  * Style-lint codes. These reuse the diagnostic shape with `severity: "warning"` and MUST
- * NOT change program meaning. `spec/tooling.md:237-251` registers 13 `ol-style-*` codes; issue
+ * NOT change program meaning. `spec/tooling.md#layer-3-style-lints` registers 13 `ol-style-*` codes; issue
  * #115 slice 1 wired `ol-style-useless-value`, `ol-style-equality-confusion`, and
  * `ol-style-name-case`; #169 slice 2a added `ol-style-magic-number` and
  * `ol-style-predicate-name`; slice 2b (this one) adds the layout group —
@@ -72,9 +72,9 @@ export type DiagnosticCode = (typeof OL_DIAGNOSTIC_CODES)[number];
  * `spec/tooling.md`'s "Layer 3: style lints" table alongside the other codes.
  *
  * Issue #1074 added `ol-style-ambiguous-continuation`, which flags lines whose reading depends on
- * whitespace under the continuation rules (`spec/grammar.md:34`): a leading infix operator that
+ * whitespace under the continuation rules (`spec/grammar.md#lexical-form-and-encoding`): a leading infix operator that
  * continues the previous statement, or a leading negative literal that starts a new one when the
- * same tokens with a space would have continued. The normative hook is `spec/grammar.md:34`, which
+ * same tokens with a space would have continued. The normative hook is `spec/grammar.md#lexical-form-and-encoding`, which
  * names this lint as the mechanism that surfaces the ambiguity.
  */
 export const OL_STYLE_DIAGNOSTIC_CODES = [

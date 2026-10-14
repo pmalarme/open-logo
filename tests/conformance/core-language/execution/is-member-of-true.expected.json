@@ -1,5 +1,5 @@
 {
-  "description": "The worded is-predicate `<v> is member of <coll>` reports whether the value equals an element of the collection (spec/execution-model.md:146-166): `2 is member of [1 2 3]` is `true`. Issue #99.",
+  "description": "The worded is-predicate `<v> is member of <coll>` reports whether the value equals an element of the collection (spec/execution-model.md#precedence-and-evaluation-order): `2 is member of [1 2 3]` is `true`. Issue #99.",
   "profiles": ["core-language"],
   "execute": true,
   "events": [

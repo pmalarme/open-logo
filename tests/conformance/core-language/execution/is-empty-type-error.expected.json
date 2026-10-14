@@ -1,5 +1,5 @@
 {
-  "description": "`is empty` accepts only a list, dict, or word; a number operand raises `ol-type` naming the expected concept \"list, dict, or word\" (spec/execution-model.md:146-166, error-model.md `ol-type`). Execution halts, so only the `instruction` event is kept. Issue #99, widened for dict by #322.",
+  "description": "`is empty` accepts only a list, dict, or word; a number operand raises `ol-type` naming the expected concept \"list, dict, or word\" (spec/execution-model.md#precedence-and-evaluation-order, error-model.md `ol-type`). Execution halts, so only the `instruction` event is kept. Issue #99, widened for dict by #322.",
   "profiles": ["core-language"],
   "execute": true,
   "events": [

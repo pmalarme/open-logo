@@ -11,10 +11,10 @@
 //                        (non-regression) — but they are still built-in names a program may not
 //                        declare, which is the axis #841 separated out.
 //
-// **Two axes read this registry and answer differently.** `spec/grammar.md:408` — "what a profile
+// **Two axes read this registry and answer differently.** `spec/grammar.md#keywords-primitives-and-built-in-names` — "what a profile
 // decides is whether a name *works*, never whether a program may declare it" — makes the
 // DECLARATION assertions below answer the same way for every profile set. The PAINT assertions stay
-// profile-gated, because `spec/tooling.md:30` asks for that gate. So the "Core only" row above
+// profile-gated, because `spec/tooling.md#normative-token-class-model` asks for that gate. So the "Core only" row above
 // reads: `ask`/`when` do not paint as keywords there, yet are still names a program may not
 // declare. The section citations are to the sections that define these words; no spec text states a
 // profile-conditional reservation.
@@ -29,7 +29,7 @@ const SPRITES_WORDS = ["ask", "each", "tell"];
 const INTERACTION_WORDS = ["when", "every", "on_key", "on_click"];
 
 // The exact Core keyword list, so a regression that leaks a profile block-head into OL_KEYWORDS (or
-// drops a Core word) fails loudly. spec/grammar.md:368-376, in the registry's grouping order.
+// drops a Core word) fails loudly. spec/grammar.md#keywords-primitives-and-built-in-names, in the registry's grouping order.
 // `mod` joined the list with maintainer ruling #833 (issue #837): it is a word-spelled operator of
 // the expression grammar exactly as `and`/`or`/`not` are, and was the only one of the four missing.
 const EXPECTED_CORE_KEYWORDS = [
@@ -112,7 +112,7 @@ test("isKeyword stays case-insensitive for Core words", () => {
 test("Core-only callers do not match any profile block-head (AC 3)", () => {
   // The PAINT axis only. `isKeyword` answers "does this word classify as a keyword right now" —
   // it is what `highlight.ts` consults for the `keyword` token class — and under Core alone the
-  // answer is no, which is `spec/tooling.md:30`'s "while their profile is active" clause. The
+  // answer is no, which is `spec/tooling.md#normative-token-class-model`'s "while their profile is active" clause. The
   // reader never calls it: `parser.ts` is profile-blind by design. Nor is a `false` here a
   // statement that the word is an ordinary name — since issue #841 `define ask` is
   // `ol-reserved-word` under Core too, and `isKeywordInAnyProfile` is the predicate that says so.
@@ -214,7 +214,7 @@ test("OL_PROFILE_KEYWORDS maps exactly the two contributing profiles to their sp
 
 // --- Checker-level end-to-end proof of the three acceptance criteria (issue #663). ---
 // A profile block-head declared by `define`/`struct` raises `ol-reserved-word` under EVERY profile
-// set: `spec/grammar.md:408` makes profile words built-in names unconditionally, and issue #841
+// set: `spec/grammar.md#keywords-primitives-and-built-in-names` makes profile words built-in names unconditionally, and issue #841
 // removed the gate that once made this answer depend on the active profile. Verified through the
 // public `check()` surface, mirroring name-resolution's `checkSource` shape.
 
@@ -245,7 +245,7 @@ test("Sprites active: define ask/each/tell raises ol-reserved-word (AC 1)", () =
 
 test("Sprites active: struct tell raises ol-reserved-word, while local tell does not", () => {
   // `struct` is the other declaration slot, so it must agree with `define`. `local` is a BINDING
-  // (issue #837 / ruling #833, spec/grammar.md:386), so the same word in the same program is free
+  // (issue #837 / ruling #833, spec/grammar.md#keywords-primitives-and-built-in-names), so the same word in the same program is free
   // there — this test pins both halves at once so neither can drift.
   const [finding] = checkSource("struct tell [ x ]\n", [
     "core-language",
@@ -278,7 +278,7 @@ test("Interaction & Events active: define when/every/on_key/on_click raises ol-r
 });
 
 test("#841: Core only, ask/each/tell/when/every/on_key/on_click are still built-in names", () => {
-  // `spec/grammar.md:408`: "a program cannot declare which profiles it requires … so a name that
+  // `spec/grammar.md#keywords-primitives-and-built-in-names`: "a program cannot declare which profiles it requires … so a name that
   // could be declared in one implementation but not in another would be invisible and unpredictable
   // to a learner". The word's own profile is therefore irrelevant to the declaration question, and
   // this test must agree word for word with the sibling above that checks each with its profile

@@ -2,7 +2,7 @@
 # after each side so the turtle closes the shape and returns to its starting pose.
 #
 # @command polygon :sides :size
-# @spec spec/geometry-module.md:29-73
+# @spec spec/geometry-module.md#polygon-sides-size
 # @param sides whole number of sides, at least 3
 # @param size  length of each side
 # @formula turn = 360 / sides

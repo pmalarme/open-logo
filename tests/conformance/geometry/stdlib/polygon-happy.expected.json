@@ -1,5 +1,5 @@
 {
-  "description": "issue #338: `polygon 5 100` draws a regular pentagon (5 equal sides/turns) and returns to its start position/heading, subject to numeric rounding (spec/geometry-module.md:29-73).",
+  "description": "issue #338: `polygon 5 100` draws a regular pentagon (5 equal sides/turns) and returns to its start position/heading, subject to numeric rounding (spec/geometry-module.md#polygon-sides-size).",
   "profiles": ["geometry"],
   "execute": true,
   "events": [

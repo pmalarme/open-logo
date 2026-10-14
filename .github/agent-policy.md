@@ -24,6 +24,12 @@ the layers fit together: [`devops/agent-policy`](skills/devops/agent-policy/SKIL
 
 - **Never edit `spec/`** — maintainer-owned and CODEOWNERS-gated. Raise an issue for
   `@product-owner` instead.
+- **Cite `spec/` by section anchor — only.** Write `spec/<file>.md#a-heading`. **Never** a line
+  number, **never** a `#L`-style line fragment, and no exceptions: the line form is rejected, not
+  tolerated. Where a claim rests on one table row or one production, **quote the words it relies
+  on** — that replaces line precision.
+  → [`shared/spec-fidelity`](skills/shared/spec-fidelity/SKILL.md),
+  [ADR-0036](../docs/adr/0036-cite-the-spec-by-section-anchor-only.md)
 - **Never edit another agent's `.github/agents/*.agent.md`**, and never reach into another package's
   internals — depend on its public API (`src/index.ts`).
 - Declare your write-set up front and stay inside it. Boy Scout fixes are welcome **within** it;

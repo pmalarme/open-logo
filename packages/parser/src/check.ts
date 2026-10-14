@@ -1,18 +1,18 @@
 /**
  * `check()` — the Layer-2 semantic-checker (and Layer-3 style-linter) entry point (issue #116).
  * It runs over an already-parsed Core AST, *after* parsing, the alias/import pre-pass, and
- * procedure/struct registration (`spec/tooling.md:172-177`), and returns an ordered list of
- * C10-shaped diagnostics (`spec/tooling.md:121-137`) — `stage: "semantic"`, reusing the exact
+ * procedure/struct registration (`spec/tooling.md#layer-2-semantic-checking`), and returns an ordered list of
+ * C10-shaped diagnostics (`spec/tooling.md#normative-diagnostic-shape`) — `stage: "semantic"`, reusing the exact
  * `Diagnostic` shape and `ol-*`/`ol-style-*` code registry `@openlogo/core` already owns.
  *
  * This is the M1 infrastructure skeleton for epic #108: it stands up the entry point's shape,
  * the active-profile-set plumbing every rule MUST consult for name/form visibility
- * (`spec/tooling.md:175-176` — never a hardcoded "every optional profile active"), and the
+ * (`spec/tooling.md#layer-2-semantic-checking` — never a hardcoded "every optional profile active"), and the
  * return contract. `findings()` dispatches over an ordered list of rule functions, each
  * `(program, profiles) => readonly Diagnostic[]`; a rule slice adds its module and one
  * registration line in {@link RULES}. #864's `profileWordPositionRule` is registered first — it
  * reports the one defect that is a *derivation* failure rather than a meaning failure (an active
- * profile's statement-form head read as a callee, `spec/grammar.md:390`), so it precedes every rule
+ * profile's statement-form head read as a callee, `spec/grammar.md#keywords-primitives-and-built-in-names`), so it precedes every rule
  * that assumes the word was read in a position the grammar allows. #117's `ol-unknown-command`
  * follows it; #113's `ol-undefined-var`/`ol-reserved-word` (alongside #79/#113's completed
  * `ol-not-a-place`) are the third; #114's `ol-return-outside-proc`/`ol-stop-outside-proc`/

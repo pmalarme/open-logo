@@ -506,7 +506,7 @@ test("paintTurtle paints every visible turtle's avatar with its own color, shape
   // The #749 reproduction: `tell [ :a :b ]` / `forward 10` / `ask :b [ hide_turtle set_color
   // "blue" ]`. :a is black, visible, at (0,10); :b is blue and hidden. Folding both into one state
   // painted a single blue, hidden — i.e. absent — avatar. Per turtle, :a's black avatar is painted
-  // and :b's is omitted (`spec/rendering.md:117`: hiding omits only that turtle's avatar).
+  // and :b's is omitted (`spec/rendering.md#turtle-avatar-and-shapes`: hiding omits only that turtle's avatar).
   const scene = { background: "white", items: [] };
   const base = { penDown: true, width: 1, shape: "turtle" };
   const world = turtleWorld([

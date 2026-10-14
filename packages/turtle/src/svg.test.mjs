@@ -409,7 +409,7 @@ test("exportTurtleSvg given a world holding only the main turtle is byte-identic
 test("exportTurtleSvg serializes one avatar per visible turtle, each with its own color and shape (#749)", () => {
   // Two turtles with divergent color AND visibility: folding them into one state serialized a
   // single avatar wearing whichever attributes came last. Per turtle, the visible one is drawn in
-  // its own color and the hidden one is omitted (`spec/rendering.md:14`: the avatar is included
+  // its own color and the hidden one is omitted (`spec/rendering.md#rendering-targets`: the avatar is included
   // "only when the turtle is visible at export time").
   const scene = { background: "white", items: [] };
   const base = { penDown: true, width: 1, heading: 0 };

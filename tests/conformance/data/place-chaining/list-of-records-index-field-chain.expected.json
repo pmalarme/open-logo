@@ -1,5 +1,5 @@
 {
-  "description": "Slice #330 — a list of records composes list-index then record-field (`spec/data-structures.md:311-325`): `:path[1]` selects the 1-based list element (dispatching on the container's runtime kind — an array — inside the shared chain walker), then `.x` selects that element's record field. `:path[1].x = 5` writes through the same chain to the record already stored at index 1, and the re-`print` asserts the mutation actually took effect rather than silently no-op'ing.",
+  "description": "Slice #330 — a list of records composes list-index then record-field (`spec/data-structures.md#records-and-structs, spec/data-structures.md#record-operations`): `:path[1]` selects the 1-based list element (dispatching on the container's runtime kind — an array — inside the shared chain walker), then `.x` selects that element's record field. `:path[1].x = 5` writes through the same chain to the record already stored at index 1, and the re-`print` asserts the mutation actually took effect rather than silently no-op'ing.",
   "profiles": ["core-language", "data"],
   "execute": true,
   "events": [

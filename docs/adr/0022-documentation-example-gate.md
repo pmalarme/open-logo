@@ -84,7 +84,7 @@ its declared codes, when it becomes clean (a stale expectation), when a fingerpr
 — or matches two, so one entry can never excuse a copied block.
 
 **Prove it goes red.** Re-introducing `set_shape "bee"` locally turns the gate red at
-`spec/turtles-and-sprites.md:122`; that case, and every other way the gate is meant to fail, is
+`spec/turtles-and-sprites.md#shapes-and-sprites`; that case, and every other way the gate is meant to fail, is
 locked in as a self-test in `scripts/check-markdown-examples.test.mjs` — the discipline
 `tests/conformance/_harness-selftest/` already established with fixtures that declare
 `expect: "mismatch"`.

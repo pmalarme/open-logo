@@ -1,5 +1,5 @@
 {
-  "description": "issue #338: `circle 50` draws the default 36-segment inscribed-polygon approximation without diagnostics (spec/geometry-module.md:135-193).",
+  "description": "issue #338: `circle 50` draws the default 36-segment inscribed-polygon approximation without diagnostics (spec/geometry-module.md#circle-radius-segments-36).",
   "profiles": ["geometry"],
   "execute": true,
   "events": [

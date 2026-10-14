@@ -1,5 +1,5 @@
 /**
- * Deterministic geometric reasoning for `polygon :sides :size` (`spec/geometry-module.md:29-73`).
+ * Deterministic geometric reasoning for `polygon :sides :size` (`spec/geometry-module.md#polygon-sides-size`).
  * Computed purely from `:sides` — the same math the stdlib source itself performs
  * (`right 360 / :sides`) — so a caller can reason about a polygon before or after it draws.
  */
@@ -10,7 +10,7 @@ import { isMultipleOf360 } from "./degree-math.js";
 export interface PolygonReasoning {
   readonly concept: "polygon-exterior-angle";
   readonly sides: number;
-  /** `360 / sides` — the turn after every side (`spec/geometry-module.md:59-65`). */
+  /** `360 / sides` — the turn after every side (`spec/geometry-module.md#polygon-sides-size`). */
   readonly exteriorAngle: number;
   /** `180 - exteriorAngle` — the interior angle at each vertex. */
   readonly interiorAngle: number;
@@ -22,7 +22,7 @@ export interface PolygonReasoning {
 }
 
 /**
- * Reasons about a regular polygon with `sides` equal sides (`spec/geometry-module.md:29-73`).
+ * Reasons about a regular polygon with `sides` equal sides (`spec/geometry-module.md#polygon-sides-size`).
  * `sides` is assumed already validated (a whole number `>= 3`, per the stdlib's own guards) —
  * this function only computes the geometry, it does not repeat `polygon`'s input validation.
  */

@@ -1,5 +1,5 @@
 {
-  "description": "`keys` requires a dict argument; calling it on a number raises `ol-type` (issue #322, `spec/error-model.md:126`).",
+  "description": "`keys` requires a dict argument; calling it on a number raises `ol-type` (issue #322, `spec/error-model.md#normative-code-registry`).",
   "profiles": ["core-language", "data"],
   "execute": true,
   "events": [

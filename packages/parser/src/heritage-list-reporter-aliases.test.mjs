@@ -1,11 +1,12 @@
 // Unit tests for the Heritage list-reporter aliases — `bf`/`bl`/`se` — slice H4 (issue #669) of the
-// Heritage epic. Heritage is "alternate spellings only, no new semantics" (spec/conformance.md#
-// heritage), so these three aliases are the Core list reporters `butfirst`/`butlast`/`sentence`
-// under a shorter name (spec/commands.md's per-command **Aliases** rows: `bf`→`butfirst`,
-// `bl`→`butlast`, `se`→`sentence`). Unlike H3's ten *command* aliases these are REPORTERS — they
-// return a value and appear in EXPRESSION position (as arguments, as an assignment RHS, composed
-// with one another) — so they exercise the reader's expression-call path, not just a leading
-// statement. Three concerns are proven here, mirroring the H3 alias tests:
+// Heritage epic. Heritage is "alternate spellings only, no new semantics"
+// (spec/conformance.md#heritage), so these three aliases are the Core list reporters
+// `butfirst`/`butlast`/`sentence` under a shorter name (spec/commands.md's per-command
+// **Aliases** rows: `bf`→`butfirst`, `bl`→`butlast`, `se`→`sentence`). Unlike H3's ten *command*
+// aliases these are REPORTERS — they return a value and appear in EXPRESSION position (as
+// arguments, as an assignment RHS, composed with one another) — so they exercise the reader's
+// expression-call path, not just a leading statement. Three concerns are proven here, mirroring
+// the H3 alias tests:
 //
 //   1. READER CANONICALIZATION — a reporter-alias call lowers to the same `Call`/`ParenCall` node
 //      any Core reporter uses, additionally carrying `canonical` = the Core name it spells. Its
@@ -16,7 +17,7 @@
 //   2. THE PROFILE GATE — reusing the visible-name mechanism (no net-new checker rule): with the
 //      Heritage profile INACTIVE, each alias is an unknown callee (`ol-unknown-command`); with
 //      Heritage ACTIVE, all three resolve silently. `heritage` alone admits them: `butfirst`/
-//      `butlast`/`sentence` and the `list` type are Core (spec/conformance.md:52, :159-160).
+//      `butlast`/`sentence` and the `list` type are Core (spec/conformance.md#core-language, spec/conformance.md#heritage).
 //
 //   3. ARITY — the alias groups arguments by the canonical reporter's own arity, and its static
 //      range is the canonical's (`se`→`sentence` is an open variadic; `bf`/`bl` are fixed-arity 1).
@@ -38,7 +39,7 @@ const span = (start, end) => ({ document: doc, start, end });
 // `heritage` ALONE makes these three aliases VISIBLE — the alias SPELLINGS are gated on
 // `heritage`, never on their canonical targets' profile — so neither of Heritage's cross-profile
 // DAG edges is what admits them. Data is NOT one of their requirements: `butfirst`/`butlast`/
-// `sentence` and the `list` type are Core (spec/conformance.md:52, :159-160). Heritage depends on
+// `sentence` and the `list` type are Core (spec/conformance.md#core-language, spec/conformance.md#heritage). Heritage depends on
 // Data because of the `value of … for key` dict reader, and (issue #860) on Turtle & Rendering
 // because of the nine turtle aliases; neither reaches these three. The set below stays uniform
 // with the other Heritage test files, so Data is active here but unused — an activation set, not
@@ -208,7 +209,7 @@ test("Heritage active accepts every reporter alias silently (needs only Core + H
   const source = 'print bf [1 2 3]\nprint bl [1 2 3]\nprint se "a" "b"\n';
   assert.deepEqual(checkSource(source, HERITAGE_ACTIVE), []);
   // And with Data DEACTIVATED. These three alias Core reporters over the Core `list` type
-  // (spec/conformance.md:52, :159-160), so Heritage's Data edge — which exists for the
+  // (spec/conformance.md#core-language, spec/conformance.md#heritage), so Heritage's Data edge — which exists for the
   // `value of … for key` dict reader — is not what admits them. Without this line the test's own
   // name would be an unmeasured claim, which is the defect the issue #860 review found in the
   // sentence this replaces ("`se`→`sentence` builds a list, so Data is the right dependency").
@@ -246,7 +247,7 @@ test("the full-name Core reporters remain callable without Heritage (Core, not g
 // over-applies butlast. The alias and its Core twin must raise the SAME arity diagnostic —
 // identical `code`, `params` (including `callable`), `stage`, and `severity` — proving the alias
 // neither invents nor suppresses a semantic finding. Diagnostic identity is `code` plus structured
-// `params`, and those params are CANONICAL, never the surface spelling (`spec/error-model.md:254-259`,
+// `params`, and those params are CANONICAL, never the surface spelling (`spec/error-model.md#localization-boundary`,
 // issue #733): wrong arity on `bf` and wrong arity on `butfirst` are the SAME condition, so
 // `params.callable` — a machine-readable identifier tools assert on — carries the canonical name
 // (`butfirst`), identical to the Core twin's. This mirrors H5 (#670), which canonicalizes its
@@ -277,7 +278,7 @@ test("a parenthesized reporter alias raises the SAME arity diagnostic as its Cor
     assert.deepEqual(aliasDiag, coreDiag);
     // …and every field of that shared identity is the CANONICAL name/shape, never the surface
     // spelling `bf`/`bl`: `code`, each structured `param` (the machine-readable identity tools
-    // assert on, per `spec/error-model.md:254-259`), `stage`, and `severity` all match, and the
+    // assert on, per `spec/error-model.md#localization-boundary`), `stage`, and `severity` all match, and the
     // canonical name drives the prose too (canonical display is permitted).
     assert.equal(aliasDiag.code, coreDiag.code);
     assert.equal(aliasDiag.params.callable, canonical);

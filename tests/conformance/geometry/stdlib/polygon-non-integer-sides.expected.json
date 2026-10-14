@@ -1,5 +1,5 @@
 {
-  "description": "issue #338: `polygon 3.5 100` (non-whole number of sides) raises `ol-user-error` with the exact spec message \"a polygon needs a whole number of sides\" (spec/geometry-module.md:47-49).",
+  "description": "issue #338: `polygon 3.5 100` (non-whole number of sides) raises `ol-user-error` with the exact spec message \"a polygon needs a whole number of sides\" (spec/geometry-module.md#polygon-sides-size).",
   "profiles": ["geometry"],
   "execute": true,
   "events": [

@@ -1,5 +1,5 @@
 {
-  "description": "Measured on this tree: `-5` without a space lexes as a negative number literal (`spec/grammar.md:60`) and opens a new statement. 2 statements (print 10, then orphan -5), no diagnostics. Compare with `adjacency-minus-space`: the two programs differ by one space and produce different statement counts, both silently (finding F4 in epic #1070).",
+  "description": "Measured on this tree: `-5` without a space lexes as a negative number literal (`spec/grammar.md#ebnf-notation`) and opens a new statement. 2 statements (print 10, then orphan -5), no diagnostics. Compare with `adjacency-minus-space`: the two programs differ by one space and produce different statement counts, both silently (finding F4 in epic #1070).",
   "profiles": ["core-language"],
   "execute": true,
   "events": [

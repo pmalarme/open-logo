@@ -1,5 +1,5 @@
 {
-  "description": "A binary operator that opens a line continues the expression above it, the mirror image of the trailing-operator case in `spec/grammar.md:34` (issue #933) — for the worded operators `and`, `or`, `mod`, `is` as well as the symbolic ones, because none of them can begin a statement, so continuing onto one can never swallow the statement below. The one operator that *can* begin a statement, a `-` glued to a numeral, is excluded; `multiline-expression-statement-separation` pins that.",
+  "description": "A binary operator that opens a line continues the expression above it, the mirror image of the trailing-operator case in `spec/grammar.md#lexical-form-and-encoding` (issue #933) — for the worded operators `and`, `or`, `mod`, `is` as well as the symbolic ones, because none of them can begin a statement, so continuing onto one can never swallow the statement below. The one operator that *can* begin a statement, a `-` glued to a numeral, is excluded; `multiline-expression-statement-separation` pins that.",
   "profiles": ["core-language"],
   "execute": true,
   "events": [

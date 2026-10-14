@@ -2,14 +2,14 @@
  * The turtle-overlay reducer: folds the normative trace/event stream (`@openlogo/core`'s
  * `TraceEvent`/`EventKind` registry) into deterministic, render-agnostic **overlay** state — the
  * Geometry profile's `grid`/`axes`/`measure` renderer-backed primitives
- * (`spec/geometry-module.md:268-308`, `spec/rendering.md:131-141`). This module is overlay-only:
+ * (`spec/geometry-module.md#grid, spec/geometry-module.md#axes, spec/geometry-module.md#measure`, `spec/rendering.md#grid-axes-and-measure-overlays`). This module is overlay-only:
  * per-turtle state (`state.ts`) and the retained drawing scene (`scene.ts`) are separate, sibling
  * reducers so all three can be layered side by side without any of them needing to know about
  * the other's kinds.
  *
  * Deliberately has **no** `"clear"` case: the clear-operations table leaves overlays unchanged for
- * `clean` and `clear_screen` alike (`spec/rendering.md:149-150`), and the prose adds "Renderer
- * overlays are not drawing and persist across `clean`" (`spec/rendering.md:78`) — rather than the
+ * `clean` and `clear_screen` alike (`spec/rendering.md#clear-operations`), and the prose adds "Renderer
+ * overlays are not drawing and persist across `clean`" (`spec/rendering.md#coordinate-mapping-and-viewport`) — rather than the
  * overlay code special-casing itself into the clear path, the clear event simply isn't one of the
  * kinds this reducer reacts to, so overlay state can never be reset by it.
  *
@@ -25,7 +25,7 @@ export interface GridOverlay {
 }
 
 /** The `measure` overlay's state once enabled: the turtle position/heading snapshot it last
- * annotated (`spec/geometry-module.md:298-300`). */
+ * annotated (`spec/geometry-module.md#measure`). */
 export interface MeasureOverlay {
   readonly position: Point;
   readonly heading: number;

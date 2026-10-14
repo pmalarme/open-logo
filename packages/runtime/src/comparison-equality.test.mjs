@@ -1,5 +1,5 @@
 // Unit tests for comparison operators, chained comparisons, and equality (issue #96) —
-// spec/execution-model.md:126-166 (precedence/chaining) and :483-510 (equality matrix, ordering,
+// spec/execution-model.md#three-syntactic-layers, spec/execution-model.md#precedence-and-evaluation-order (precedence/chaining) and spec/execution-model.md#equality-and-ordering (equality matrix, ordering,
 // cycle-safe structural equality). Most cases parse real `print <expr>` source through
 // @openlogo/parser and evaluate the resulting AST node exactly as execute() does. Two properties
 // are not yet expressible through Core source (variable reads land with #94, list mutation with
@@ -113,7 +113,7 @@ test("number == word inside a nested list uses the printed-form rule", () => {
 
 test("number == word uses the spec canonical printed form (<=10 significant digits)", () => {
   // Whole values print without a decimal; non-whole values trim to at most 10 significant
-  // digits (spec/execution-model.md:19). A word carrying more digits than the number prints
+  // digits (spec/execution-model.md#value-and-type-model). A word carrying more digits than the number prints
   // cannot equal it.
   assert.equal(boolOf('12345 == "12345"'), true); // whole, full integer form
   assert.equal(boolOf('0.3333333333 == "0.3333333333"'), true); // exactly 10 sig digits

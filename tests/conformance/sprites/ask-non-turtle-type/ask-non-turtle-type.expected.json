@@ -1,5 +1,5 @@
 {
-  "description": "issue #675 (SP3): a non-turtle input to `ask` raises `ol-type` (spec/turtles-and-sprites.md:176) and the block never runs, so no `move` is emitted.",
+  "description": "issue #675 (SP3): a non-turtle input to `ask` raises `ol-type` (spec/turtles-and-sprites.md#errors-and-diagnostics) and the block never runs, so no `move` is emitted.",
   "profiles": ["sprites"],
   "execute": true,
   "events": [

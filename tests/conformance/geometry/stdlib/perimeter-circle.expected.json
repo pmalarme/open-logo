@@ -1,5 +1,5 @@
 {
-  "description": "issue #338: `print perimeter [\"circle\" 50]` reports `2 * pi * r` and emits no turtle/draw events (spec/geometry-module.md:370-415).",
+  "description": "issue #338: `print perimeter [\"circle\" 50]` reports `2 * pi * r` and emits no turtle/draw events (spec/geometry-module.md#perimeter-shape).",
   "profiles": ["geometry"],
   "execute": true,
   "events": [

@@ -1,5 +1,5 @@
 {
-  "description": "The spec's literal nested-write example (`spec/data-structures.md:196-201`): `:people.tom` already holds a dict, so writing its final selector `:people.tom.age = 8` and `:people.tom.height = 120` upserts both keys into the existing nested dict without needing to vivify `tom`.",
+  "description": "The spec's literal nested-write example (`spec/data-structures.md#malformed-dictionary-literal-entries`): `:people.tom` already holds a dict, so writing its final selector `:people.tom.age = 8` and `:people.tom.height = 120` upserts both keys into the existing nested dict without needing to vivify `tom`.",
   "profiles": ["core-language", "data"],
   "execute": true,
   "events": [

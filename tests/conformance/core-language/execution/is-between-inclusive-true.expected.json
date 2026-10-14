@@ -1,5 +1,5 @@
 {
-  "description": "`<v> is between <low> and <high>` is inclusive of both bounds for numbers (spec/execution-model.md:146-166): `5 is between 1 and 5` is `true`. Issue #99.",
+  "description": "`<v> is between <low> and <high>` is inclusive of both bounds for numbers (spec/execution-model.md#precedence-and-evaluation-order): `5 is between 1 and 5` is `true`. Issue #99.",
   "profiles": ["core-language"],
   "execute": true,
   "events": [

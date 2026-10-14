@@ -1,5 +1,5 @@
 {
-  "description": "issue #338: `perimeter [\"hexagon\" 5]` (unsupported shape word) raises `ol-user-error` with the exact spec message \"perimeter knows only the polygon and circle shapes\" (spec/geometry-module.md:399).",
+  "description": "issue #338: `perimeter [\"hexagon\" 5]` (unsupported shape word) raises `ol-user-error` with the exact spec message \"perimeter knows only the polygon and circle shapes\" (spec/geometry-module.md#perimeter-shape).",
   "profiles": ["geometry"],
   "execute": true,
   "events": [

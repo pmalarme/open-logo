@@ -4,7 +4,7 @@
 // phantom unmatched-delimiter appears on balanced delimiters". Measurement at `ca653709` split that
 // into **two mechanisms**, and the distinction is what this file pins:
 //
-// **A — a newline breaks a continuation.** `spec/grammar.md:34` says newlines are insignificant
+// **A — a newline breaks a continuation.** `spec/grammar.md#lexical-form-and-encoding` says newlines are insignificant
 // within one expression, and three readers did not honour it: the dict entry separator (#944), the
 // `value`/`of` interception in `parseNamePrimary` (#979), and `parsePostfix`'s `.field` lookahead
 // (#980). Each is the shape #962 fixed for the `value of … for key …` tail.
@@ -12,7 +12,7 @@
 // **B — the recovery path reports a matched delimiter as unmatched.** `parseParenthesized` reported
 // its `(` unmatched whenever the inner expression failed, without ever checking whether the `)` was
 // present, and `unexpected()` mapped *any* stray closer to an unmatched-delimiter diagnostic. Both
-// violate `spec/error-model.md:165-169`, which is delimiter-agnostic: *"on any recovery path, for
+// violate `spec/error-model.md#normative-code-registry`, which is delimiter-agnostic: *"on any recovery path, for
 // any malformed input, a parser MUST NOT raise any unmatched-delimiter diagnostic … for a delimiter
 // that is, in fact, correctly matched in the source."*
 //
@@ -185,7 +185,7 @@ test("a postfix read across a newline reaches the field, not just the base", () 
 
 test("`of` stays a keyword when the reader is split across a newline", () => {
   // #785's rule: `of` is the contextual preposition of this reader and takes the `keyword` token
-  // class, never `primitive` (`spec/tooling.md:97-99`). The highlighter marks it positionally from
+  // class, never `primitive` (`spec/tooling.md#reserved-words-for-tooling`). The highlighter marks it positionally from
   // `value`, so a newline between the two is exactly the shape that could desynchronise it.
   for (const source of [
     "print value of :d for key :k",
@@ -205,7 +205,7 @@ test("`of` stays a keyword when the reader is split across a newline", () => {
 // --- Mechanism A must not reach too far ----------------------------------------------------------
 
 test("an entry lookahead does not fire while the value is still owed an operand", () => {
-  // `spec/grammar.md:314` gives an unfinished value precedence: *"where the value is not yet
+  // `spec/grammar.md#collections-records-and-comprehensions` gives an unfinished value precedence: *"where the value is not yet
   // complete — an operator or a call still owed an operand, say … the unfinished value's own
   // grammar position wins and no entry opens, so `{ a: 1 + b: 2 }` is a malformed entry rather than
   // two entries."* A call is owed an operand exactly as an operator is, so `{ a: sentence 1 mod: 2 }`
@@ -337,7 +337,7 @@ test("a newline separates exactly like a space, for adjacency too", () => {
 
 test("the narrowing does not move a multi-line control or comprehension body", () => {
   // The regression this direction had to avoid, asserted rather than argued. A newline after a
-  // control or procedure header selects the long `… end` body form (`spec/grammar.md:34`), so
+  // control or procedure header selects the long `… end` body form (`spec/grammar.md#lexical-form-and-encoding`), so
   // `map n in :nums` ⏎ `[ … ]` is a body, not a selector — and it must stay that way. A narrowing
   // can only make the `[` *less* likely to bind, so these are strictly more protected than before.
   for (const source of [

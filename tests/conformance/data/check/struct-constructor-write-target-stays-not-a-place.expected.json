@@ -1,5 +1,5 @@
 {
-  "description": "M4 audit finding F2 (issue #441): the static unknown-field rule stays silent on a write target. A struct-constructor result is not an assignable place whether or not the field exists, so `(point 0 0).z = 1` raises only `ol-not-a-place` (owned by the not-a-place rule); the new field rule emits nothing on an assignment target. Regression lock that the read-only scope holds — writing an unknown field on a *variable* base stays runtime-authoritative (`spec/error-model.md:126`).",
+  "description": "M4 audit finding F2 (issue #441): the static unknown-field rule stays silent on a write target. A struct-constructor result is not an assignable place whether or not the field exists, so `(point 0 0).z = 1` raises only `ol-not-a-place` (owned by the not-a-place rule); the new field rule emits nothing on an assignment target. Regression lock that the read-only scope holds — writing an unknown field on a *variable* base stays runtime-authoritative (`spec/error-model.md#normative-code-registry`).",
   "profiles": ["core-language", "data"],
   "check": true,
   "events": [],

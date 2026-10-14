@@ -1,5 +1,5 @@
 {
-  "description": "issue #338: `print area [\"circle\" 50]` reports `pi * r^2` and emits no turtle/draw events (spec/geometry-module.md:325-368,415).",
+  "description": "issue #338: `print area [\"circle\" 50]` reports `pi * r^2` and emits no turtle/draw events (spec/geometry-module.md#area-shape, spec/geometry-module.md#perimeter-shape).",
   "profiles": ["geometry"],
   "execute": true,
   "events": [
