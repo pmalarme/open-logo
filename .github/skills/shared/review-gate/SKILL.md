@@ -319,10 +319,12 @@ passing; that pass is not evidence that reporting is covered. Confirm a named re
 assertion fails under that suppression mutation.
 
 Record the mutation, commands, artifact verification, control results, and assertion outcomes.
-Restore the unmutated artifact and re-run the baseline. If the control changes but the assertion
-stays green, record the regression-protection gap and resolve it under "Findings" below; do not claim
-the mutation was detected. When no executable behaviour changes (for example, a skills-only edit),
-record N/A with the reason. This is review guidance, not a new CI gate.
+Restore the original code, rebuild or recompile where applicable, and verify that the artifact
+actually exercised is restored, not a stale mutant. Re-run the baseline in a fresh process. If the
+control changes but the assertion stays green, record the regression-protection gap and resolve it
+under "Findings" below; do not claim the mutation was detected. When no executable behaviour changes
+(for example, a skills-only edit), record N/A with the reason. This is review guidance, not a new
+CI gate.
 
 ## Findings — every finding gets resolved, blocking or not
 
