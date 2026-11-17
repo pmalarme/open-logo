@@ -50,8 +50,9 @@
  * **visibility** within one scope's straight-line statement list — which is all the checker
  * resolves — and diverge only where the spec says they may (`spec/execution-model.md#what-a-scope-can-see`).
  * Visibility is not the whole of a successful read here: {@link UNBOUND} makes a name visible while
- * it holds no value, so a bare `local`'s read fails in this module while the checker is correctly
- * silent (issue #1173). Keep them in step: this module's `findVisibleFrame` and the
+ * it holds no value, so a bare `local`'s read fails in this module while the checker is silent
+ * today; whether it should report this value-boundness gap, and how the agreement guard records
+ * it, remains open in issue #1173. Keep them in step: this module's `findVisibleFrame` and the
  * checker's scope walk are two encodings of the same four bullet points above, and
  * `checker-runtime-agreement.test.mjs` in this package is what holds them there — it runs `check()`
  * and `execute()` over one corpus and asserts they report the same code and params wherever the spec
