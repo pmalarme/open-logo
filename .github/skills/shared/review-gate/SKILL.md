@@ -9,7 +9,7 @@ description: >-
   each dispatch, the dispatched SHA tagged, and the branch frozen once every verdict stamps one SHA.
   The orchestrator then does a final verification and merges.
 created: 2026-07-17T00:00
-updated: 2026-09-17T00:00
+updated: 2026-11-17T00:00
 ---
 
 ## Purpose
@@ -305,26 +305,27 @@ whatever artifact needs compilation, and confirm a named test or fixture goes re
 fails, the probe has not demonstrated regression protection in the tests run — however many tests
 pass elsewhere.
 
-In issue #1155, measured at parent `acd0364d` and recorded by `066ce9fe`, this edit is
-behaviour-changing — it lets a program begin running and fail partway instead of being refused
-before any effect —
+For issue #1155, commit `066ce9fe` records this mutation surviving 25 unit tests and 1018 fixtures
+at its parent, `acd0364d`. It is behaviour-changing — it lets a program begin running and fail
+partway instead of being refused before any effect —
 
 ```diff
 - { node: node.value, rootIsRead: true }
 + { node: node.value, rootIsRead: false }
 ```
 
-— and, as recorded in commit `066ce9fe`, it survived the unit tests and conformance fixtures run at
-parent `acd0364d`. PR #1176 tabulates mutation-detected gaps beside passing tests.
+—
 
-Traps recorded in PR #1176:
+PR #1176 describes mutation-detected gaps beside tests that passed.
 
 - **Verify the mutant reached the artifact under test.** For compiled package code that means
   `dist/` — `tsc -b` serves a stale build when a restored file gets an older mtime, and
   `Copy-Item -Recurse node_modules` dereferences workspace symlinks so a sandbox resolves a stale
-  package. For a script or workflow run directly from source, confirm the run loaded the edited
-  file; for a compiled workflow, confirm the generated workflow contains the mutation and is what
-  the run exercised. Testing the *unmutated* artifact cannot establish that a mutant survived.
+  package. These are the two package-artifact failures recorded in PR #1176. For directly executed
+  scripts or workflows, confirm the run loaded the edited source; for compiled workflows, confirm
+  the run exercised the generated workflow containing the mutation. These are applications of the
+  artifact-verification rule, not incidents described in PR #1176. Testing the *unmutated* artifact
+  cannot establish that a mutant survived.
 - **Read the result, not the diff.** A diff proves the text changed, not that behaviour changed —
   confirm the mutation with a control whose observed result differs.
   PR #1176's instrument-failure catalogue records an equivalent `RepeatContext` predicate rewrite
@@ -340,9 +341,8 @@ nothing about it.
 ### (h) Prose — audit it as prose, in its own pass
 
 Comments, fixture `description`s, and PR bodies are read *beside* the code they describe, so a false
-sentence next to correct code and a green fixture looks right. PR #1176 records false prose
-surviving and reappearing across review rounds in issue #1155 — including replacement prose that
-introduced new false claims.
+sentence next to correct code and a green fixture looks right. PR #1176 states that three rounds of
+review read false sentences and missed them.
 
 So make a pass over **only the prose this change adds or edits**, with the code out of view, and ask
 of each factual claim in it: **what measurement would falsify this, and did I run it?** Judge
@@ -352,8 +352,9 @@ below governs what to do with a false claim once found; it applies here unchange
 
 - **Remove a derived number, don't update it.** An updated count is a defect with a longer fuse.
   Where a number must stay, anchor it to the revision it was measured at.
-- **No unenumerated absolutes** — *no*, *only*, *every*, *never*, *all*, *none* — unless the
-  universe is finite, enumerable, and you enumerated it *where the reader can see it*.
+- **In factual claims, avoid unenumerated absolutes** — *no*, *only*, *every*, *never*, *all*,
+  *none* — unless the universe is finite, enumerable, and you enumerated it *where the reader can
+  see it*.
 - **Prefer a pointer to a reconstructed cause.** Where deleting would invite a maintainer into a
   trap, cite the mechanism's source instead of explaining it: a pointer avoids restating a causal
   story you would have to verify. It is still a citation, so item (f) applies — check that it
