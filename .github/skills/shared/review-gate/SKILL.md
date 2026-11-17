@@ -307,14 +307,12 @@ pass elsewhere.
 
 For issue #1155, commit `066ce9fe` records this mutation surviving 25 unit tests and 1018 fixtures
 at its parent, `acd0364d`. It is behaviour-changing — it lets a program begin running and fail
-partway instead of being refused before any effect —
+partway instead of being refused before any effect. The mutation was:
 
 ```diff
 - { node: node.value, rootIsRead: true }
 + { node: node.value, rootIsRead: false }
 ```
-
-—
 
 PR #1176 describes mutation-detected gaps beside tests that passed.
 
