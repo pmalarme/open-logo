@@ -1,5 +1,5 @@
 {
-  "description": "The second line of the two-line contrast spec/execution-model.md:607-615 draws, printed turn by turn: `:x` is born outside the block, so all four turns update ONE binding and the loop prints `1 2 3 4`. Its twin `a-fresh-binding-on-every-loop-turn` runs the first line — the same loop with `:x = 0` moved inside — and prints `1 1 1 1`. The existing `a-block-updates-what-it-can-see` reports only the accumulated total after the loop, so it cannot distinguish `1 2 3 4` from any other sequence summing the same way; this fixture pins the per-turn values the curriculum teaches from.",
+  "description": "The second line of the two-line contrast spec/execution-model.md#blocks-update-what-they-can-see draws, printed turn by turn: `:x` is born outside the block, so all four turns update ONE binding and the loop prints `1 2 3 4`. Its twin `a-fresh-binding-on-every-loop-turn` runs the first line — the same loop with `:x = 0` moved inside — and prints `1 1 1 1`. The existing `a-block-updates-what-it-can-see` reports only the accumulated total after the loop, so it cannot distinguish `1 2 3 4` from any other sequence summing the same way; this fixture pins the per-turn values the curriculum teaches from.",
   "profiles": ["core-language"],
   "execute": true,
   "events": [

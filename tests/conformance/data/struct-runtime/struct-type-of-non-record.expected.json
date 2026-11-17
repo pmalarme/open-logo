@@ -1,5 +1,5 @@
 {
-  "description": "`type_of` reports a record's struct type name, so a non-record argument raises `ol-type` (issue #329, `spec/data-structures.md:286`): `type_of 5` is given a number, not a record.",
+  "description": "`type_of` reports a record's struct type name, so a non-record argument raises `ol-type` (issue #329, `spec/data-structures.md#record-operations`): `type_of 5` is given a number, not a record.",
   "profiles": ["core-language", "data"],
   "execute": true,
   "events": [

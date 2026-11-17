@@ -2,7 +2,7 @@
 // maintainer's variable-scoping ruling (`spec/execution-model.md`'s *Variables, scoping, and
 // procedures*, merged in PR #1096).
 //
-// Why this exists at all. `spec/execution-model.md:441-446` records the one case the ruling
+// Why this exists at all. `spec/execution-model.md#what-a-scope-can-see` records the one case the ruling
 // deliberately does **not** diagnose: when a procedure's first touch of a name it cannot see is a
 // write, it silently creates a procedure-local, "which is correct, because that is a genuinely
 // different variable". So inside one procedure body `:private = 1` and `:shared = 1` look identical
@@ -13,7 +13,7 @@
 // `spec/tooling.md`'s normative table is closed (its `## Non-goals` measures conformance against
 // "the token classes … above") and already answers this shape of question with a modifier — five
 // bracket roles over one `bracket` class, exposed "as semantic-token modifiers where possible, even
-// when the visible theme maps all roles to the same bracket color" (`spec/tooling.md:83-84`).
+// when the visible theme maps all roles to the same bracket color" (`spec/tooling.md#delimiter-roles`).
 //
 // The property under test throughout is that the answer follows **resolution, not spelling**.
 //
@@ -126,7 +126,7 @@ test("a global inside a block, a loop, and a handler stays global", () => {
 // --- A procedure-private name, beside a global -------------------------------
 
 test("a private name and a global are distinguishable AT THE ASSIGNMENT SITE", () => {
-  // This is the case `spec/execution-model.md:441-446` rules correct and never diagnoses: `:private`
+  // This is the case `spec/execution-model.md#what-a-scope-can-see` rules correct and never diagnoses: `:private`
   // is not visible inside `mixed`, so the write creates a procedure-local. Nothing but the paint
   // tells the reader that the two adjacent statements do entirely different things.
   const source = [
@@ -145,7 +145,7 @@ test("a private name and a global are distinguishable AT THE ASSIGNMENT SITE", (
 });
 
 test("a procedure parameter shadows a same-named global for the whole body", () => {
-  // A parameter is bound when the frame is created (`spec/execution-model.md:365-366`), so it
+  // A parameter is bound when the frame is created (`spec/execution-model.md#scopes-and-bindings`), so it
   // shadows from the first statement — including a read written before any other mention.
   const source = [
     "global count = 0",
@@ -167,8 +167,8 @@ test("a procedure parameter shadows a same-named global for the whole body", () 
 // --- `local` shadowing: the class follows resolution, not spelling -----------
 
 test("a `local` shadowing a global is a local, from its own statement onward", () => {
-  // `spec/execution-model.md:530-543`'s own example, which prints `5` then `0`. The read BEFORE the
-  // declaration still resolves to the global — `:398-399`, a binding a scope creates for itself is
+  // `spec/execution-model.md#local`'s own example, which prints `5` then `0`. The read BEFORE the
+  // declaration still resolves to the global — `spec/execution-model.md#what-a-scope-can-see`, a binding a scope creates for itself is
   // visible only "from the point the statement that creates it has run".
   const source = [
     "global count = 0",
@@ -189,7 +189,7 @@ test("a `local` shadowing a global is a local, from its own statement onward", (
 });
 
 test("a `local` initializer resolves against the scope BEFORE the shadow exists", () => {
-  // `spec/execution-model.md:508-515`: the initializer sees "whatever `count` the statement could
+  // `spec/execution-model.md#local`: the initializer sees "whatever `count` the statement could
   // already see", which is what makes snapshotting a shared value into a same-named local possible.
   const source = [
     "global count = 0",
@@ -224,7 +224,7 @@ test("a `local` inside a block shadows only within that block", () => {
 });
 
 test("a root-scope `local` leaves an existing global global", () => {
-  // `spec/execution-model.md:520-526`: at the root there is no enclosing scope to shadow into, so
+  // `spec/execution-model.md#local`: at the root there is no enclosing scope to shadow into, so
   // `local` names the root scope's own binding and, where that binding is already `global`, "leaves
   // it global". Painting it private here would tell the reader a shared name had become private.
   const source = [
@@ -295,7 +295,7 @@ test("a `for … from … to … by` step expression is an ordinary read positio
 });
 
 test("a selector key inside a place is an ordinary read position", () => {
-  // `spec/tooling.md:40` makes the `[ ]` of `:nums[:index]` an `index/dot` selector; the key inside
+  // `spec/tooling.md#normative-token-class-model` makes the `[ ]` of `:nums[:index]` an `index/dot` selector; the key inside
   // it is a full expression, so a global read there is marked like any other.
   const source = [
     "global index = 1",
@@ -312,7 +312,7 @@ test("a selector key inside a place is an ordinary read position", () => {
 });
 
 test("an optional parameter's default resolves inside the procedure boundary", () => {
-  // `spec/grammar.md:152` — `optional-parameter ::= "(" ":" name expression ")"`. The spec does not
+  // `spec/grammar.md#ebnf-notation` — `optional-parameter ::= "(" ":" name expression ")"`. The spec does not
   // say which scope evaluates a default, so the paint follows the runtime, which is where the spec
   // leaves the question: `execute-internal.ts` evaluates each omitted optional's default "in the
   // callee frame, once its earlier (already-bound) siblings are in place".
@@ -386,8 +386,8 @@ test("an optional parameter's own default is resolved BEFORE that parameter bind
 });
 
 test("a procedure written inside a block is sealed from that block's locals", () => {
-  // `spec/execution-model.md:389-394` — a procedure body sees only its own parameters, its own
-  // bindings, and the globals. `:651-652` states the neighbouring case, a `define` inside a
+  // `spec/execution-model.md#what-a-scope-can-see` — a procedure body sees only its own parameters, its own
+  // bindings, and the globals. `spec/execution-model.md#frames-handlers-and-lifetime` states the neighbouring case, a `define` inside a
   // procedure body, which "does not capture the frame it appears in"; a `define` inside a block is
   // the same shape of declaration, and this is the case that proves the walk RESTARTS rather than
   // inheriting the enclosing shadows (issue #826 review, round 1, @testing finding 3 — the
@@ -410,7 +410,7 @@ test("a procedure written inside a block is sealed from that block's locals", ()
 });
 
 test("a deferred handler body is resolved at its registration position", () => {
-  // A DECIDED limit, not an oversight. `spec/execution-model.md:401-403` gives a deferred handler
+  // A DECIDED limit, not an oversight. `spec/execution-model.md#what-a-scope-can-see` gives a deferred handler
   // "whenever the handler fires" rather than an inline block's "from that block's own position", so
   // a click after `setup` returns really would resolve `:shared` to the retained procedure-local.
   // One token, two resolutions, decided by an event time no static pass can know — see the module
@@ -431,7 +431,7 @@ test("a deferred handler body is resolved at its registration position", () => {
 
 test("a `set` target and a `make` target carry the modifier too", () => {
   // A modifier decorates whatever class a token already has, so the worded forms need no new class
-  // and no `spec/` change. `spec/execution-model.md:478-481` makes all three assignment spellings
+  // and no `spec/` change. `spec/execution-model.md#what-an-assignment-targets` makes all three assignment spellings
   // "resolve the same way", and the paint now agrees with the language rather than with the lexer.
   // An earlier revision declined these on the grounds that they are not `:variable` tokens — true,
   // and irrelevant (issue #826 review, round 2, rubber-duck finding 1).
@@ -529,7 +529,7 @@ test("a document with no `global` at all still marks its variable uses `false`",
 // --- What is and is not a declaration ---------------------------------------
 
 test("a misplaced `global` declares nothing, so it paints nothing", () => {
-  // It is `ol-global-outside-root` (`spec/execution-model.md:561-563`), so the declaration never
+  // It is `ol-global-outside-root` (`spec/execution-model.md#global`), so the declaration never
   // takes effect. Painting from it would tell the reader that a rejected declaration had worked.
   const source = [
     "define f",
@@ -560,9 +560,9 @@ test("a plain top-level name is not a global", () => {
 });
 
 test("a declaration below a use still marks that use", () => {
-  // The paint is lexical over the whole document, the same reading `spec/execution-model.md:405-408`
+  // The paint is lexical over the whole document, the same reading `spec/execution-model.md#what-a-scope-can-see`
   // gives `ol-var-not-visible`. Whether the read *runs* before the declaration is a runtime-order
-  // fact `ol-undefined-var` reports (`:571-574`); the paint does not restate it.
+  // fact `ol-undefined-var` reports (`spec/execution-model.md#global`); the paint does not restate it.
   const source = ["define f", "  print :count", "end", "global count = 0"].join(
     "\n",
   );
@@ -638,7 +638,7 @@ test("`global` is total on `:variable`, and present elsewhere only for a resolve
 
 test("`global` is in the exported modifier vocabulary", () => {
   assert.equal(OL.OL_TOKEN_MODIFIERS.includes("global"), true);
-  // The seven from `spec/tooling.md:281-283` stay first, in the document's own order.
+  // The seven from `spec/tooling.md#informative-lsp-style-editor-integration` stay first, in the document's own order.
   assert.deepEqual(OL.OL_TOKEN_MODIFIERS.slice(0, 7), [
     "declaration",
     "reference",

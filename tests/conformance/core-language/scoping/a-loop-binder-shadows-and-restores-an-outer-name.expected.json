@@ -1,5 +1,5 @@
 {
-  "description": "A `for … in` binder names the loop's own block scope, one fresh binding per turn (spec/execution-model.md:367-369,377-379), so the loop prints `1 2 3` and the outer `:k` — a different binding of the same name — still holds `99` afterwards. The last value is the load-bearing one: measured, a binder that binds into the enclosing scope instead of its own prints the same `1 2 3` and then `3`, so a fixture that stopped at the end of the loop could not tell the two apart.",
+  "description": "A `for … in` binder names the loop's own block scope, one fresh binding per turn (spec/execution-model.md#scopes-and-bindings), so the loop prints `1 2 3` and the outer `:k` — a different binding of the same name — still holds `99` afterwards. The last value is the load-bearing one: measured, a binder that binds into the enclosing scope instead of its own prints the same `1 2 3` and then `3`, so a fixture that stopped at the end of the loop could not tell the two apart.",
   "profiles": ["core-language"],
   "execute": true,
   "events": [

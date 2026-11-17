@@ -1,22 +1,23 @@
 /**
- * Level 3 — variables (`spec/educational-model.md:89-122`, issue #325). The learner question
+ * Level 3 — variables (`spec/educational-model.md#level-3--variables`, issue #325). The learner question
  * is "How can one name control many places?": `:name` marks a variable everywhere, both when
  * reading and when writing a target; `=` assigns a value (`:size = 80`); the worded form
  * `set size to value` reads like a sentence and connects to Logo heritage; `==` compares while
  * `=` assigns. Only Level 1-3 vocabulary appears here — no `if`/comparison-as-condition
- * (Level 4) and no `define`/procedures (Level 5), per educational-model.md:37's discovery
+ * (Level 4) and no `define`/procedures (Level 5), per spec/educational-model.md#the-8-progressive-levels's discovery
  * guardrail.
  *
  * Issue #829 adds a second lesson here, `l3-where-a-name-is-born`, once saga #819's
  * variable-scoping ruling landed: a name is born where it is first assigned, and a name born
  * inside a block goes out of scope at the end of that block
- * (`spec/execution-model.md:351-352`, `:603-605`). That turns one moved line into two opposite
+ * (`spec/execution-model.md#variables-scoping-and-procedures`,
+ * `spec/execution-model.md#blocks-update-what-they-can-see`). That turns one moved line into two opposite
  * results from the same loop body, which is the earliest point in the curriculum where *where*
  * a name is written visibly changes what a program does — so it belongs beside `repeat` and
  * variables rather than waiting for procedures. The normative contrast at
- * `spec/execution-model.md:607-615` is written with `[ … ]` blocks; the lesson uses the long
+ * `spec/execution-model.md#blocks-update-what-they-can-see` is written with `[ … ]` blocks; the lesson uses the long
  * `… end repeat` spelling every other Level 2/3 lesson uses, which
- * `spec/execution-model.md:367-369` makes the same block scope — and `level-3.test.mjs` pins
+ * `spec/execution-model.md#scopes-and-bindings` makes the same block scope — and `level-3.test.mjs` pins
  * both spellings to the same printed numbers rather than assuming it.
  */
 
@@ -25,12 +26,12 @@ import type { Exercise } from "./exercise.js";
 
 /**
  * The Level 3 lessons. `l3-size-square` teaches one name, `:size`, controlling every side of a
- * square: the first two worked examples reproduce `spec/educational-model.md:106-119`'s two
+ * square: the first two worked examples reproduce `spec/educational-model.md#level-3--variables`'s two
  * `:size` blocks verbatim — the symbol assignment form and the worded form — so the lesson never
  * drifts from the normative sample, and the third adds `:size = :size + 10` to show the same
  * name being read and written in one statement, per the issue's "one name controls many places"
  * objective. `l3-where-a-name-is-born` (issue #829) then teaches *where* a name is written: its
- * first two worked examples are `spec/execution-model.md:607-615`'s normative born-inside /
+ * first two worked examples are `spec/execution-model.md#blocks-update-what-they-can-see`'s normative born-inside /
  * born-outside contrast in the long block spelling, and the third shows the accumulator that
  * contrast makes possible.
  */

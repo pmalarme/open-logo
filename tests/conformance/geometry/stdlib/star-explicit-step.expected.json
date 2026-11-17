@@ -1,5 +1,5 @@
 {
-  "description": "issue #338: `(star 7 80 3)` supplies the optional trailing `:step` via the parenthesized call form and draws the {7/3} star without diagnostics (spec/geometry-module.md:124-131).",
+  "description": "issue #338: `(star 7 80 3)` supplies the optional trailing `:step` via the parenthesized call form and draws the {7/3} star without diagnostics (spec/geometry-module.md#star-points-size-step-2).",
   "profiles": ["geometry"],
   "execute": true,
   "events": [

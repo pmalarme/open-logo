@@ -1,5 +1,5 @@
 {
-  "description": "The `each` half of the same rule (spec/execution-model.md:664-666,603-605): the body runs once per addressed turtle, and the name it binds belongs to that body's own scope, so the read after the `]` raises `ol-undefined-var` (spec/error-model.md:102). Written as a separate fixture from its `ask` sibling because execution stops at the first error, so one program cannot assert both. `sprites/addressing-each-narrows-and-restores` pins how `each` narrows the ADDRESSED SET; nothing pinned what it does to names.",
+  "description": "The `each` half of the same rule (spec/execution-model.md#frames-handlers-and-lifetime, spec/execution-model.md#blocks-update-what-they-can-see): the body runs once per addressed turtle, and the name it binds belongs to that body's own scope, so the read after the `]` raises `ol-undefined-var` (spec/error-model.md#normative-code-registry). Written as a separate fixture from its `ask` sibling because execution stops at the first error, so one program cannot assert both. `sprites/addressing-each-narrows-and-restores` pins how `each` narrows the ADDRESSED SET; nothing pinned what it does to names.",
   "profiles": ["core-language", "turtle-rendering", "sprites"],
   "execute": true,
   "events": [

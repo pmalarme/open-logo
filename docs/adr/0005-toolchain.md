@@ -4,7 +4,9 @@
 - Date: 2026-07-17
 - Deciders: OpenLogo maintainer (@pmalarme) + orchestrator
 - Related: [ADR-0001](0001-tech-stack.md) (resolves its deferred toolchain sub-decisions);
-  [ADR-0004](0004-independent-review-gate.md) (the review that caught two traps below)
+  [ADR-0004](0004-independent-review-gate.md) (the review that caught two traps below);
+  refined by [ADR-0035](0035-parse-markdown-to-resolve-spec-anchors.md) (adds `marked` +
+  `github-slugger` as devDependencies)
 
 ## Context
 

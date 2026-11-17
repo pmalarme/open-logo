@@ -1,9 +1,9 @@
 // Unit tests for simple (non-chained) comparison operators (issue #51). parse.test.mjs already
 // covers `1 < 2` staying a plain Call and the multi-operator ComparisonChain case (issue #52); this
 // file targets what that leaves untested: the other five compare-ops (==, !=, >, <=, >=) per
-// spec/grammar.md:182, each with its callee span; that comparison binds looser than
-// additive/multiplicative but tighter than `and`/`or` (spec/grammar.md:179-182,187-188); and that
-// `=` assignment and `==` comparison stay distinct on the same variable (spec/grammar.md:104,182).
+// spec/grammar.md#expressions-and-calls, each with its callee span; that comparison binds looser than
+// additive/multiplicative but tighter than `and`/`or` (spec/grammar.md#expressions-and-calls); and that
+// `=` assignment and `==` comparison stay distinct on the same variable (spec/grammar.md#ebnf-notation, spec/grammar.md#expressions-and-calls).
 //
 // Runs under `node --test` against the built `@openlogo/parser` package, exercising only its
 // public `parse` surface.

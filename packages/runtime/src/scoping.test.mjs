@@ -60,12 +60,12 @@ function soleDiagnosticOf(source) {
   return diagnostics[0];
 }
 
-// --- The sealed procedure boundary (spec/execution-model.md:381-453) --------------------------
+// --- The sealed procedure boundary (spec/execution-model.md#what-a-scope-can-see) --------------------------
 
 test("a procedure cannot see a plain top-level name — the READ raises ol-var-not-visible, naming the boundary", () => {
-  // `spec/execution-model.md:431-447`'s own worked example, verbatim. The diagnostic fires on the
+  // `spec/execution-model.md#what-a-scope-can-see`'s own worked example, verbatim. The diagnostic fires on the
   // read because the read comes first, and its message must name the boundary and the one-word fix
-  // — a generic "undefined variable" is explicitly not sufficient (`spec/error-model.md:132`).
+  // — a generic "undefined variable" is explicitly not sufficient (`spec/error-model.md#normative-code-registry`).
   const diagnostic = soleDiagnosticOf(
     ":count = 0\ndefine draw_steps\n  repeat 4 [\n    forward :count * 10\n    :count = :count + 1\n  ]\nend\ndraw_steps",
   );
@@ -91,7 +91,7 @@ test("the same program with `global count = 0` runs, and the global accumulates 
 
 test("a procedure's first touch of an INVISIBLE name being a WRITE silently creates a procedure-local — ruled correct, never diagnosed", () => {
   // Deliberately asserted rather than left implicit: it is a genuinely different variable, so no
-  // diagnostic belongs here (`spec/execution-model.md:443-446`). The top-level `:x` is untouched
+  // diagnostic belongs here (`spec/execution-model.md#what-a-scope-can-see`). The top-level `:x` is untouched
   // and the procedure's own `:x` is gone once the call returns.
   assert.deepEqual(
     printsOf(
@@ -167,7 +167,7 @@ test("the boundary governs the VARIABLE namespace only — a procedure still cal
 });
 
 test("a postfix place's base is a READ, so writing through one a procedure cannot see raises on the base", () => {
-  // `spec/execution-model.md:492-499`: `:people = <value>` inside a procedure that cannot see
+  // `spec/execution-model.md#what-an-assignment-targets`: `:people = <value>` inside a procedure that cannot see
   // `people` silently creates a local, while `:people.tom = <value>` raises on the base, because
   // only the second needs an existing value to write into.
   const diagnostic = soleDiagnosticOf(
@@ -200,7 +200,7 @@ test("resolution is case-insensitive, so `:Count` and `:count` are ONE condition
 });
 
 test("the code choice is LEXICAL, not temporal — a read that runs before the top-level assignment line is still boundary-hidden", () => {
-  // `spec/execution-model.md:405-414` and `spec/error-model.md:132`: "a name an enclosing scope
+  // `spec/execution-model.md#what-a-scope-can-see` and `spec/error-model.md#normative-code-registry`: "a name an enclosing scope
   // binds anywhere in the declaring document takes this code whether or not that binding has been
   // created by the time the read executes", which is what keeps it decidable at the `semantic`
   // stage — so the runtime and issue #825's checker report ONE identity for one condition rather
@@ -223,7 +223,7 @@ test("a name no scope binds at all is the ordinary ol-undefined-var, boundary or
 });
 
 test("a name declared `global` is NOT boundary-hidden, so a read before its declaration line is ol-undefined-var", () => {
-  // `spec/execution-model.md:412-414` states this exception explicitly: the declaration takes effect
+  // `spec/execution-model.md#what-a-scope-can-see` states this exception explicitly: the declaration takes effect
   // when it runs, and until then the name is simply unbound "like any other name".
   const diagnostic = soleDiagnosticOf(
     "define peek\n  print :count\nend\npeek\nglobal count = 0",
@@ -238,7 +238,7 @@ test("the `global` exception wins even where the root scope ALSO assigns the nam
   // with only a `global` declaration in the document there is no plain root binding to exclude, so
   // an implementation that forgot the exclusion still looked right. Here `:count = 5` puts the name
   // in the root scope's lexical set AND `global count = 0` takes it out again
-  // (`spec/execution-model.md:412-414` with `:576-580` — the declaration names that same binding),
+  // (`spec/execution-model.md#what-a-scope-can-see` with `spec/execution-model.md#global` — the declaration names that same binding),
   // so a read running before either line is an ordinary unbound read, not a boundary-hidden one.
   const diagnostic = soleDiagnosticOf(
     "define peek\n  print :count\nend\npeek\n:count = 5\nglobal count = 0",
@@ -251,7 +251,7 @@ test("the `global` exception wins even where the root scope ALSO assigns the nam
 test("a name only a top-level BLOCK binds is not boundary-hidden — a block encloses no procedure body", () => {
   // The lexical set is the ROOT scope's own names. `:temp` is born in the `repeat` body, which is a
   // block scope and encloses nothing the procedure is written inside, so the boundary is not what
-  // hid it: this is `ol-undefined-var`, the ordinary failed read (`spec/error-model.md:102`).
+  // hid it: this is `ol-undefined-var`, the ordinary failed read (`spec/error-model.md#normative-code-registry`).
   const diagnostic = soleDiagnosticOf(
     "define helper\n  print :temp\nend\nrepeat 2 [ :temp = 5   helper ]",
   );
@@ -260,7 +260,7 @@ test("a name only a top-level BLOCK binds is not boundary-hidden — a block enc
   assert.deepEqual(diagnostic.params, { name: "temp" });
 });
 
-// --- The boundary seals names, not values (spec/execution-model.md:455-474) --------------------
+// --- The boundary seals names, not values (spec/execution-model.md#the-boundary-seals-names-not-values) --------------------
 
 test("a procedure DOES mutate a list its caller handed it — required non-diagnosis", () => {
   assert.deepEqual(
@@ -289,7 +289,7 @@ test("rebinding a parameter never escapes, while mutating through it always does
   );
 });
 
-// --- Blocks: lifetime boundary, not a write boundary (spec/execution-model.md:595-615) ---------
+// --- Blocks: lifetime boundary, not a write boundary (spec/execution-model.md#blocks-update-what-they-can-see) ---------
 
 test("the two-loop contrast IS the rule: born inside prints 1 1 1 1, born outside prints 1 2 3 4", () => {
   assert.deepEqual(
@@ -361,7 +361,7 @@ test("`stop` leaving a block leaks none of the block's own names", () => {
   assert.deepEqual(diagnostic.params, { name: "inside" });
 });
 
-// --- Fresh bindings per scope entry, and recursion (spec/execution-model.md:371-379) -----------
+// --- Fresh bindings per scope entry, and recursion (spec/execution-model.md#scopes-and-bindings) -----------
 
 test("each recursive call gets its own binding for a name its body creates", () => {
   // BEHAVIOUR CHANGE: this printed `0 0 0` — every frame shared one top-level `:tmp`.
@@ -380,11 +380,11 @@ test("parameters were already per-frame and stay that way — non-regression", (
   );
 });
 
-// --- Handler capture and frame lifetime (spec/execution-model.md:617-669) ----------------------
+// --- Handler capture and frame lifetime (spec/execution-model.md#frames-handlers-and-lifetime) ----------------------
 
 test("each turn of a loop captures its OWN binding — handlers registered in different passes see different values", () => {
   // BEHAVIOUR CHANGE: this printed `30 30 30`, the JS `var`-in-a-loop bug. It is now a MUST in the
-  // spec's own worked example (`spec/execution-model.md:625-633`).
+  // spec's own worked example (`spec/execution-model.md#frames-handlers-and-lifetime`).
   assert.deepEqual(
     printsOf(
       ":i = 0\nrepeat 3 [ :i = :i + 1   :n = :i * 10   every 5 [ print :n ] ]\nwait 8",
@@ -438,7 +438,7 @@ test("a handler MAY update a name its captured scope holds — the on_click scor
 });
 
 test("`repcount` inside a handler block has no enclosing `repeat` of its own, however the loop is placed", () => {
-  // `spec/execution-model.md:682-690`: a handler invocation is a separate, deferred instruction, so
+  // `spec/execution-model.md#repcount-is-lexical`: a handler invocation is a separate, deferred instruction, so
   // it is never on a turn of a `repeat` outside the handler block — including one still running.
   const diagnostic = soleDiagnosticOf(
     "repeat 2 [ every 4 [ print repcount ]   wait 8 ]",
@@ -462,7 +462,7 @@ test("`repcount` in a procedure called from inside a `repeat` raises — dynamic
   assert.equal(diagnostic.code, "ol-repcount-outside-repeat");
 });
 
-// --- `local` (spec/commands.md:103-122, spec/execution-model.md:501-543) -----------------------
+// --- `local` (spec/commands.md#local, spec/execution-model.md#local) -----------------------
 
 test("`local name = value` evaluates its initializer BEFORE creating the binding — the silent wrong answer #823 left behind", () => {
   // Measured before this slice: this program printed `0`, with zero diagnostics, because the
@@ -531,7 +531,7 @@ test("`local` shadowing a PARAMETER is legal and is not diagnosed", () => {
 });
 
 test("at the ROOT scope `local` names the root scope's own binding and leaves an existing global global", () => {
-  // `spec/execution-model.md:520-526`: a second, procedure-invisible binding beside a `global`
+  // `spec/execution-model.md#local`: a second, procedure-invisible binding beside a `global`
   // would hide shared state from every procedure without saying so.
   assert.deepEqual(
     printsOf(
@@ -563,7 +563,7 @@ test("a `local` initializer the evaluator does not implement is skipped rather t
   assert.deepEqual(diagnostics, []);
 });
 
-// --- `global` (spec/commands.md:123-140, spec/execution-model.md:545-593) ----------------------
+// --- `global` (spec/commands.md#global, spec/execution-model.md#global) ----------------------
 
 test("`global` declares AND initializes: the C3 entry's example prints 2", () => {
   assert.deepEqual(
@@ -659,7 +659,7 @@ test("`global` is case-insensitive like every other name", () => {
   );
 });
 
-// --- Binders: already correct, locked (spec/execution-model.md:769-808) ------------------------
+// --- Binders: already correct, locked (spec/execution-model.md#control-forms, spec/execution-model.md#comprehensions-map-filter-and-reduce) ------------------------
 
 test("a `for … in` binder is body-local and leaves a same-named outer binding alone", () => {
   assert.deepEqual(
@@ -686,7 +686,7 @@ test("`reduce`'s accumulator and element are BOTH binders — neither is an oute
   );
 });
 
-// --- A comprehension body is a block scope too (spec/execution-model.md:367-369) ---------------
+// --- A comprehension body is a block scope too (spec/execution-model.md#scopes-and-bindings) ---------------
 
 test("a comprehension body is a block scope, so it may declare a `local`", () => {
   // Found by the review gate's logic/spec reviewer. An unsupported leading statement makes the WHOLE
@@ -729,7 +729,7 @@ test("a comprehension body ENDING in a binding statement raises ol-no-value — 
   // The second half of the same defect, found by the review gate's logic/spec reviewer in round 2:
   // an unsupported FINAL statement rejects the whole comprehension just as an unsupported leading
   // one does, so `print map n in [1] [ local x = :n ]` printed nothing with no diagnostic. A body
-  // must end in a value-producing expression (`spec/execution-model.md:217-230,804-807`), and a
+  // must end in a value-producing expression (`spec/execution-model.md#the-block-result-rule, spec/execution-model.md#comprehensions-map-filter-and-reduce`), and a
   // binding statement produces none — so the outcome is `ol-no-value`, exactly as for a body ending
   // in a command. All three binding forms are checked, because they share one classification.
   for (const source of [
@@ -747,9 +747,9 @@ test("a comprehension body ENDING in a binding statement raises ol-no-value — 
 
 test("a bare `local` replaces an earlier binding of the same name in the SAME block scope", () => {
   // Raised by `@testing` as an undisclosed silent change. `local name` "creates a new binding in the
-  // current scope" (`spec/commands.md:110`), and where that scope already holds one there is nothing
+  // current scope" (`spec/commands.md#local`), and where that scope already holds one there is nothing
   // to shadow into — the new binding replaces it, and reading before assigning is the ordinary
-  // unbound read. The root scope is the documented exception (`spec/execution-model.md:520-526`),
+  // unbound read. The root scope is the documented exception (`spec/execution-model.md#local`),
   // covered separately above.
   const diagnostic = soleDiagnosticOf(
     "repeat 1 [ :x = 5   local x   print :x ]",

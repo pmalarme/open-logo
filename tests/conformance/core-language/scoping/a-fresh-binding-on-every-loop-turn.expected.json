@@ -1,5 +1,5 @@
 {
-  "description": "Each entry into a scope creates FRESH bindings (spec/execution-model.md:377-379), so `:x` — born inside the block — is a new binding on every turn: the loop prints `1 1 1 1`, not `1 2 3 4`. Contrast `a-block-updates-what-it-can-see`, whose `:total` is born outside; the two fixtures together are the whole contrast spec/execution-model.md:607-615 draws in two lines.",
+  "description": "Each entry into a scope creates FRESH bindings (spec/execution-model.md#scopes-and-bindings), so `:x` — born inside the block — is a new binding on every turn: the loop prints `1 1 1 1`, not `1 2 3 4`. Contrast `a-block-updates-what-it-can-see`, whose `:total` is born outside; the two fixtures together are the whole contrast spec/execution-model.md#blocks-update-what-they-can-see draws in two lines.",
   "profiles": ["core-language"],
   "execute": true,
   "events": [

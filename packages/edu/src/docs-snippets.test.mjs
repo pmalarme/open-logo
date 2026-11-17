@@ -194,8 +194,9 @@ test("every 'prints ...' claim in curriculum-overview matches what the block abo
   // SHAPE instead of the verb, so it shares no vocabulary with `CLAIM`: every numeric inline-code
   // span in the doc's prose must be a value some accounted-for claim actually printed.
   //
-  // `NUMBER` is transcribed from the normative number production, `spec/grammar.md:60-61`, rather
-  // than hand-rolled — hand-rolling it was wrong twice. Round 5 measured an integers-only pattern
+  // `NUMBER` is transcribed from the normative number production in `spec/grammar.md#ebnf-notation`
+  // ("`[ "." digit { digit } ] [ exponent ]`"), rather than hand-rolled — hand-rolling it was wrong
+  // twice. Round 5 measured an integers-only pattern
   // letting `2.5` and `-5` through, and round 6 measured the decimal version letting `1e3` through
   // (`print 1e3` reports 1000, and the runtime also *prints* in exponent form beyond ~1e21).
   // Following the grammar makes the perimeter derived rather than guessed, so the residual blind

@@ -1,12 +1,12 @@
 /**
  * The Layer-2 lexical-enclosure rule for `repcount` (issue #1097) — one semantic diagnostic,
  * `ol-repcount-outside-repeat`, at `stage: "semantic"` with the identity `@openlogo/core` registers
- * and the `params: none` `spec/error-model.md:120` declares.
+ * and the `params: none` `spec/error-model.md#normative-code-registry` declares.
  *
- * `spec/tooling.md:195` states the rule for this layer in one line: *"Decide enclosure lexically: a
+ * `spec/tooling.md#layer-2-semantic-checking` states the rule for this layer in one line: *"Decide enclosure lexically: a
  * procedure body is never inside its caller's `repeat`, and a handler block is never inside a
  * `repeat` written outside it, so `repcount` in either is an error even when a `repeat` is running.
- * A `repeat` written inside the handler block encloses normally."* `spec/execution-model.md:671-690`
+ * A `repeat` written inside the handler block encloses normally."* `spec/execution-model.md#repcount-is-lexical`
  * is the normative ruling behind it and closes with the sentence that is the whole difficulty of
  * this rule: **"Lexical enclosure is therefore necessary but not sufficient: it must be enclosure by
  * a `repeat` whose body the code runs as part of."**
@@ -15,9 +15,9 @@
  * piece of lexical context — is this position on a turn of some `repeat`? — and **resets it to
  * `false` at the two boundaries the spec names**:
  *
- * - a `define … end` **procedure body** (`spec/execution-model.md:673-678`) — "dynamic loop state
+ * - a `define … end` **procedure body** (`spec/execution-model.md#repcount-is-lexical`) — "dynamic loop state
  *   does not cross the procedure boundary any more than a variable does";
- * - a **handler block** (`spec/execution-model.md:682-688`) — a handler invocation "is a separate,
+ * - a **handler block** (`spec/execution-model.md#repcount-is-lexical`) — a handler invocation "is a separate,
  *   deferred instruction rather than part of the loop that registered it", so the enclosing
  *   `repeat` does not reach into it "however the loop is placed and whether or not it has finished".
  *
@@ -25,10 +25,10 @@
  * enumerating them, and it rests on the closing sentence above rather than on a list: the ruling
  * names **two** boundaries, so a block it does not name is not one. Two groups are additionally
  * confirmed by their own spec text. `if`, `while`, `for`, `forever`, and a Sprites `ask`/`each`
- * block "run as part of the statement that contains it" (`spec/execution-model.md:664-667`), and
- * the Sprites forms are called out again at `spec/execution-model.md:678-680` as carrying dynamic
+ * block "run as part of the statement that contains it" (`spec/execution-model.md#frames-handlers-and-lifetime`), and
+ * the Sprites forms are called out again at `spec/execution-model.md#repcount-is-lexical` as carrying dynamic
  * *turtle* state rather than a name binding, so they are "unaffected by this rule". A
- * **comprehension body** is deliberately *not* in that list — `spec/execution-model.md:664-667`
+ * **comprehension body** is deliberately *not* in that list — `spec/execution-model.md#frames-handlers-and-lifetime`
  * expressly excludes it, but it is excluded there for `return`, which a comprehension body answers
  * with `ol-return-in-comprehension`, and that says nothing about `repcount`. Nothing in the
  * `repcount` ruling makes a comprehension body a boundary, and the runtime agrees: measured,
@@ -37,7 +37,7 @@
  * instead of needing an entry here — which is the point of resting on the two-boundary closure.
  *
  * **Only `repeat` encloses.** `forever` runs a block without a turn number, and
- * `spec/commands.md:804` ties `repcount` to "the innermost `repeat`". Measured against the runtime
+ * `spec/commands.md#repcount` ties `repcount` to "the innermost `repeat`". Measured against the runtime
  * before this rule existed: `forever [ print repcount ]` raises `ol-repcount-outside-repeat`, so
  * treating `forever` as an enclosing loop here would have made the checker disagree with the
  * evaluator.
@@ -50,7 +50,7 @@
  *
  * A checker that cries wolf teaches learners to ignore it, so this rule stays silent in two places
  * where another code already owns the defect. Note the reason is **structural**, not a general
- * "no cascades" policy: `spec/tooling.md:199-200`'s MUST NOT is narrower than that — it forbids
+ * "no cascades" policy: `spec/tooling.md#layer-2-semantic-checking`'s MUST NOT is narrower than that — it forbids
  * speculative **type** errors when dynamic values are unknown — so it is not cited as licensing
  * either silence. Each stands on what the construct actually is:
  *
@@ -93,7 +93,7 @@ const REPCOUNT = "repcount";
  * The learner-facing prose, **identical to the sentence `@openlogo/runtime`'s
  * `repcountOutsideRepeat` already raises**. One code carries one lesson: a learner who meets
  * `ol-repcount-outside-repeat` from the editor before running and then again from a run must not be
- * taught two different things by the two stages. It says both halves `spec/error-model.md:120` asks
+ * taught two different things by the two stages. It says both halves `spec/error-model.md#normative-code-registry` asks
  * for — what `repcount` reports, and that it only has meaning inside a `repeat`. Prose is
  * presentation; identity is `code` + `params`, and the params are `none`.
  */

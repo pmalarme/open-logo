@@ -1,8 +1,8 @@
 /**
- * Deterministic geometric reasoning for `arc :angle :radius` (`spec/geometry-module.md:195-266`).
+ * Deterministic geometric reasoning for `arc :angle :radius` (`spec/geometry-module.md#arc-angle-radius`).
  * Unlike `polygon`/`star`/`circle`, an `arc` never closes a shape — its geometric facts are the
  * circle center, the final position, and the resulting heading after a curved turn, computed
- * directly from the spec's closed-form formulas (`spec/geometry-module.md:243-254`) rather than
+ * directly from the spec's closed-form formulas (`spec/geometry-module.md#arc-angle-radius`) rather than
  * folded from the stepped trace events the stdlib source happens to use internally.
  */
 
@@ -17,19 +17,19 @@ export interface ArcReasoning {
   readonly startPosition: Point;
   readonly startHeading: number;
   /** The circle center, exactly `radius` units to the turtle's left at the start of the arc
-   * (`spec/geometry-module.md:243-247`): `[x - radius * cos(h), y + radius * sin(h)]`. */
+   * (`spec/geometry-module.md#arc-angle-radius`): `[x - radius * cos(h), y + radius * sin(h)]`. */
   readonly center: Point;
   /** The point on the arc's circle reached by rotating the start radius counter-clockwise by
-   * `angle` degrees (`spec/geometry-module.md:249-254`). */
+   * `angle` degrees (`spec/geometry-module.md#arc-angle-radius`). */
   readonly finalPosition: Point;
-  /** `startHeading - angle`, normalized to `[0, 360)` (`spec/geometry-module.md:249`: "the final
+  /** `startHeading - angle`, normalized to `[0, 360)` (`spec/geometry-module.md#arc-angle-radius`: "the final
    * heading is `:h - :angle` normalized to `[0 360)`"). */
   readonly finalHeading: number;
 }
 
 /**
  * Reasons about `arc :angle :radius` starting at `startPosition`/`startHeading`
- * (`spec/geometry-module.md:195-266`). `angle` and `radius` are assumed already validated (a
+ * (`spec/geometry-module.md#arc-angle-radius`). `angle` and `radius` are assumed already validated (a
  * non-negative angle, a positive radius, per the stdlib's own guards) — this function only
  * computes the closed-form geometry, not the stepped-chord approximation the stdlib source uses
  * to draw it.

@@ -1,5 +1,5 @@
 {
-  "description": "ol-var-not-visible (issue #825): the same fault in two differently-named procedures produces two diagnostics, each naming ITS OWN procedure. The boundary is the point of the message (spec/error-model.md:132 — the message MUST name it, and a generic \"undefined variable\" is not sufficient for this code), so a shared `procedure` param, or none, would leave both learners reading the same unhelpful sentence about a variable they can see two lines above.",
+  "description": "ol-var-not-visible (issue #825): the same fault in two differently-named procedures produces two diagnostics, each naming ITS OWN procedure. The boundary is the point of the message (spec/error-model.md#normative-code-registry — the message MUST name it, and a generic \"undefined variable\" is not sufficient for this code), so a shared `procedure` param, or none, would leave both learners reading the same unhelpful sentence about a variable they can see two lines above.",
   "profiles": ["core-language"],
   "check": true,
   "events": [],

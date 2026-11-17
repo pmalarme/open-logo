@@ -1,10 +1,10 @@
 /**
- * Level 5 — functions and procedures (`spec/educational-model.md:157-219`, issue #327). The
+ * Level 5 — functions and procedures (`spec/educational-model.md#level-5--functions-and-procedures`, issue #327). The
  * learner question is "How can I teach OpenLogo a new idea?": `define … end` names a reusable
  * idea, parameters such as `:sides` and `:size` are variables that belong to that idea, `return` hands
  * a value back from a reporter, and a command procedure may draw without returning a value.
  * Heritage spellings `to … end` and `output` are recognized but are taught second, after
- * `define`/`return` (educational-model.md:161) — this lesson only mentions them in prose, per the
+ * `define`/`return` (`spec/educational-model.md#level-5--functions-and-procedures`) — this lesson only mentions them in prose, per the
  * maintainer's scope-trim comment on issue #327, which also moves any *recursive* exercise (the
  * "tree"/"xmas tree" idea) out to Level 6 (Geometry): this slice's payoff is procedure reuse, not
  * recursion.
@@ -14,11 +14,11 @@
  * it was a Level 5 headline. Under the ruling privacy is the default: a procedure sees only its
  * own parameters, the names its body has already created, and names declared `global`, and
  * everything else is invisible rather than merely unwritable
- * (`spec/execution-model.md:389-394`). So `l5-polygon-procedure` now demonstrates that automatic
- * privacy and the "an input is yours" half of it (`spec/execution-model.md:471-474`) instead of
+ * (`spec/execution-model.md#what-a-scope-can-see`). So `l5-polygon-procedure` now demonstrates that automatic
+ * privacy and the "an input is yours" half of it (`spec/execution-model.md#the-boundary-seals-names-not-values`) instead of
  * `local`, `l5-global-shared-value` teaches the deliberate sharing that `global` exists for
- * (`spec/execution-model.md:545-569`), and `local` — whose remaining job is specified in
- * `spec/execution-model.md:501-526`, and is conditional on the scope it appears in — is no
+ * (`spec/execution-model.md#global`), and `local` — whose remaining job is specified in
+ * `spec/execution-model.md#local`, and is conditional on the scope it appears in — is no
  * longer taught here at all: now that a procedure's own names are private without it, what is
  * left is a narrower idea than this level's headline.
  *
@@ -45,7 +45,7 @@
  *
  * - The fourth line of the maintainer's formulation on issue #821 — "Lists and dicts are shared —
  *   change what's *inside* one and everyone sees it; replace it entirely and nobody does"
- *   (`spec/execution-model.md:455-474`) — is **not** taught here, because lists are Level 7a and
+ *   (`spec/execution-model.md#the-boundary-seals-names-not-values`) — is **not** taught here, because lists are Level 7a and
  *   dicts 7b. `l5-polygon-procedure`'s fourth worked example therefore scopes "inputs are yours"
  *   to the numbers this level actually works with and flags that mutable values have one more
  *   thing to say; the Level 7a lesson owes the rest of that line.
@@ -54,7 +54,7 @@
  *   `define` shape, and making the escalation depend on the learner's actual diagnostic is a
  *   tutor-side change rather than a curriculum one. Tracked as issue #1126.
  *
- * Per the discovery guardrail (educational-model.md:560), `polygon` is always **built up** from
+ * Per the discovery guardrail (spec/educational-model.md#educational-conformance-notes), `polygon` is always **built up** from
  * `repeat` here — it is never handed to the learner as an opaque primitive — and the
  * `triangle`/`house` composition reuses `spec/examples/06-geometry.logo`'s validated `house 70`
  * program verbatim, so the lesson never drifts from that normative example.
@@ -67,8 +67,8 @@ import type { Exercise } from "./exercise.js";
  * The Level 5 lessons. `l5-polygon-procedure` teaches `define … end` naming a reusable
  * procedure, parameters as variables that belong to it, `return` handing back a reporter's value, and
  * the boundary that makes a procedure's own names private automatically. Its first worked
- * example reproduces `spec/educational-model.md:173-184`'s `polygon` example verbatim — built up
- * from `repeat`, never an opaque primitive — and the second reproduces :188-193's `double`
+ * example reproduces `spec/educational-model.md#level-5--functions-and-procedures`'s `polygon` example verbatim — built up
+ * from `repeat`, never an opaque primitive — and the second reproduces the same section's `double`
  * reporter verbatim, so neither drifts from the normative sample; the third and fourth show the
  * two halves of the boundary, measured in `level-5.test.mjs` rather than asserted in prose.
  * `l5-global-shared-value` (issue #829) then teaches the one way through that boundary:
@@ -199,7 +199,7 @@ export const level5Lessons: readonly Lesson[] = [
  * (which sets an absolute heading), both a Level 6 concept (`spec/educational-model.md`'s
  * concept→level table) — to draw a small row of houses (challenge), per the maintainer's
  * scope-trim comment on issue #327
- * (compose-a-recognizable-object, `spec/educational-model.md:23`/issue #359 — procedure reuse,
+ * (compose-a-recognizable-object, `spec/educational-model.md#discovery-philosophy`/issue #359 — procedure reuse,
  * not recursion). The guided exercise is a literal single-line diff of the lesson's first worked
  * example (see level-5.test.mjs's diff assertion): only the `polygon 5 60` call changes, to
  * `polygon 6 50`, leaving the `define polygon …` body untouched.

@@ -1,5 +1,5 @@
 {
-  "description": "The `on_key` × `return` cell; see `an-every-handler-stop-is-not-consumed-by-its-registering-call` for the rationale. `ol-return-outside-proc` (spec/error-model.md:116) while `setup` is still on the stack, with the key press delivered by `hostInput.events` inside the enclosing `wait`.",
+  "description": "The `on_key` × `return` cell; see `an-every-handler-stop-is-not-consumed-by-its-registering-call` for the rationale. `ol-return-outside-proc` (spec/error-model.md#normative-code-registry) while `setup` is still on the stack, with the key press delivered by `hostInput.events` inside the enclosing `wait`.",
   "profiles": ["core-language", "interaction-events"],
   "execute": true,
   "executeOptions": {

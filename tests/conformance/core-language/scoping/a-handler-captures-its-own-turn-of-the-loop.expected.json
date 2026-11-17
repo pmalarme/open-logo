@@ -1,5 +1,5 @@
 {
-  "description": "A block that registers a handler captures THE SCOPE ITSELF, not a snapshot of the values in it, and each turn of a loop captures its own (spec/execution-model.md:619-633). The three registrations therefore hold three different `:n` bindings and MUST print `10`, `20`, `30`. This is stated as a MUST in the spec's own worked example; before per-turn block scopes the runtime reused one binding and printed `30` three times — the JS `var`-in-a-loop bug.",
+  "description": "A block that registers a handler captures THE SCOPE ITSELF, not a snapshot of the values in it, and each turn of a loop captures its own (spec/execution-model.md#frames-handlers-and-lifetime). The three registrations therefore hold three different `:n` bindings and MUST print `10`, `20`, `30`. This is stated as a MUST in the spec's own worked example; before per-turn block scopes the runtime reused one binding and printed `30` three times — the JS `var`-in-a-loop bug.",
   "profiles": ["core-language", "interaction-events"],
   "execute": true,
   "events": [

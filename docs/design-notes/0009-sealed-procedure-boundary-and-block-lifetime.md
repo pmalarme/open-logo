@@ -1,4 +1,4 @@
-# 8. The sealed procedure boundary, the block as a lifetime boundary, and `global` as declared sharing
+# 9. The sealed procedure boundary, the block as a lifetime boundary, and `global` as declared sharing
 
 - Status: Accepted
 - Date: 2026

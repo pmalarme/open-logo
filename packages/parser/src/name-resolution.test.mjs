@@ -45,7 +45,7 @@ const isReservedWordFinding = (d) => d.code === "ol-reserved-word";
 
 // ── ol-not-a-place: reconciling #79's first cut to the spec worked example ──────────────────
 
-test("the spec's worked example count :nums = 3 renders the FULL target surface text (spec/tooling.md:216-222)", () => {
+test("the spec's worked example count :nums = 3 renders the FULL target surface text (spec/tooling.md#layer-2-semantic-checking)", () => {
   const diagnostics = checkSource(":nums = 1\ncount :nums = 3\n");
   const [finding] = diagnostics.filter(isNotAPlace);
   assert.equal(finding.code, "ol-not-a-place");
@@ -369,7 +369,7 @@ test("source-slicing already renders both grouping levels correctly (the fallbac
 });
 
 // ── ol-not-a-place: a FULLY-parenthesized assignment target (issue #442/F3) ──────────────────
-// spec/tooling.md:188 requires "reject … parenthesized expressions as targets" as a SEMANTIC
+// spec/tooling.md#layer-2-semantic-checking requires "reject … parenthesized expressions as targets" as a SEMANTIC
 // `ol-not-a-place`, not a parse error. `parseParenthesized` strips grouping and returns the inner
 // node unchanged, so `(:x)`/`(:x.a)` land as a bare `VarRef`/`Place` — byte-identical to the
 // assignable `:x`/`:x.a`. The parser now re-wraps such a target into the zero-segment
@@ -377,7 +377,7 @@ test("source-slicing already renders both grouping levels correctly (the fallbac
 // semantic rule instead of the pre-#442 blunt parse `ol-bad-token`. The postfix form `(:x).foo`
 // (#407/F7, a NON-empty segment list) is unchanged.
 
-test("a parenthesized colon-variable target (:x) = 2 is a SEMANTIC ol-not-a-place, not a parse error (issue #442/F3; spec/tooling.md:188)", () => {
+test("a parenthesized colon-variable target (:x) = 2 is a SEMANTIC ol-not-a-place, not a parse error (issue #442/F3; spec/tooling.md#layer-2-semantic-checking)", () => {
   const [finding] = checkSource(":x = 1\n(:x) = 2\n").filter(isNotAPlace);
   assert.equal(finding.code, "ol-not-a-place");
   assert.equal(finding.stage, "semantic");
@@ -478,7 +478,7 @@ test("set ( with an unparseable target recovers gracefully — no set-form Assig
 });
 
 // #442/F3 regression guards: the fix must NOT broaden a bare colon-place `set` target or a valid
-// assignment. `set :x` stays a parse `ol-bad-token` (spec/grammar.md:105 wants a bare place, and
+// assignment. `set :x` stays a parse `ol-bad-token` (spec/grammar.md#ebnf-notation wants a bare place, and
 // `:x` is a colon read, not a bare name); `:x = 100` stays a clean equals-form assignment.
 test("set :x still reports exactly one parse ol-bad-token on the colon read and recovers as a VarRef (issue #442/F3 regression guard for #55)", () => {
   const { ast, diagnostics } = OL.parse("set :x\n", "unit.logo");
@@ -505,7 +505,7 @@ test("a bare :missing read with no declaration anywhere raises ol-undefined-var 
   assert.deepEqual(finding.params, { name: "missing" });
 });
 
-test('thing "missing" is checked the same way a bare read is (spec/error-model.md:101)', () => {
+test('thing "missing" is checked the same way a bare read is (spec/error-model.md#normative-code-registry)', () => {
   const [finding] = checkSource('print thing "missing"').filter(isUndefinedVar);
   assert.deepEqual(finding.params, { name: "missing" });
 });
@@ -540,7 +540,7 @@ test("a parameter, local+assign, for (with and without by), and both comprehensi
   assert.deepEqual(checkSource(source).filter(isUndefinedVar), []);
 });
 
-test("assigning an undeclared name always declares it — a later read is never flagged (spec/execution-model.md:322-327)", () => {
+test("assigning an undeclared name always declares it — a later read is never flagged (spec/execution-model.md#variables-scoping-and-procedures)", () => {
   assert.deepEqual(
     checkSource(":brandNew = 1\nprint :brandNew").filter(isUndefinedVar),
     [],
@@ -552,16 +552,16 @@ test("assigning an undeclared name always declares it — a later read is never 
 // a root-frame binding as visible throughout the program regardless of textual order, and its own
 // doc comment said so in as many words: *"Treating that root-frame binding as visible throughout the
 // program regardless of textual order is **this checker's own resolution model, not a spec rule**:
-// the spec grants forward references only to `define`/`struct` (`spec/execution-model.md:83`),
+// the spec grants forward references only to `define`/`struct` (`spec/execution-model.md#reader-pipeline`),
 // **never to variables**."* The test that used to sit here pinned that self-declared deviation, not
-// a spec guarantee. `spec/execution-model.md:416-419` now requires the opposite — the checker
+// a spec guarantee. `spec/execution-model.md#what-a-scope-can-see` now requires the opposite — the checker
 // "MUST resolve them lexically and conservatively", and within one scope's straight-line statement
 // list the two "agree exactly on **visibility**, which is all the checker resolves" — so a read of
 // a name that is not yet visible is reported. The narrowing to *visibility* does not weaken this
 // test's warrant: `:later` is genuinely not visible at this read, and `print :later` / `:later = 1`
 // raises `ol-undefined-var` from **both** stages (measured), so the expectation rests on the
 // visibility rule alone rather than on the broader wording that sentence used to carry.
-test("a read before the statement that binds the name in the SAME scope is reported (spec/execution-model.md:398-399,416-419)", () => {
+test("a read before the statement that binds the name in the SAME scope is reported (spec/execution-model.md#what-a-scope-can-see)", () => {
   const findings = checkSource("print :later\n:later = 1\n").filter(
     isUndefinedVar,
   );
@@ -577,11 +577,11 @@ test("the paired positive control: the same two statements in the other order st
   );
 });
 
-// The conservative half of the same rule, and where it stops. `spec/execution-model.md:423-424` —
+// The conservative half of the same rule, and where it stops. `spec/execution-model.md#what-a-scope-can-see` —
 // "Across scope boundaries the checker never reports a name that a later declaration or a deferred
 // handler could reach" — turns on whether the read can actually be reached later. A *deferred*
 // handler block can be; an *eager* control body, which runs where it is written, cannot, and
-// `spec/tooling.md:184` names that eager case as `ol-undefined-var` at Layer 2.
+// `spec/tooling.md#layer-2-semantic-checking` names that eager case as `ol-undefined-var` at Layer 2.
 test("a read inside a DEFERRED handler of a name the enclosing scope binds later is NOT reported", () => {
   assert.deepEqual(
     checkSource("on_click [ print :later ]\n:later = 1\n", [
@@ -592,7 +592,7 @@ test("a read inside a DEFERRED handler of a name the enclosing scope binds later
   );
 });
 
-test("but the same read inside an EAGER control body IS reported (spec/tooling.md:184)", () => {
+test("but the same read inside an EAGER control body IS reported (spec/tooling.md#layer-2-semantic-checking)", () => {
   const findings = checkSource(
     "repeat 1 [ print :later ]\n:later = 1\n",
   ).filter(isUndefinedVar);
@@ -658,7 +658,7 @@ test("two different procedures' own parameters do not leak into each other's fra
 test("a nested procedure definition does not inherit its enclosing procedure's frame or locals (no closures) — reconciling the flat whole-program model this rule replaced", () => {
   // `inner` reads `:a`, which is `outer`'s PARAMETER, and that read is what makes this test
   // load-bearing: a `define` is registered in phase 1 and never captures the scope it is written in
-  // (`spec/execution-model.md:651-655`), so `inner`'s chain is `[inner's frame, root]` and `:a` is
+  // (`spec/execution-model.md#frames-handlers-and-lifetime`), so `inner`'s chain is `[inner's frame, root]` and `:a` is
   // invisible to it. Before the review gate this test asserted only the outward direction (`outer`
   // cannot see `inner`'s local), which a checker that WRONGLY gave nested procedures their lexical
   // parents would still have passed — the rubber-duck reviewer caught that it pinned half a rule.
@@ -684,7 +684,7 @@ test("a nested procedure definition does not inherit its enclosing procedure's f
 });
 
 test("a procedure defined INSIDE A BLOCK is registered globally too, so it captures no block scope either", () => {
-  // The same rule from the other side. `spec/execution-model.md:651-655` contrasts a `define`
+  // The same rule from the other side. `spec/execution-model.md#frames-handlers-and-lifetime` contrasts a `define`
   // written inside a body — registered in phase 1, capturing nothing — with a handler block written
   // in the same place, which does capture. A checker that walked `define` like any other nested node
   // would let `:held` leak in.
@@ -744,7 +744,7 @@ test("a postfixed read of an unbound Place base raises ol-undefined-var at the b
   assert.deepEqual(finding.params, { name: "missing" });
 });
 
-test("a segmented assignment target's base must already be bound — no auto-vivification (spec/execution-model.md:251-291)", () => {
+test("a segmented assignment target's base must already be bound — no auto-vivification (spec/execution-model.md#postfix-reads, spec/execution-model.md#assignable-places-and-mutation)", () => {
   const [finding] = checkSource(":missing.field = 1").filter(isUndefinedVar);
   assert.deepEqual(finding.params, { name: "missing" });
 });
@@ -807,7 +807,7 @@ test("thing is reachable in two categories at once; it is still reported exactly
 });
 
 test("#841: a Core primitive collides even with an EMPTY profile set", () => {
-  // The most extreme statement of `spec/grammar.md:412` available: no profile at all is claimed,
+  // The most extreme statement of `spec/grammar.md#keywords-primitives-and-built-in-names` available: no profile at all is claimed,
   // and `first` is still a name the program may not declare. Nothing consults the profile set on
   // this axis, and an empty set is the cheapest way to prove it.
   const findings = checkSource("define first :x\n  print :x\nend\n", []).filter(
@@ -820,7 +820,7 @@ test("#841: a Core primitive collides even with an EMPTY profile set", () => {
 test("two define f ... end blocks only flag the second, later occurrence", () => {
   // Issue #838 recoded this from `ol-reserved-word` with `namespace: "procedure"` to
   // `ol-duplicate-definition`: a name the program itself declared is not a name OpenLogo owns
-  // (`spec/grammar.md:416`). The new code carries the earlier declaration's span so the message can
+  // (`spec/grammar.md#keywords-primitives-and-built-in-names`). The new code carries the earlier declaration's span so the message can
   // name the line the learner already used.
   const findings = checkSource(
     "define f :a\n  print :a\nend\ndefine f :a\n  print :a\nend\n",
@@ -833,7 +833,7 @@ test("two define f ... end blocks only flag the second, later occurrence", () =>
 
 test("local first inside a procedure body is a binding, so it no longer collides", () => {
   // Reversed by maintainer ruling #833 (issue #837): `local` is a binding form, not one of the four
-  // declaration slots, and `spec/grammar.md:390` makes accepting the name a MUST. `local first`
+  // declaration slots, and `spec/grammar.md#keywords-primitives-and-built-in-names` makes accepting the name a MUST. `local first`
   // used to report a primitive collision.
   assert.deepEqual(
     checkSource("define g :y\n  local first\n  print :y\nend\n").filter(

@@ -1,5 +1,5 @@
 /**
- * The two **name-resolution** diagnostics of Layer 2 (`spec/tooling.md:184-185`): `ol-undefined-var`
+ * The two **name-resolution** diagnostics of Layer 2 (`spec/tooling.md#layer-2-semantic-checking`): `ol-undefined-var`
  * for a read that resolves against nothing, and `ol-var-not-visible` (issue #825) for a read the
  * **sealed procedure boundary** is the reason for.
  *
@@ -10,9 +10,9 @@
  *
  * `spec/execution-model.md`'s § *Variables, scoping, and procedures* states the whole ruling in one
  * sentence — **"A name is born where it is first assigned, lives until that scope ends, and a
- * procedure's edge is sealed."** (`spec/execution-model.md:351-352`) — and `@openlogo/runtime`'s
+ * procedure's edge is sealed."** (`spec/execution-model.md#variables-scoping-and-procedures`) — and `@openlogo/runtime`'s
  * `scope.ts` is that sentence executable. This module is the same four bullet points of
- * `spec/execution-model.md:381-403` restated **lexically**, because `@openlogo/parser` cannot depend
+ * `spec/execution-model.md#what-a-scope-can-see` restated **lexically**, because `@openlogo/parser` cannot depend
  * on `@openlogo/runtime` (the dependency runs the other way, and that module's own doc comment rules
  * on exactly this). The correspondence is deliberate and meant to be checked, not merely intended:
  *
@@ -26,7 +26,7 @@
  * That last row is the one place the two sets are **not** literally equal, and the difference is
  * measured rather than assumed. `collectRootScopeNames` subtracts every name a root-level `global`
  * declares, because the runtime can reach `boundaryHiding` for such a name — a read that runs
- * *before* the declaration line finds no binding — and `spec/execution-model.md:412-414` says that
+ * *before* the declaration line finds no binding — and `spec/execution-model.md#what-a-scope-can-see` says that
  * read is an ordinary `ol-undefined-var`. Here the same subtraction is **unobservable**: the check
  * is lexical, so a root-level `global` is already visible through the seal at every read in the
  * document ({@link visibleInChain}), and {@link boundaryHiding} is only ever consulted after a read
@@ -40,14 +40,14 @@
  *
  * ### The one asymmetry, and why it is not a bug
  *
- * `spec/execution-model.md:416-424` is explicit that the two stages resolve differently on purpose:
+ * `spec/execution-model.md#what-a-scope-can-see` is explicit that the two stages resolve differently on purpose:
  * the evaluator resolves a name **as execution reaches it**, while the checker "MUST resolve them
  * lexically and conservatively: it reports a name only when **no** execution order could make that
  * name visible at the read". That splits cleanly in two, and the split is this module's whole
  * design:
  *
  * - **Within one scope's own straight-line statement list the two agree exactly on *visibility***
- *   (`spec/execution-model.md:416-419`) — which is all this module resolves — so a read is
+ *   (`spec/execution-model.md#what-a-scope-can-see`) — which is all this module resolves — so a read is
  *   resolved against the bindings that scope has made *so far* ({@link Scope.boundSoFar}). The
  *   qualifier is load-bearing: a bare `local name` makes the name **visible while leaving it
  *   unbound**, so the evaluator still fails that read (`ol-undefined-var`) where this module is
@@ -56,19 +56,19 @@
  *   what makes the headline diagnostic fire on the **read**: in
  *   `repeat 4 [ forward :count * 10   :count = :count + 1 ]` the write creates a binding in the
  *   `repeat` body — born fresh on every turn, a genuinely different variable — and the read comes
- *   first (`spec/execution-model.md:441-447`).
+ *   first (`spec/execution-model.md#what-a-scope-can-see`).
  * - **An eager enclosing scope contributes only what it had bound by the position the nested scope
  *   appears at.** A control-form body runs where it is written, so no execution order rescues its
- *   read of a binding the enclosing scope makes later — and `spec/tooling.md:184` names exactly that
+ *   read of a binding the enclosing scope makes later — and `spec/tooling.md#layer-2-semantic-checking` names exactly that
  *   case, "a block's read of an enclosing binding created later", as `ol-undefined-var` at Layer 2.
  * - **A deferred handler block sees every enclosing scope in full.** It fires whenever its event
  *   does, including after the top-level statement that binds the name it reads
- *   (`spec/execution-model.md:401-403`), so reporting it would be a false positive on a conforming
- *   program — which `spec/execution-model.md:423-424` forbids in as many words.
+ *   (`spec/execution-model.md#what-a-scope-can-see`), so reporting it would be a false positive on a conforming
+ *   program — which `spec/execution-model.md#what-a-scope-can-see` forbids in as many words.
  *
  * {@link Scope} carries both chains for that reason, and deferredness is handed down the **whole**
  * chain rather than one level, because a handler registered inside a loop body captures that turn's
- * scope (`spec/execution-model.md:617-637`). Which heads defer their body is read from
+ * scope (`spec/execution-model.md#frames-handlers-and-lifetime`). Which heads defer their body is read from
  * {@link DEFERRED_BLOCK_HEADS} — `signatures.ts`'s Interaction & Events registry, the one
  * `checker-control-flow.ts` already consumes — and everything else that carries a body is eager.
  *
@@ -86,7 +86,7 @@
  * is what earns `ol-var-not-visible` the `semantic` stage: the boundary is **lexical and absolute**,
  * so no execution order can bring that binding inside, wherever in the body the read sits —
  * including inside a `repeat` or `if` nested in the body. The choice between the two codes is
- * therefore lexical, not temporal (`spec/execution-model.md:405-414`):
+ * therefore lexical, not temporal (`spec/execution-model.md#what-a-scope-can-see`):
  * {@link DocumentFacts.rootBindings} is consulted, never "has the top-level line run yet".
  *
  * ### What binds a name where
@@ -96,19 +96,19 @@
  * ({@link collectBindingsIn}). A binding site is a `local` declaration, a root-level `global`
  * declaration, or a bare zero-segment assignment (`:name = …` / `set name to …` / heritage `make`)
  * whose name **no enclosing scope makes visible** — because an assignment to a visible name updates
- * that binding instead of creating one (`spec/execution-model.md:476-490`, `assignVariable`).
+ * that binding instead of creating one (`spec/execution-model.md#what-an-assignment-targets`, `assignVariable`).
  * Visibility decides that, never statement order, which is why `global count = 5` followed by a
  * procedure body's `:count = 0` writes the global and is clean.
  *
  * A segmented place's base (`:people` in `:people.tom = 1`) is always checked as a **read**, never
- * treated as a declaration — `spec/execution-model.md:492-499` is explicit that there is no
+ * treated as a declaration — `spec/execution-model.md#what-an-assignment-targets` is explicit that there is no
  * intermediate auto-vivification, and that inside a procedure that cannot see `people` the postfix
  * form raises `ol-var-not-visible` on the base while the bare form silently creates a local.
  *
  * ### Deliberately out of scope
  *
  * A `define` is registered in phase 1 and never captures the scope it is written in
- * (`spec/execution-model.md:651-655`), so a procedure frame's enclosing chain is always
+ * (`spec/execution-model.md#procedures`), so a procedure frame's enclosing chain is always
  * `[frame, root]` — never the lexical parents. A handler block, written in the same place, *does*
  * capture; that is the conservative "enclosing scopes contribute everything" rule above.
  */
@@ -130,7 +130,7 @@ import { childrenOf } from "./ast.js";
 import type { CheckProfile } from "./check.js";
 import { interactionEventsBlockHeadNames } from "./signatures.js";
 
-/** A set of case-folded names. Identifiers are case-insensitive (`spec/grammar.md:13`). */
+/** A set of case-folded names. Identifiers are case-insensitive (`spec/grammar.md#lexical-form-and-encoding`). */
 type NameSet = ReadonlySet<string>;
 
 /**
@@ -145,7 +145,7 @@ type NameSet = ReadonlySet<string>;
  *
  * **One measured under-report lives here.** This runtime fires `when "start"` during registration,
  * so `when "start" [ print :later ]` before `:later = 1` raises `ol-undefined-var` at run time while
- * this rule stays silent. `spec/interaction-events.md:212-224` says only that `"start"` names "the
+ * this rule stays silent. `spec/interaction-events.md#when-event-word-block` says only that `"start"` names "the
  * start of the interactive run" and never says when that is relative to the registering statement,
  * so treating it as eager would encode this implementation rather than the contract — and would
  * produce a **false positive** if the event later fires after the top-level program. Silence is the
@@ -156,7 +156,7 @@ const DEFERRED_BLOCK_HEADS: ReadonlySet<string> = new Set(
 );
 /**
  * The lowercase name(s) a `for … in` / `map`/`filter`/`reduce` binder introduces: one for a bare
- * `name`, or one per `:name` in a destructuring `[ :x :y ]` pattern (`spec/grammar.md:137-138`).
+ * `name`, or one per `:name` in a destructuring `[ :x :y ]` pattern (`spec/grammar.md#ebnf-notation`).
  * Resolving which destructured name a given read maps to is out of scope here (#114); every
  * destructured name is simply visible throughout the loop/comprehension body, same as today's
  * single bare-name binder.
@@ -174,14 +174,14 @@ function binderNames(binder: Binder): string[] {
 interface DocumentFacts {
   /**
    * Names a **root-level** `global` declaration names. These are the only root bindings a procedure
-   * body can see (`spec/execution-model.md:389-394`), and they are what {@link visibleInChain} lets
+   * body can see (`spec/execution-model.md#what-a-scope-can-see`), and they are what {@link visibleInChain} lets
    * through the seal.
    */
   readonly globals: NameSet;
   /**
    * Names a `global` declaration written **anywhere but** the root scope names. Such a declaration
    * declares nothing — it raises `ol-global-outside-root` when it runs
-   * (`spec/execution-model.md:561-563`) — but answering that one mistake with a second
+   * (`spec/execution-model.md#global`) — but answering that one mistake with a second
    * `ol-undefined-var` on every read of the name would be two diagnostics for one defect, so those
    * reads are suppressed. **The suppression stops there and MUST NOT reach `ol-var-not-visible`:** a
    * learner who put `global` in the wrong place still needs the diagnostic that names the fix when a
@@ -194,7 +194,7 @@ interface DocumentFacts {
    * the whole document's set, because a root-level `global` is visible to them wherever either sits;
    * an **eager** block inherits its parent's set as of its own position, and the root's own statement
    * list grows one as the walk passes each misplaced declaration. So `print :x` written *above* the
-   * repaired declaration is still reported (`spec/execution-model.md:571-574`), and so is
+   * repaired declaration is still reported (`spec/execution-model.md#global`), and so is
    * `repeat 1 [ print :x ]` in the same position — while `on_click [ print :x ]` there is not. An
    * earlier revision applied the excuse document-wide and the `rubber-duck` reviewer produced exactly
    * that counter-example. {@link Scope.suppressed} carries the per-scope form;
@@ -210,7 +210,7 @@ interface DocumentFacts {
   readonly misplacedGlobals: NameSet;
   /**
    * Every name the root scope binds anywhere. It is both the enclosing chain of every procedure
-   * frame and the set that decides `ol-var-not-visible` (`spec/error-model.md:132`) — the names the
+   * frame and the set that decides `ol-var-not-visible` (`spec/error-model.md#normative-code-registry`) — the names the
    * sealed boundary hides. See the module doc comment's table for why no `global` subtraction is
    * needed here although `collectRootScopeNames` needs one.
    */
@@ -221,19 +221,19 @@ interface DocumentFacts {
  * One scope being walked, mirroring a `@openlogo/runtime` `Environment` at the point the walk has
  * reached. It carries **two** chains of enclosing scopes, both nearest first and root last, and the
  * difference between them is the whole eager/deferred distinction of
- * `spec/execution-model.md:401-403`:
+ * `spec/execution-model.md#what-a-scope-can-see`:
  *
  * - {@link enclosing} is what a read here can see **now**. For an *eager* scope — a control-form
  *   body, which runs where it is written — each ancestor contributes only the bindings it had made
  *   by the position this scope appears at, so `repeat 1 [ print :later ]` followed by `:later = 1`
- *   reports, exactly as `spec/tooling.md:184` requires.
+ *   reports, exactly as `spec/tooling.md#layer-2-semantic-checking` requires.
  * - {@link eventual} is what a read here could see **at any time**: every ancestor's full set. A
  *   *deferred* scope — a handler block, which fires whenever its event does — takes this as its
  *   {@link enclosing} too, so `on_click [ print :score ]` written before `:score = 0` stays silent
- *   (`spec/execution-model.md:423-424`).
+ *   (`spec/execution-model.md#what-a-scope-can-see`).
  *
  * Deferredness has to propagate through the **whole** chain rather than one level, because a handler
- * registered inside a loop body captures that turn's scope (`spec/execution-model.md:617-637`) — so
+ * registered inside a loop body captures that turn's scope (`spec/execution-model.md#frames-handlers-and-lifetime`) — so
  * `repeat 3 [ every 5 [ print :label ] ]` before `:label = "hi"` must stay silent even though its
  * immediate parent is eager. Handing a deferred scope `[parent.own, ...parent.eventual]` is what
  * makes that fall out rather than needing a special case.
@@ -265,7 +265,7 @@ interface Scope {
    *   statement list** grows one as the walk passes each misplaced declaration.
    *
    * So `print :x` and `repeat 1 [ print :x ]` written *above* the repaired declaration are both still
-   * reported (`spec/execution-model.md:571-574`), while `on_click [ print :x ]` in the same position
+   * reported (`spec/execution-model.md#global`), while `on_click [ print :x ]` in the same position
    * is not. The eager/deferred pair is pinned in `variable-visibility.test.mjs` precisely because the
    * two look identical in the source.
    */
@@ -274,7 +274,7 @@ interface Scope {
 
 /**
  * Whether `chain` has a scope that binds `key` **and that the code being checked can see** —
- * `findVisibleFrame` restated (`spec/execution-model.md:381-394`).
+ * `findVisibleFrame` restated (`spec/execution-model.md#what-a-scope-can-see`).
  *
  * The loop stops one short of the root and the root is judged separately, because the root is the
  * only scope the procedure boundary gates: every earlier link is one the code is written inside,
@@ -318,11 +318,11 @@ function isVisible(scope: Scope, key: string, facts: DocumentFacts): boolean {
 /**
  * The procedure whose sealed boundary is the reason a read failed, or `undefined` when the boundary
  * is not the reason. Called only once a read has already missed, so it decides nothing but which of
- * the two codes `spec/error-model.md:102,132` distinguishes the failure gets — `boundaryHiding`
+ * the two codes `spec/error-model.md#normative-code-registry` distinguishes the failure gets — `boundaryHiding`
  * restated.
  *
  * A procedure body's only lexically enclosing scope is the **root scope**: procedures are
- * declarations registered in phase 1 (`spec/execution-model.md:651-655`), never nested inside the
+ * declarations registered in phase 1 (`spec/execution-model.md#frames-handlers-and-lifetime`), never nested inside the
  * scope they are written in, so there is no other enclosing scope to consult. A name a top-level
  * *block* binds is therefore not in this set — that block encloses no procedure body — and a read of
  * it from a procedure is the ordinary `ol-undefined-var`.
@@ -342,12 +342,12 @@ function boundaryHiding(
 /**
  * Adds to `into` every name the subtree at `node` binds **in the scope that owns it**, stopping at
  * each nested scope: a `Block` (a control-form body, a handler block, a comprehension body, in
- * either the `[ … ]` or the long `… end` spelling — `spec/execution-model.md:367-369`) and a
+ * either the `[ … ]` or the long `… end` spelling — `spec/execution-model.md#scopes-and-bindings`) and a
  * `ProcedureDef` both own their own names.
  *
  * `enclosing`/`procedure`/`globals` describe the chain **outside** the owning scope, which is what
  * decides whether a bare assignment creates a binding here or updates a visible one
- * (`spec/execution-model.md:476-490`). An empty `enclosing` therefore means the root scope, which is
+ * (`spec/execution-model.md#what-an-assignment-targets`). An empty `enclosing` therefore means the root scope, which is
  * also the only place a `global` declaration declares anything.
  */
 function collectBindingsIn(
@@ -407,7 +407,7 @@ function collectScopeBindings(
 /**
  * The names any **root-level** `global` declaration names. Only those declare anything: one written
  * anywhere else raises `ol-global-outside-root` when it runs and shares no name at all
- * (`spec/execution-model.md:561-563`).
+ * (`spec/execution-model.md#global`).
  */
 function rootGlobalsOf(program: ProgramNode): Set<string> {
   const names = new Set<string>();
@@ -422,11 +422,11 @@ function rootGlobalsOf(program: ProgramNode): Set<string> {
 /**
  * Adds to `into` every name a **misplaced** `global` inside the root statement `statement` declares —
  * one written anywhere but the root scope itself, which therefore declares nothing and raises
- * `ol-global-outside-root` when it runs (`spec/execution-model.md:561-563`).
+ * `ol-global-outside-root` when it runs (`spec/execution-model.md#global`).
  *
  * A root-level `Global` is legal *itself*, but only that declaration is at the root: its initializer
  * can still open a block scope, because a comprehension body holds statements
- * (`spec/grammar.md:144`), so the subtree below it is walked like any other. Same shape as
+ * (`spec/grammar.md#ebnf-notation`), so the subtree below it is walked like any other. Same shape as
  * `checker-global-placement.ts`, and shared by {@link misplacedGlobalsOf} and {@link checkScope} so
  * the document-wide set and the root's running one can never disagree.
  *
@@ -509,7 +509,7 @@ function undefinedVarMessage(name: string): string {
 }
 
 /**
- * The learner-facing message for a read the sealed boundary hid. `spec/error-model.md:132` makes two
+ * The learner-facing message for a read the sealed boundary hid. `spec/error-model.md#normative-code-registry` makes two
  * requirements a generic "undefined variable" message would not meet, and both are load-bearing for
  * a learner who can see the name right there at the top level: the message MUST **name the
  * boundary** — `:{name} is not defined inside {procedure}` — and the suggestion MUST **name the
@@ -522,19 +522,19 @@ function undefinedVarMessage(name: string): string {
  * Three things in the wording are deliberate, each from a review-gate finding by
  * `@learner-experience`:
  *
- * - **"the fix is one word at the top level"**, which is `spec/execution-model.md:447`'s own
+ * - **"the fix is one word at the top level"**, which is `spec/execution-model.md#what-a-scope-can-see`'s own
  *   framing. The learner reading this has *already* written `:count = 0` at the top level, so an
  *   earlier draft's "declare it at the top level" told them to do the thing they believe they have
  *   done. The repair is a change to what they wrote, not a new line somewhere else, and the
  *   sentence has to say which.
  * - **"the names it sets itself"** is the third of the three visible categories
- *   (`spec/execution-model.md:389-394`). Naming only parameters and `global` explained the rule by
+ *   (`spec/execution-model.md#what-a-scope-can-see`). Naming only parameters and `global` explained the rule by
  *   listing two things this learner's program contains neither of, and omitted the very mechanism
  *   that makes a write-first touch correctly silent.
  * - **"(its starting value)"** rather than `...`, because a screen reader does not speak an ellipsis
  *   at default punctuation verbosity: `global count = ...` was heard as "global count equals" and
  *   the entire actionable clause vanished. The placeholder stays a placeholder — the learner's real
- *   initializer is in neither param, and `spec/error-model.md:45-48` requires prose to be derived
+ *   initializer is in neither param, and `spec/error-model.md#diagnostic-shape` requires prose to be derived
  *   from `code` and `params` alone, so printing `= 0` here would need a spec change.
  *
  * Three short sentences rather than one em-dashed run-on, matching every neighbouring message in
@@ -661,7 +661,7 @@ function enterBlockScope(
 /**
  * Enters a **procedure frame**. Its chain is `[frame, root]` whatever the definition is written
  * inside, because a `define` is registered in phase 1 and never captures the scope it appears in
- * (`spec/execution-model.md:651-655`).
+ * (`spec/execution-model.md#frames-handlers-and-lifetime`).
  *
  * Both chains are the same and both are position-blind: a procedure may be called from anywhere, so
  * there is no "the position this scope appears at" to limit the root's contribution to.
@@ -695,7 +695,7 @@ function enterProcedureFrame(
  * Walks one scope's statements **in order**, resolving each statement's reads against the bindings
  * made so far and only then adding the ones that statement itself creates. That order is the whole
  * point: it is why `local x = :x` reads the *enclosing* `x` rather than the binding it is about to
- * create (`spec/execution-model.md:508-515`, issue #1102), and why the headline diagnostic lands on
+ * create (`spec/execution-model.md#local`, issue #1102), and why the headline diagnostic lands on
  * the read rather than staying silent because a later write in the same block binds the name.
  */
 function checkScope(
@@ -712,7 +712,7 @@ function checkScope(
     // positive: collecting against `eventual` while reading through `enclosing` makes
     // `repeat 4 [ :x = 0  :x = :x + 1  print :x ]` followed by a later top-level `:x = 0` conclude
     // that the block's assignment updates the outer binding (position-blind) while its reads cannot
-    // see that binding yet (positional). `spec/execution-model.md:607-615` — the contrast example
+    // see that binding yet (positional). `spec/execution-model.md#blocks-update-what-they-can-see` — the contrast example
     // that must print `1 1 1 1` then `1 2 3 4` — is exactly that program, and it reported twice
     // under an earlier revision. Pinned by "NON-REGRESSION: the spec's own block-lifetime contrast
     // example stays clean" and by `npm run examples`.
@@ -769,7 +769,7 @@ function checkNode(
     case "Local":
       // A declaration, never a read; its names join `boundSoFar` only once the whole statement has
       // been checked. Its optional initializer IS a read position, and is checked with exactly the
-      // visibility the `local` statement itself has (`spec/execution-model.md:508-515`).
+      // visibility the `local` statement itself has (`spec/execution-model.md#local`).
       if (node.value !== undefined) {
         checkNode(node.value, scope, facts, diagnostics);
       }
@@ -777,7 +777,7 @@ function checkNode(
     case "Global":
       // Same split as `Local`: the declared name is a binding, and the required initializer is a
       // read position that runs before the declaration takes effect
-      // (`spec/execution-model.md:571-574`).
+      // (`spec/execution-model.md#global`).
       checkNode(node.value, scope, facts, diagnostics);
       return;
     case "Assign": {
@@ -785,7 +785,7 @@ function checkNode(
       if (target.kind === "Place") {
         if (target.segments.length > 0) {
           // Segmented target: the base must already be a bound variable — no intermediate
-          // auto-vivification (`spec/execution-model.md:492-499`) — so it is checked as a read.
+          // auto-vivification (`spec/execution-model.md#assignable-places-and-mutation`) — so it is checked as a read.
           checkBaseRead(target, scope, facts, diagnostics);
           for (const segment of target.segments) {
             if (segment.kind === "index") {
@@ -795,7 +795,7 @@ function checkNode(
         }
         // A zero-segment target (`:name = value`) is never itself a read: a write-first touch of a
         // name the scope cannot see creates a binding here, silently and correctly, because it is a
-        // genuinely different variable (`spec/execution-model.md:443-446`).
+        // genuinely different variable (`spec/execution-model.md#what-a-scope-can-see`).
       } else {
         checkNode(target, scope, facts, diagnostics);
       }
@@ -879,7 +879,7 @@ function checkNode(
       if (node.form === "reduce") {
         checkNode(node.initial, scope, facts, diagnostics);
         // `reduce` has TWO binders: the element binder and the accumulator
-        // (`spec/execution-model.md:769-776`). Modelling only the element wrongly flags the
+        // (`spec/execution-model.md#control-forms`). Modelling only the element wrongly flags the
         // accumulator as an outer read and breaks `spec/examples/12-fractal.logo`.
         seeds.push(node.accumulator.name.toLowerCase());
       }

@@ -1,5 +1,5 @@
 {
-  "description": "global binds a BARE name per spec/grammar.md:157 and spec/execution-model.md:548 (\"The name is written **bare**, without a leading colon\"), so writing global :count reports ol-bad-token at the colon-name token — the same shape local :x is already rejected in.",
+  "description": "global binds a BARE name per spec/grammar.md#ebnf-notation (`global-statement ::= \"global\" name \"=\" expression`) and spec/execution-model.md#global (\"The name is written **bare**, without a leading colon\"), so writing global :count reports ol-bad-token at the colon-name token — the same shape local :x is already rejected in.",
   "profiles": ["core-language"],
   "expect": "match",
   "events": [],

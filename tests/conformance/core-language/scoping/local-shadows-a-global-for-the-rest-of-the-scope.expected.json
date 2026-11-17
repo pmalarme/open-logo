@@ -1,5 +1,5 @@
 {
-  "description": "spec/execution-model.md:530-543's worked example: `local count = 5` shadows the `global` for the rest of the procedure body, and the global is untouched, so the program prints `5` then `0`. The initializer is evaluated BEFORE the new binding is created (:508-515), which is what lets a same-named local snapshot a shared value at all.",
+  "description": "The worked example in spec/execution-model.md#local: `local count = 5` shadows the `global` for the rest of the procedure body, and the global is untouched, so the program prints `5` then `0`. The initializer is evaluated BEFORE the new binding is created (spec/execution-model.md#local), which is what lets a same-named local snapshot a shared value at all.",
   "profiles": ["core-language"],
   "execute": true,
   "events": [

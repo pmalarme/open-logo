@@ -1,5 +1,5 @@
 {
-  "description": "Slice #330 — place-chain composition across dict then record kinds, reproducing `spec/data-structures.md:30-39` verbatim (`struct person`, a dict literal holding a record, `print :people.tom.age`, `:people.tom.age = 9`) and extending it with a second `print` to assert the write actually mutated the nested record in place: `.tom` resolves as a dict-key segment, `.age` then resolves as a record-field segment against the value that segment produced — the same chain walker composes both kinds with no auto-vivification anywhere in the chain.",
+  "description": "Slice #330 — place-chain composition across dict then record kinds, reproducing `spec/data-structures.md#the-uniform-collection-access-idiom` verbatim (`struct person`, a dict literal holding a record, `print :people.tom.age`, `:people.tom.age = 9`) and extending it with a second `print` to assert the write actually mutated the nested record in place: `.tom` resolves as a dict-key segment, `.age` then resolves as a record-field segment against the value that segment produced — the same chain walker composes both kinds with no auto-vivification anywhere in the chain.",
   "profiles": ["core-language", "data"],
   "execute": true,
   "events": [

@@ -1,5 +1,5 @@
 {
-  "description": "The `on_key` cell of the same rule; see `an-every-handler-stop-is-not-consumed-by-its-registering-call` for the rationale and for why one fixture per handler kind is needed rather than one for the rule. The key press is delivered by the harness's tick-scheduled `hostInput.events` while `setup` is still on the stack, so the handler fires inside the enclosing `wait` and its `stop` raises `ol-stop-outside-proc` (spec/error-model.md:119). Without the scheduled press nothing fires at all and the program would print `99` — the delivery is what makes this fixture able to fail.",
+  "description": "The `on_key` cell of the same rule; see `an-every-handler-stop-is-not-consumed-by-its-registering-call` for the rationale and for why one fixture per handler kind is needed rather than one for the rule. The key press is delivered by the harness's tick-scheduled `hostInput.events` while `setup` is still on the stack, so the handler fires inside the enclosing `wait` and its `stop` raises `ol-stop-outside-proc` (spec/error-model.md#normative-code-registry). Without the scheduled press nothing fires at all and the program would print `99` — the delivery is what makes this fixture able to fail.",
   "profiles": ["core-language", "interaction-events"],
   "execute": true,
   "executeOptions": {

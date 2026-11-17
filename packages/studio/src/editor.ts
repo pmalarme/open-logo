@@ -57,7 +57,7 @@ export interface HighlightToken {
    * `ol-mod-*`), a second axis independent of {@link class} — #1106. Additive and optional: a token
    * always carries its own {@link class}, so a renderer or theme that ignores this field paints a
    * modified token exactly like an unmodified one, which is the graceful degradation
-   * `spec/tooling.md:83-84` contemplates for the bracket roles.
+   * `spec/tooling.md#delimiter-roles` contemplates for the bracket roles.
    */
   readonly modifiers?: readonly string[];
   /**

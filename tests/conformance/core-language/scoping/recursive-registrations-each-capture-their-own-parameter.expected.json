@@ -1,5 +1,5 @@
 {
-  "description": "A procedure frame is created by each CALL (spec/execution-model.md:365-366) with its own parameters, and a handler registered inside a frame captures that frame (spec/execution-model.md:635-637). Three nested calls therefore leave three live registrations over three distinct `:n` bindings, and the firings print `3`, `2`, `1`. Parameters were already per-frame before the sealed boundary landed, so this is the non-regression side of the recursion repair `recursion-binds-once-per-frame` pins for a body-created name.",
+  "description": "A procedure frame is created by each CALL (spec/execution-model.md#scopes-and-bindings) with its own parameters, and a handler registered inside a frame captures that frame (spec/execution-model.md#frames-handlers-and-lifetime). Three nested calls therefore leave three live registrations over three distinct `:n` bindings, and the firings print `3`, `2`, `1`. Parameters were already per-frame before the sealed boundary landed, so this is the non-regression side of the recursion repair `recursion-binds-once-per-frame` pins for a body-created name.",
   "profiles": ["core-language", "interaction-events"],
   "execute": true,
   "events": [

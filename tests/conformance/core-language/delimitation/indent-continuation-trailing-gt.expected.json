@@ -1,0 +1,32 @@
+{
+  "description": "Measured on this tree: trailing `>` with indented operand continues identically. 1 statement printing `false`, no diagnostics.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/delimitation/indent-continuation-trailing-gt",
+        "start": [1, 1],
+        "end": [2, 4]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/delimitation/indent-continuation-trailing-gt",
+        "start": [1, 1],
+        "end": [2, 4]
+      },
+      "payload": {
+        "values": [false]
+      }
+    }
+  ],
+  "diagnostics": []
+}

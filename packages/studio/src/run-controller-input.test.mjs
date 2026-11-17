@@ -119,7 +119,7 @@ test("answering the question completes the run from exactly where it stopped", (
   assert.equal(store.getState().runStatus, "done");
 });
 
-test("dismissing the question ends the read unanswered, cancelling the run (spec/interaction-events.md:171-172)", () => {
+test("dismissing the question ends the read unanswered, cancelling the run (spec/interaction-events.md#trace-stream-integration)", () => {
   const store = OL.createStudioState({ source: ASK_NAME_SOURCE });
   const host = createTestPromptHost();
   const controller = OL.createRunController(store, { inputPrompt: host });
@@ -699,7 +699,7 @@ test("cancelling the SECOND question keeps the first answer's work and cancels f
   );
 });
 
-test("an answer that reads as a number is reported as one (spec/interaction-events.md:197-198), unchanged by the replay", () => {
+test("an answer that reads as a number is reported as one (spec/interaction-events.md#input-prompt-word), unchanged by the replay", () => {
   const store = OL.createStudioState({
     source: [':count = input "how many?"', "print :count + 1"].join("\n"),
   });
@@ -889,7 +889,7 @@ test("issue #881: the scenario that used to make a replay diverge now completes 
   const store = OL.createStudioState({
     source: [
       // `:answer` is created at the top level, before the `if`, because a name born inside a block
-      // dies at its `]` (`spec/execution-model.md:595-615`) while a block MAY update a binding its
+      // dies at its `]` (`spec/execution-model.md#blocks-update-what-they-can-see`) while a block MAY update a binding its
       // enclosing scope already holds. Either branch therefore writes through to the one binding
       // `print :answer` reads — which is what this test is about; the scoping is incidental.
       ':answer = "unasked"',
@@ -999,7 +999,7 @@ function createSeedQueue(seeds) {
 
 /** Chooses WHICH question to ask from an unseeded `random` — issue #881's exact program class.
  * `:answer` is created before the `if` so both branches update the one binding `print :answer`
- * reads: a name born inside a block dies at its `]` (`spec/execution-model.md:595-615`). */
+ * reads: a name born inside a block dies at its `]` (`spec/execution-model.md#blocks-update-what-they-can-see`). */
 const RANDOM_BRANCH_SOURCE = [
   ':answer = "unasked"',
   'if (random 2) == 0 [ :answer = input "how many sides?" ] else [ :answer = input "what colour?" ]',

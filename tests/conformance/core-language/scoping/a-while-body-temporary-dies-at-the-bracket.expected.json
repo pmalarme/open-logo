@@ -1,5 +1,5 @@
 {
-  "description": "The `while` half of the same rule (spec/execution-model.md:367-369,603-605), and the two halves in one program: `:n` is born OUTSIDE the loop so the body updates it and `print :n` reports `2` — which is what proves the body ran — while `:seen`, born INSIDE it, is gone at the `]` and its read raises `ol-undefined-var` (spec/error-model.md:102).",
+  "description": "The `while` half of the same rule (spec/execution-model.md#scopes-and-bindings, spec/execution-model.md#blocks-update-what-they-can-see), and the two halves in one program: `:n` is born OUTSIDE the loop so the body updates it and `print :n` reports `2` — which is what proves the body ran — while `:seen`, born INSIDE it, is gone at the `]` and its read raises `ol-undefined-var` (spec/error-model.md#normative-code-registry).",
   "profiles": ["core-language"],
   "execute": true,
   "events": [

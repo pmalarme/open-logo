@@ -1,12 +1,12 @@
 // The Layer-2 half of the `repcount` lexical-enclosure ruling — issue #1097, the
-// `ol-repcount-outside-repeat` row of `spec/tooling.md`'s semantic-checking table (`spec/tooling.md:195`).
+// `ol-repcount-outside-repeat` row of `spec/tooling.md`'s semantic-checking table (`spec/tooling.md#layer-2-semantic-checking`).
 //
 // `packages/runtime/src/repeat-forever-repcount.test.mjs` and `scoping.test.mjs` are this file's
-// twins: same ruling (`spec/execution-model.md:671-690`), same code, asserted at the runtime stage.
+// twins: same ruling (`spec/execution-model.md#repcount-is-lexical`), same code, asserted at the runtime stage.
 // Where those run whole programs and assert what a learner *sees*, this one runs `check()` and
 // asserts what a learner is *told before running*.
 //
-// The rule has two halves and the second is the hard one. `spec/execution-model.md:688-690`:
+// The rule has two halves and the second is the hard one. `spec/execution-model.md#repcount-is-lexical`:
 // **"Lexical enclosure is therefore necessary but not sufficient: it must be enclosure by a `repeat`
 // whose body the code runs as part of."** So "is there a `Repeat` above me in the AST" is the WRONG
 // implementation, and `repeat 3 [ every 5 [ print repcount ] ]` — where a `Repeat` genuinely is
@@ -80,7 +80,7 @@ test("a bare `repcount` with no `repeat` anywhere raises", () => {
 
 test("the diagnostic is the registered identity: semantic stage, error, no params, at the word", () => {
   const [diagnostic] = checkSource("print repcount");
-  // `spec/error-model.md:120` — stage `semantic`, params `none`.
+  // `spec/error-model.md#normative-code-registry` — stage `semantic`, params `none`.
   assert.equal(diagnostic.code, "ol-repcount-outside-repeat");
   assert.equal(diagnostic.stage, "semantic");
   assert.equal(diagnostic.severity, "error");
@@ -92,7 +92,7 @@ test("the diagnostic is the registered identity: semantic stage, error, no param
     start: [1, 7],
     end: [1, 15],
   });
-  // `spec/error-model.md:120` asks the message to explain what `repcount` reports and that it only
+  // `spec/error-model.md#normative-code-registry` asks the message to explain what `repcount` reports and that it only
   // has meaning inside a `repeat`. It is deliberately the SAME sentence `@openlogo/runtime` raises,
   // so one code teaches one lesson at both stages.
   assert.equal(
@@ -101,7 +101,7 @@ test("the diagnostic is the registered identity: semantic stage, error, no param
   );
 });
 
-// --- the procedure boundary (`spec/execution-model.md:673-678`) ---
+// --- the procedure boundary (`spec/execution-model.md#repcount-is-lexical`) ---
 
 test("a `repcount` in a procedure body raises even though the only call site is inside a `repeat`", () => {
   assertReported("define f\n  print repcount\nend\nrepeat 3 [ f ]");
@@ -135,7 +135,7 @@ test("a parameter default is sealed by the same boundary as the body", () => {
   assertReported("repeat 2 [ define f (:n repcount)\n  print :n\nend\n  f ]");
 });
 
-// --- the handler boundary (`spec/execution-model.md:682-690`) ---
+// --- the handler boundary (`spec/execution-model.md#repcount-is-lexical`) ---
 
 test("a `repcount` in a handler block with no `repeat` at all raises", () => {
   assertReported("every 5 [ print repcount ]");
@@ -151,14 +151,14 @@ test("a `repcount` in a handler block nested INSIDE a `repeat` still raises", ()
 });
 
 test("the handler boundary holds whether or not the registering loop has finished", () => {
-  // `spec/execution-model.md:685-686` — "however the loop is placed and whether or not it has
+  // `spec/execution-model.md#repcount-is-lexical` — "however the loop is placed and whether or not it has
   // finished". Here the `wait` is inside the loop body, so the loop is still running when the
   // handler fires; the static answer must not depend on that.
   assertReported("repeat 2 [ every 4 [ print repcount ]   wait 8 ]");
 });
 
 test("a `repeat` written INSIDE the handler block encloses normally", () => {
-  // `spec/execution-model.md:686-688` — `every 5 [ repeat 3 [ print repcount ] ]` prints 1, 2, 3
+  // `spec/execution-model.md#repcount-is-lexical` — `every 5 [ repeat 3 [ print repcount ] ]` prints 1, 2, 3
   // on each firing, so it must check clean.
   assertClean("every 5 [ repeat 3 [ print repcount ] ]");
 });
@@ -179,7 +179,7 @@ test("a handler HEAD argument is not inside the handler block, so it reads the e
 // --- everything else runs as part of the statement that contains it ---
 
 test("an `if`, `while`, `for … in` or `forever` body inside a `repeat` stays enclosed", () => {
-  // `spec/execution-model.md:664-667` — every block other than a handler block or a comprehension
+  // `spec/execution-model.md#frames-handlers-and-lifetime` — every block other than a handler block or a comprehension
   // body "runs as part of the statement that contains it".
   assertClean("repeat 2 [ if repcount > 1 [ print repcount ] ]");
   assertClean(
@@ -190,16 +190,16 @@ test("an `if`, `while`, `for … in` or `forever` body inside a `repeat` stays e
 });
 
 test("a comprehension body inside a `repeat` stays enclosed", () => {
-  // Deliberately NOT justified by `spec/execution-model.md:664-667`, which expressly excludes a
+  // Deliberately NOT justified by `spec/execution-model.md#frames-handlers-and-lifetime`, which expressly excludes a
   // comprehension body from that list — it excludes it for `return` (answered by
   // `ol-return-in-comprehension`), which says nothing about `repcount`. This rests on
-  // `spec/execution-model.md:671-690` naming exactly two boundaries, so a block it does not name
+  // `spec/execution-model.md#repcount-is-lexical` naming exactly two boundaries, so a block it does not name
   // inherits — and on the runtime, measured: this program prints [1] then [2].
   assertClean("repeat 2 [ print map n in [1] [ repcount ] ]");
 });
 
 test("Sprites `ask`/`tell`/`each` inside a `repeat` stay enclosed", () => {
-  // `spec/execution-model.md:678-680` — the Sprites addressing model "carries dynamic *turtle
+  // `spec/execution-model.md#repcount-is-lexical` — the Sprites addressing model "carries dynamic *turtle
   // state*, not a name binding, so they are unaffected by this rule". Note `ask` and `each` take a
   // block and `tell` does not — measured on the parsed AST, `tell`'s ProfileStatement has no body —
   // so the third line is a `repcount` in the `repeat` body after a `tell`, not inside a `tell`
@@ -211,7 +211,7 @@ test("Sprites `ask`/`tell`/`each` inside a `repeat` stay enclosed", () => {
 });
 
 test("`forever` is not an enclosing loop — only `repeat` has a turn number", () => {
-  // `spec/commands.md:804` ties `repcount` to "the innermost `repeat`". Measured at the runtime:
+  // `spec/commands.md#repcount` ties `repcount` to "the innermost `repeat`". Measured at the runtime:
   // `forever [ print repcount ]` raises, so treating `forever` as enclosing would put the checker
   // in disagreement with the evaluator.
   assertReported("forever [ print repcount ]");
@@ -263,7 +263,7 @@ test("a program that declares its own `repcount` is left to `ol-reserved-word` a
   // `repcount` is a built-in name, so `define repcount … end` is already rejected
   // (`ol-reserved-word`) at both stages — attaching a second, unrelated code to every call of one
   // already-diagnosed name helps nobody. The reason is structural, not a general "no cascades"
-  // policy: `spec/tooling.md:199-200`'s MUST NOT is narrower, covering speculative *type* errors
+  // policy: `spec/tooling.md#layer-2-semantic-checking`'s MUST NOT is narrower, covering speculative *type* errors
   // when dynamic values are unknown.
   assert.deepEqual(codes("define repcount\n  return 7\nend\nprint repcount"), [
     "ol-reserved-word",

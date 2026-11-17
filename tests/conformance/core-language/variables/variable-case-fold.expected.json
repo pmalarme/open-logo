@@ -1,5 +1,5 @@
 {
-  "description": "Identifiers case-fold (issue #512, `spec/grammar.md:13` — \"Keywords and identifiers are case-insensitive; lowercase is canonical\"): a variable assigned as `:size` reads back through `:SIZE`, so `print :SIZE` prints `100` rather than raising `ol-undefined-var`.",
+  "description": "Identifiers case-fold (issue #512, `spec/grammar.md#lexical-form-and-encoding` — \"Keywords and identifiers are case-insensitive; lowercase is canonical\"): a variable assigned as `:size` reads back through `:SIZE`, so `print :SIZE` prints `100` rather than raising `ol-undefined-var`.",
   "profiles": ["core-language"],
   "execute": true,
   "events": [

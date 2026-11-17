@@ -11,15 +11,15 @@
  *
  * ## The modifier channel (#1106)
  * A token also carries LSP-style **semantic-token modifiers** — a second, independent axis from the
- * class (`spec/tooling.md:83-84` puts the five bracket roles on it rather than inventing classes
+ * class (`spec/tooling.md#delimiter-roles` puts the five bracket roles on it rather than inventing classes
  * for them; ADR-0032 puts `global` there for the same reason). {@link OL_HIGHLIGHT_MODIFIER_CSS_CLASS}
  * maps the modifiers this studio actually paints onto stable `ol-mod-*` CSS classes, additively:
  * a token keeps its own `ol-tok-*` class either way, so a theme that styles no `ol-mod-*` rule
  * renders a modified token exactly like an unmodified one, which is the degradation
- * `spec/tooling.md:83-84` explicitly contemplates for the bracket roles.
+ * `spec/tooling.md#delimiter-roles` explicitly contemplates for the bracket roles.
  *
  * That table is deliberately **partial**, and the trade is worth stating rather than only its upside.
- * The modifier vocabulary is open — `spec/tooling.md:281-283` lists "optional modifiers **such as**
+ * The modifier vocabulary is open — `spec/tooling.md#informative-lsp-style-editor-integration` lists "optional modifiers **such as**
  * …" — so a total record would turn every parser-side addition into a compile error here, which is
  * precisely what ADR-0032 chose the modifier channel to avoid. But ADR-0032 also counted the
  * *forcing function* of `OL_HIGHLIGHT_CSS_CLASS`'s total `Record<TokenClass, string>` as a virtue on
@@ -30,7 +30,7 @@
  *
  * Today one modifier earns paint: `global`, the answer to "does this `:name` reach state
  * the whole program shares, or does it create a private binding?" — the one question
- * `spec/execution-model.md:441-446` rules is *correct* and therefore never diagnoses, so paint is
+ * `spec/execution-model.md#what-an-assignment-targets` rules is *correct* and therefore never diagnoses, so paint is
  * the only reader-facing guard for it. `declaration`/`reference`/`readonly`/`defaultLibrary` and the
  * three bracket roles are consumed and dropped: they are true of nearly every token, so painting
  * them would be noise, not information. Dropping `defaultLibrary` also avoids propagating
@@ -45,18 +45,18 @@
  *
  * ## The active profile set (#740)
  * `highlight()` classifies a handful of words *relative to the active conformance profile set*:
- * `spec/tooling.md:30` puts the profile block-heads and the Sprites mode-switch command `tell` in
- * `keyword` "while their profile is active", and `:31` puts "a profile word whose profile is
+ * `spec/tooling.md#normative-token-class-model` puts the profile block-heads and the Sprites mode-switch command `tell` in
+ * `keyword` "while their profile is active", and `spec/tooling.md#normative-token-class-model` puts "a profile word whose profile is
  * inactive" in `primitive`. Omitting the set gets the parser's profile-neutral default (Core
  * Language alone), which is why a learner with Sprites available used to see `ask` painted with the
  * plain `primitive` fallback. This module supplies {@link STUDIO_PROFILES} — the same set `diagnostics.ts`
  * hands `check()` by default — so when neither caller overrides that default, the editor's colors
  * and the checker's diagnostics read a program under the same profiles.
  *
- * The token classes are normative (`spec/tooling.md:8`) and an LSP `textDocument/semanticTokens`
- * response returns "the token classes in this document" (`:281-283`), so this adapter has no
+ * The token classes are normative (`spec/tooling.md#tooling`) and an LSP `textDocument/semanticTokens`
+ * response returns "the token classes in this document" (`spec/tooling.md#informative-lsp-style-editor-integration`), so this adapter has no
  * licence to classify differently from a batch `highlight()` given the same source and profile set.
- * (`spec/tooling.md:297-298`'s explicit batch-parity MUST is about *diagnostics*, not tokens — the
+ * (`spec/tooling.md#informative-lsp-style-editor-integration`'s explicit batch-parity MUST is about *diagnostics*, not tokens — the
  * token obligation is the normative-class one above.) `semanticTokens()` carries every
  * `highlight()` token through unchanged and only appends `modifiers`, so switching this seam onto
  * it changes no class.

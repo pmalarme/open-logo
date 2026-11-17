@@ -1,5 +1,5 @@
 {
-  "description": "The other half of the block rule, and the reason a block is NOT a write boundary (spec/execution-model.md:595-601): a block MAY update any binding visible from its enclosing scope. `:total` is born at the top level, so all four turns update one binding and the accumulator idiom works. This is the non-regression that a too-eager seal would break.",
+  "description": "The other half of the block rule, and the reason a block is NOT a write boundary (spec/execution-model.md#blocks-update-what-they-can-see): a block MAY update any binding visible from its enclosing scope. `:total` is born at the top level, so all four turns update one binding and the accumulator idiom works. This is the non-regression that a too-eager seal would break.",
   "profiles": ["core-language"],
   "execute": true,
   "events": [

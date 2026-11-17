@@ -1,5 +1,5 @@
 {
-  "description": "A `global` declaration is legal ONLY at the root scope — never inside a procedure body, a block, or a handler — and raises `ol-global-outside-root` anywhere else (spec/execution-model.md:561-563, spec/commands.md:143). The placement is judged before the initializer runs, so a misplaced declaration has no effect at all. Registry stage is `semantic` and `checker-global-placement.ts` decides it lexically; this is the runtime's own guard for the same defect, carrying the same `name` param so the two stages report one identity.",
+  "description": "A `global` declaration is legal ONLY at the root scope — never inside a procedure body, a block, or a handler — and raises `ol-global-outside-root` anywhere else (spec/execution-model.md#global, spec/commands.md#global). The placement is judged before the initializer runs, so a misplaced declaration has no effect at all. Registry stage is `semantic` and `checker-global-placement.ts` decides it lexically; this is the runtime's own guard for the same defect, carrying the same `name` param so the two stages report one identity.",
   "profiles": ["core-language"],
   "execute": true,
   "compareMessages": true,

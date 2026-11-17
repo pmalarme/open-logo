@@ -4,12 +4,12 @@
 // The ruling is `spec/execution-model.md`'s *Variables, scoping, and procedures* section, merged in
 // PR #1096. Three normative facts drive every test here:
 //
-//   1. `global-statement ::= "global" name "=" expression` (`spec/grammar.md:157`) — a **bare** name,
-//      and the initializer is **required** (`spec/execution-model.md:547-549`).
+//   1. `global-statement ::= "global" name "=" expression` (`spec/grammar.md#ebnf-notation`) — a **bare** name,
+//      and the initializer is **required** (`spec/execution-model.md#global`).
 //   2. A `global` declaration is legal **only at the root scope** and raises `ol-global-outside-root`
-//      anywhere else (`spec/execution-model.md:561-563`, `spec/error-model.md:131`).
+//      anywhere else (`spec/execution-model.md#global`, `spec/error-model.md#normative-code-registry`).
 //   3. Reserving the word restricts the **four declaration slots** and nothing else. Binding it stays
-//      legal — `spec/grammar.md:390` is a MUST NOT, and `spec/grammar.md:388` names this very word:
+//      legal — `spec/grammar.md#keywords-primitives-and-built-in-names` is a MUST NOT and names this very word:
 //      "`:global = 1`, `local global`, and `set global to 1` are conforming programs". The issue's
 //      original acceptance criterion said `:global = 1` should raise; it was corrected against this
 //      text, and the negative controls below are what keep the corrected reading.
@@ -136,7 +136,7 @@ test("regression guard: `:x := 5` remains rejected exactly as before", () => {
 
 // --- Reserving the word: the declaration slots -------------------------------
 //
-// `spec/grammar.md:384` names four — `define`, the heritage `to`, `struct`, and the first operand of
+// `spec/grammar.md#keywords-primitives-and-built-in-names` names four — `define`, the heritage `to`, `struct`, and the first operand of
 // `alias`. Three are exercised below. `alias` is deliberately absent and that is measured, not
 // overlooked: the reader has no `alias-statement` production yet, so `alias global forward` is an
 // `ol-bad-token` at the parse stage and never reaches the semantic rule at all. That is a
@@ -179,7 +179,7 @@ test("the fourth slot, `alias`, has no reader production — so it never reaches
 
 // --- Reserving the word does NOT restrict binding (issue #823, correction 1) --
 
-test("`:global = 1` stays legal — a binding form MUST NOT be diagnosed (spec/grammar.md:388,390)", () => {
+test("`:global = 1` stays legal — a binding form MUST NOT be diagnosed (spec/grammar.md#keywords-primitives-and-built-in-names)", () => {
   assert.deepEqual(checkClean(":global = 1"), []);
 });
 
@@ -231,7 +231,7 @@ test("a global in a procedure body raises ol-global-outside-root, pointing at th
 test("the message says where the declaration belongs and names the local repair", () => {
   const [diagnostic] = checkClean("define bump\n  global count = 0\nend");
 
-  // `spec/error-model.md:131` asks for both halves, in the warm lowercase voice.
+  // `spec/error-model.md#normative-code-registry` asks for both halves, in the warm lowercase voice.
   assert.equal(
     diagnostic.message,
     "global count belongs at the top level of your program. to make a private name here, write local count = ...",
@@ -257,8 +257,8 @@ test("every non-root scope is rejected: control body, if body, handler block, co
 });
 
 test("a handler block is a block scope too, so a global inside one is rejected", () => {
-  // `spec/error-model.md:131` names the handler block among the four places this code covers, and
-  // `spec/execution-model.md:367-369` is why: a block scope is created by *each entry into a block*
+  // `spec/error-model.md#normative-code-registry` names the handler block among the four places this code covers, and
+  // `spec/execution-model.md#scopes-and-bindings` is why: a block scope is created by *each entry into a block*
   // and is not the root scope. The rule is about the scope, never about procedures.
   assert.deepEqual(
     codesOf(
@@ -273,9 +273,9 @@ test("a handler block is a block scope too, so a global inside one is rejected",
 test("REGRESSION: a global inside a legal ROOT global's own initializer is still rejected", () => {
   // The first revision of `globalPlacementRule` exempted a root-level `Global` and skipped its whole
   // subtree, on the reasoning that the initializer is an expression and `global-statement` is
-  // statement-only. The second half is true and the conclusion does not follow: `spec/grammar.md:144`
+  // statement-only. The second half is true and the conclusion does not follow: `spec/grammar.md#ebnf-notation`
   // makes an `expression-block` a sequence of statements, so a comprehension body — which
-  // `spec/error-model.md:131` names explicitly — can carry one. All three review-gate reviewers found
+  // `spec/error-model.md#normative-code-registry` names explicitly — can carry one. All three review-gate reviewers found
   // it; every other root statement kind covered for it, which is why it needs its own test.
   for (const source of [
     "global totals = map n in [ 1 2 ] [ global bad = 0\n  :n ]",

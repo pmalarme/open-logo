@@ -10,11 +10,11 @@
 //
 // Three things drive every case here:
 //
-//   1. `spec/execution-model.md:389-394` — inside a procedure body exactly three things are visible:
+//   1. `spec/execution-model.md#what-a-scope-can-see` — inside a procedure body exactly three things are visible:
 //      its parameters, the bindings its body has already made, and names declared `global`.
-//   2. `spec/execution-model.md:405-414` — the choice between the two codes is **lexical, not
+//   2. `spec/execution-model.md#what-a-scope-can-see` — the choice between the two codes is **lexical, not
 //      temporal**, which is what keeps `ol-var-not-visible` decidable at the `semantic` stage.
-//   3. `spec/execution-model.md:416-424` — the checker resolves **conservatively**: it reports a
+//   3. `spec/execution-model.md#what-a-scope-can-see` — the checker resolves **conservatively**: it reports a
 //      name only when no execution order could make it visible, so within one scope's straight-line
 //      statement list it agrees with the evaluator exactly, and across a scope boundary it never
 //      reports a name a later declaration or a deferred handler could reach.
@@ -49,7 +49,7 @@ const codesOf = (diagnostics) => diagnostics.map((d) => d.code);
 const isUndefinedVar = (diagnostic) => diagnostic.code === "ol-undefined-var";
 
 /**
- * The section's own worked example (`spec/execution-model.md:431-447`), verbatim. It is also
+ * The section's own worked example (`spec/execution-model.md#what-a-scope-can-see`), verbatim. It is also
  * `tests/conformance/core-language/check/var-not-visible-worked-example` and
  * `tests/conformance/core-language/scoping/procedure-boundary-hides-a-top-level-read`, so one
  * program is asserted at the parse, check and run stages.
@@ -88,7 +88,7 @@ test("params carry BOTH the name and the enclosing procedure — the two-param i
   assert.deepEqual(finding.params, { name: "count", procedure: "draw_steps" });
 });
 
-test("the message names the boundary AND the fix (spec/error-model.md:132)", () => {
+test("the message names the boundary AND the fix (spec/error-model.md#normative-code-registry)", () => {
   const [finding] = checkSource(WORKED_EXAMPLE);
 
   // Both halves are normative: the message MUST name the boundary, and the suggestion MUST name the
@@ -152,7 +152,7 @@ test("the procedure param carries the DEFINITION's declared spelling, not a call
 
   assert.equal(finding.params.procedure, "DrawSteps");
   // The name itself is case-folded, because resolution is case-insensitive and `:Count`/`:count`
-  // are one condition (`spec/grammar.md:13`).
+  // are one condition (`spec/grammar.md#lexical-form-and-encoding`).
   assert.equal(finding.params.name, "count");
 });
 
@@ -183,7 +183,7 @@ test("the boundary is absolute, so nesting depth inside the body never dilutes i
 // ── The write-first rule: silent, and deliberately so ────────────────────────────────────────
 
 test("WRITE-FIRST on a name the procedure cannot see is SILENT — it creates a genuinely different variable", () => {
-  // `spec/execution-model.md:443-446`. This is the one place the ruling is deliberately silent, and
+  // `spec/execution-model.md#what-a-scope-can-see`. This is the one place the ruling is deliberately silent, and
   // #826's `global` token class is its only reader-facing guard, so it is asserted explicitly rather
   // than left to be inferred from the absence of a test.
   assert.deepEqual(
@@ -193,7 +193,7 @@ test("WRITE-FIRST on a name the procedure cannot see is SILENT — it creates a 
 });
 
 test("⚠️ but a VISIBLE global is the write target, whatever the order — visibility decides, never ordering", () => {
-  // `spec/execution-model.md:483-490`. An unqualified "write-first creates a local" reading would
+  // `spec/execution-model.md#what-an-assignment-targets`. An unqualified "write-first creates a local" reading would
   // make `global` readable but not writable, which is the opposite of what the declaration is for.
   assert.deepEqual(
     checkSource("global count = 5\ndefine reset\n  :count = 0\nend\nreset\n"),
@@ -207,7 +207,7 @@ test("⚠️ but a VISIBLE global is the write target, whatever the order — vi
   );
 });
 
-test("a postfix place's base is a READ, so it is diagnosed where the bare form is silent (spec/execution-model.md:492-499)", () => {
+test("a postfix place's base is a READ, so it is diagnosed where the bare form is silent (spec/execution-model.md#what-an-assignment-targets)", () => {
   // The two forms differ, and it follows from evaluation order rather than from scoping: only the
   // second one needs an existing value to write into.
   assert.deepEqual(
@@ -226,7 +226,7 @@ test("a postfix place's base is a READ, so it is diagnosed where the bare form i
 
 // ── NAMES, NOT VALUES — the boundary seals names, not what is inside a value ─────────────────
 
-test("mutating a mutable ARGUMENT is intended and MUST NOT be diagnosed (spec/execution-model.md:455-474)", () => {
+test("mutating a mutable ARGUMENT is intended and MUST NOT be diagnosed (spec/execution-model.md#the-boundary-seals-names-not-values)", () => {
   assert.deepEqual(
     checkSource("define f :lst\n  add 99 to :lst\nend\n:a = [1 2]\nf :a\n", [
       "core-language",
@@ -268,7 +268,7 @@ test("a parameter default value resolves in the CALLEE frame, and is boundary-se
 
 test("a procedure called from a block cannot see that block's names — and it is ol-undefined-var, NOT ol-var-not-visible", () => {
   // A top-level *block* encloses no procedure body, so `temp` is not something the boundary hides:
-  // it is bound nowhere the read could reach (`spec/error-model.md:102`). Getting this wrong in the
+  // it is bound nowhere the read could reach (`spec/error-model.md#normative-code-registry`). Getting this wrong in the
   // other direction would offer `global temp = …` as a fix for a name that is not a top-level name.
   const findings = checkSource(
     "define helper\n  print :temp\nend\nrepeat 2 [ :temp = 5\n  helper ]\n",
@@ -280,7 +280,7 @@ test("a procedure called from a block cannot see that block's names — and it i
 
 // ── Block lifetime ───────────────────────────────────────────────────────────────────────────
 
-test("a name born inside a block is gone after the block closes (spec/execution-model.md:603-615)", () => {
+test("a name born inside a block is gone after the block closes (spec/execution-model.md#blocks-update-what-they-can-see)", () => {
   const findings = checkSource("repeat 3 [ :i = 1 ]\nprint :i\n");
 
   assert.deepEqual(codesOf(findings), ["ol-undefined-var"]);
@@ -305,7 +305,7 @@ test("every block form ends its own names' lives, not just repeat", () => {
 });
 
 test("NON-REGRESSION: the accumulator idiom stays clean — a block UPDATES what it can see", () => {
-  // `spec/execution-model.md:595-601`. Over-reaching here is this slice's whole risk: a block is a
+  // `spec/execution-model.md#blocks-update-what-they-can-see`. Over-reaching here is this slice's whole risk: a block is a
   // lifetime boundary, not a write boundary.
   assert.deepEqual(
     checkSource(":total = 0\nrepeat 4 [ :total = :total + 1 ]\nprint :total\n"),
@@ -359,7 +359,7 @@ test("reduce binds BOTH the accumulator and the element (spec/examples/12-fracta
 
 // ── Conservatism across a scope boundary ─────────────────────────────────────────────────────
 
-test("a deferred handler reading a name the root scope binds LATER is never reported (spec/execution-model.md:401-403,423-424)", () => {
+test("a deferred handler reading a name the root scope binds LATER is never reported (spec/execution-model.md#what-a-scope-can-see)", () => {
   assert.deepEqual(
     checkSource("on_click [ print :score ]\n:score = 0\n", [
       "core-language",
@@ -369,7 +369,7 @@ test("a deferred handler reading a name the root scope binds LATER is never repo
   );
 });
 
-test("a handler block updating a top-level name needs no declaration (spec/execution-model.md:599-601)", () => {
+test("a handler block updating a top-level name needs no declaration (spec/execution-model.md#blocks-update-what-they-can-see)", () => {
   assert.deepEqual(
     checkSource(":score = 0\non_click [ :score = :score + 1 ]\n", [
       "core-language",
@@ -422,7 +422,7 @@ test("#1102: `local x = :x` with no other visible x reports on the read in the i
 });
 
 test("#1102: `local x = 1` then `local x = :x` stays clean — the snapshot idiom the spec exists to allow", () => {
-  // `spec/execution-model.md:508-515`. A partial fix that excluded the declared name unconditionally
+  // `spec/execution-model.md#local`. A partial fix that excluded the declared name unconditionally
   // would reject this conforming program, which is worse than the false negative it replaced.
   assert.deepEqual(checkSource("local x = 1\nlocal x = :x\nprint :x\n"), []);
 });
@@ -502,7 +502,7 @@ test("a `reduce`'s `from` seed is a read, resolved OUTSIDE the comprehension bod
 
 test("a SEGMENTED assignment target binds nothing — its base stays a read, before and after", () => {
   // `:people.tom = 1` is not a declaration of `people`: there is no intermediate auto-vivification
-  // (`spec/execution-model.md:492-499`), so the base is a read that fails, and it does not go on to
+  // (`spec/execution-model.md#what-an-assignment-targets`), so the base is a read that fails, and it does not go on to
   // make `people` visible to the next line either. Both findings, or the rule has quietly turned a
   // postfix write into a binding.
   const findings = checkSource(":people.tom = 1\nprint :people\n").filter(
@@ -541,7 +541,7 @@ test("every expression a binder form evaluates in the ENCLOSING scope is a read"
 
 test("a ROOT-level `global` is a legal declaration, and a read above it is still reported", () => {
   // The root's excuse is positional, so a read written above any declaration is reported whatever
-  // that declaration's legality (`spec/execution-model.md:571-574`).
+  // that declaration's legality (`spec/execution-model.md#global`).
   //
   // NOTE what this does NOT pin, because a green suite must not be mistaken for evidence:
   // `collectMisplacedGlobals`'s exemption of the root declaration is **unobservable**, and
@@ -563,7 +563,7 @@ test("a ROOT-level `global` is a legal declaration, and a read above it is still
 //
 // Raised as a blocking finding by the `rubber-duck` reviewer in #825's review gate and **taken**:
 // an earlier revision treated every enclosing scope as position-blind, which silently missed the
-// eager case `spec/tooling.md:184` names at Layer 2. A second round corrected the classification
+// eager case `spec/tooling.md#layer-2-semantic-checking` names at Layer 2. A second round corrected the classification
 // itself — `ask`/`each` bodies run where they are written and are **eager**; only the
 // Interaction & Events handler heads defer, and the checker reads them from `signatures.ts`'s
 // registry rather than keeping a second list.
@@ -590,8 +590,8 @@ test("an EAGER control body reads its enclosing scope only as far as that scope 
 });
 
 test("a DEFERRED handler block sees its enclosing scope in full, whenever it fires", () => {
-  // `spec/execution-model.md:401-403`. Reporting these would be a false positive on conforming
-  // programs: the handler COULD fire after the declaration line, and `:423-424` forbids reporting a
+  // `spec/execution-model.md#what-a-scope-can-see`. Reporting these would be a false positive on conforming
+  // programs: the handler COULD fire after the declaration line, and `spec/execution-model.md#what-a-scope-can-see` forbids reporting a
   // name a deferred handler could reach — "could", not "does", is the operative word.
   //
   // Do NOT reach for `execute()` as corroboration here. None of these three handlers fires under an
@@ -642,7 +642,7 @@ test("`ask` and `each` bodies are EAGER, not deferred — they run where they ar
 });
 
 test("the deferred/eager split is case-insensitive end to end, like every other identifier", () => {
-  // `spec/grammar.md:13`. Asserted at the level a learner experiences it — `ON_CLICK` must behave
+  // `spec/grammar.md#lexical-form-and-encoding`. Asserted at the level a learner experiences it — `ON_CLICK` must behave
   // exactly like `on_click`, or a conforming program earns a FALSE POSITIVE.
   //
   // What this does NOT prove is that the `toLowerCase()` on the lookup is load-bearing: the reader
@@ -699,7 +699,7 @@ test("every expression a CONTROL form or profile head evaluates in the enclosing
 
 test('MEASURED UNDER-REPORT: `when "start"` is treated as deferred although this runtime fires it at registration (#1119)', () => {
   // `execute()` raises `ol-undefined-var` here; `check()` does not. The gap is deliberate:
-  // `spec/interaction-events.md:212-224` never says when `"start"` occurs relative to the
+  // `spec/interaction-events.md#when-event-word-block` never says when `"start"` occurs relative to the
   // registering statement, so treating it as eager would encode this runtime's choice as the
   // contract and would become a FALSE POSITIVE if the event ever fires after the top-level program.
   // Silence is the safe direction on an open question. Asserted so the gap stays deliberate.
@@ -713,7 +713,7 @@ test('MEASURED UNDER-REPORT: `when "start"` is treated as deferred although this
 });
 
 test("deferredness propagates through the WHOLE chain, not one level (a handler registered inside a loop)", () => {
-  // The case that rules out the one-level version of this fix. `spec/execution-model.md:617-637`
+  // The case that rules out the one-level version of this fix. `spec/execution-model.md#frames-handlers-and-lifetime`
   // makes a handler capture the scope it was registered in — here, that turn of the `repeat` — so
   // its view of the root must be the eventual one even though its immediate parent is eager.
   assert.deepEqual(
@@ -725,7 +725,7 @@ test("deferredness propagates through the WHOLE chain, not one level (a handler 
   );
 });
 
-test("NON-REGRESSION: the spec's own block-lifetime contrast example stays clean (spec/execution-model.md:607-615)", () => {
+test("NON-REGRESSION: the spec's own block-lifetime contrast example stays clean (spec/execution-model.md#blocks-update-what-they-can-see)", () => {
   // This program is why a scope's BINDINGS must be judged against the same chain its reads resolve
   // through. An earlier revision of the two-chain model judged the binding position-blind and the
   // read positionally: the block's `:x = 0` looked like an update of the *later* top-level `:x`, so
@@ -760,7 +760,7 @@ test("a misplaced `global` suppresses reads of its name, and the suppression fol
   );
 
   // In the ROOT scope's own statement list it would not, when the read comes first. `print :x`
-  // above the repaired declaration still fails (`spec/execution-model.md:571-574`), so suppressing
+  // above the repaired declaration still fails (`spec/execution-model.md#global`), so suppressing
   // it would hide a diagnostic the repair does not remove:
   assert.deepEqual(
     codesOf(checkSource("print :x\ndefine bad\n  global x = 0\nend\n")),

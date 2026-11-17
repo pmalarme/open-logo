@@ -1,5 +1,5 @@
 {
-  "description": "VISIBILITY decides which binding an assignment reaches, never statement order (spec/execution-model.md:483-490). `reset`'s first — and only — touch of `count` is a WRITE, but `count` IS visible to it, so the assignment updates the global rather than shadowing it with a procedure-local. An unqualified \"write-first creates a local\" implementation prints `5` here and leaves `global` readable-but-not-writable, silently defeating the whole point of the declaration.",
+  "description": "VISIBILITY decides which binding an assignment reaches, never statement order (spec/execution-model.md#what-an-assignment-targets). `reset`'s first — and only — touch of `count` is a WRITE, but `count` IS visible to it, so the assignment updates the global rather than shadowing it with a procedure-local. An unqualified \"write-first creates a local\" implementation prints `5` here and leaves `global` readable-but-not-writable, silently defeating the whole point of the declaration.",
   "profiles": ["core-language"],
   "execute": true,
   "events": [

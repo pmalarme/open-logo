@@ -1,5 +1,5 @@
 {
-  "description": "`sort` (Data profile, spec/data-structures.md:125-141) reports a fresh ascending-sorted list of numbers; the argument variable itself is unchanged on the following statement, proving `sort` copies rather than mutates. Issue #190.",
+  "description": "`sort` (Data profile, spec/data-structures.md#derived-list-reporters-in-the-data-profile) reports a fresh ascending-sorted list of numbers; the argument variable itself is unchanged on the following statement, proving `sort` copies rather than mutates. Issue #190.",
   "profiles": ["data"],
   "execute": true,
   "events": [

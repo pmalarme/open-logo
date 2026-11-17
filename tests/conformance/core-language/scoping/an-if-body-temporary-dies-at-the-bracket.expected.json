@@ -1,5 +1,5 @@
 {
-  "description": "Block lifetime is a property of EVERY block, not of `repeat` alone: spec/execution-model.md:367-369 makes a block scope out of each entry into \"a control-form body, a handler block, or a comprehension body\". The `if` body binds and reads `:inside` happily — the first `print` reports `1`, which is what proves the body ran and the binding existed — and the read after the `]` finds nothing, `ol-undefined-var` (spec/error-model.md:102). Without the inner `print` a fixture like this would also pass if the body had never executed at all.",
+  "description": "Block lifetime is a property of EVERY block, not of `repeat` alone: spec/execution-model.md#scopes-and-bindings makes a block scope out of each entry into \"a control-form body, a handler block, or a comprehension body\". The `if` body binds and reads `:inside` happily — the first `print` reports `1`, which is what proves the body ran and the binding existed — and the read after the `]` finds nothing, `ol-undefined-var` (spec/error-model.md#normative-code-registry). Without the inner `print` a fixture like this would also pass if the body had never executed at all.",
   "profiles": ["core-language"],
   "execute": true,
   "events": [

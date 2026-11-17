@@ -1,5 +1,5 @@
 {
-  "description": "The `on_click` cell of the same rule; see `an-every-handler-stop-is-not-consumed-by-its-registering-call` for the rationale. The click is delivered by `hostInput.events` while `setup` is still on the stack, so the handler fires inside the enclosing `wait` and its `stop` raises `ol-stop-outside-proc` (spec/error-model.md:119).",
+  "description": "The `on_click` cell of the same rule; see `an-every-handler-stop-is-not-consumed-by-its-registering-call` for the rationale. The click is delivered by `hostInput.events` while `setup` is still on the stack, so the handler fires inside the enclosing `wait` and its `stop` raises `ol-stop-outside-proc` (spec/error-model.md#normative-code-registry).",
   "profiles": ["core-language", "interaction-events"],
   "execute": true,
   "executeOptions": {

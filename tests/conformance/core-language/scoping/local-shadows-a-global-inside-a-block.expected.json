@@ -1,5 +1,5 @@
 {
-  "description": "spec/execution-model.md:541-543 states the equivalence in a sentence — replacing `define f … end` with `repeat 1 [ … ]` \"prints the same two lines, because a block scope and a procedure frame declare locals the same way\" — so this is `local-shadows-a-global-for-the-rest-of-the-scope` with the procedure swapped for a block, and it must print `5` then `0` too. The claim is about a block scope specifically, so the procedure fixture alone cannot carry it.",
+  "description": "spec/execution-model.md#local states the equivalence in a sentence — replacing `define f … end` with `repeat 1 [ … ]` \"prints the same two lines, because a block scope and a procedure frame declare locals the same way\" — so this is `local-shadows-a-global-for-the-rest-of-the-scope` with the procedure swapped for a block, and it must print `5` then `0` too. The claim is about a block scope specifically, so the procedure fixture alone cannot carry it.",
   "profiles": ["core-language"],
   "execute": true,
   "events": [

@@ -38,7 +38,7 @@ test('`make "name" value` assigns identically to `set name to value`', () => {
 
 test("`make` mutates a nearest existing binding, exactly as `set`/`=` do (spec/execution-model.md)", () => {
   // The shared name is declared `global`, because that is what carries state across the sealed
-  // procedure boundary (`spec/execution-model.md:545-583`) — without it neither spelling could reach
+  // procedure boundary (`spec/execution-model.md#global`) — without it neither spelling could reach
   // a top-level name from inside `bump`, and the test would be measuring the boundary instead of the
   // alias equivalence it exists to prove.
   const heritage = printsOf(
@@ -95,7 +95,7 @@ test("all three Heritage forms compose in one program with identical semantics t
 
 test("an `output`/`op` outside any procedure raises the same diagnostic IDENTITY as `return` — canonical params, learner's prose", () => {
   // "No new semantics" covers diagnostics too: identity is `code` plus structured `params`, and the
-  // same condition MUST keep the same params (`spec/error-model.md:256-261`). The three spellings
+  // same condition MUST keep the same params (`spec/error-model.md#localization-boundary`). The three spellings
   // are one condition, so `params.keyword` is the canonical `"return"` for all three (issue #741).
   // Identity, not the whole diagnostic: the `message` still echoes the word the learner typed and
   // the span still covers what they wrote — both presentation, and both deliberately different.

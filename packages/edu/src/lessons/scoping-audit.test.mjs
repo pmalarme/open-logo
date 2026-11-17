@@ -5,7 +5,7 @@
 // are therefore kept here as tests:
 //
 // - **"Existing lessons/exercises audited for procedures reading top-level names."** Under
-//   `spec/execution-model.md:389-394` a procedure sees only its parameters, the names its body has
+//   `spec/execution-model.md#what-a-scope-can-see` a procedure sees only its parameters, the names its body has
 //   created, and names declared `global`; reading anything else raises `ol-var-not-visible`. The
 //   corpus scan below asserts no lesson does that — and, crucially, first proves the scan can see
 //   such a violation, because a detector that silently finds nothing reports a clean corpus

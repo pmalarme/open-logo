@@ -15,11 +15,11 @@
 // `ol-var-not-visible` at `semantic`, the runtime raises it at `runtime` because `execute()` never
 // runs `check()`), and the `ol-undefined-var` *message*, which the two stages word differently — a
 // pre-existing divergence predating this slice, tracked as issue #1117. `ol-var-not-visible`'s
-// message IS asserted byte-for-byte, because `spec/error-model.md:132` makes naming the boundary
+// message IS asserted byte-for-byte, because `spec/error-model.md#normative-code-registry` makes naming the boundary
 // and naming the fix normative and one wording is what the learner must get from either stage.
 //
 // **The sanctioned divergence gets its own test at the bottom** rather than being quietly omitted.
-// `spec/execution-model.md:416-424` requires the checker to be *conservative*: it reports a name
+// `spec/execution-model.md#what-a-scope-can-see` requires the checker to be *conservative*: it reports a name
 // only when no execution order could make it visible, so it is silent in a case the evaluator still
 // fails on — a read before a LATER `global` declaration, where `execute()` genuinely raises
 // `ol-undefined-var` (measured). Pinning it keeps the asymmetry deliberate instead of accidental.
@@ -60,7 +60,7 @@ function runFindings(source) {
 /**
  * Both stages must report the same identity at the same place. The runtime stops at the first
  * failure, so `expected` describes that first finding — and the checker never reports *earlier* than
- * the runtime fails, which is what `spec/execution-model.md:416-419` means by "within one scope's
+ * the runtime fails, which is what `spec/execution-model.md#what-a-scope-can-see` means by "within one scope's
  * straight-line statement list the two agree exactly on **visibility**, which is all the checker
  * resolves".
  *
@@ -112,7 +112,7 @@ function assertAgree(label, source, expected) {
 // The two are NOT literally the same set, and the difference is deliberate rather than drift. The
 // runtime subtracts every name a root-level `global` declares, because it can reach `boundaryHiding`
 // for such a name: a read that runs *before* the declaration line finds no binding, and
-// `spec/execution-model.md:412-414` says that read is an ordinary `ol-undefined-var`. The checker
+// `spec/execution-model.md#what-a-scope-can-see` says that read is an ordinary `ol-undefined-var`. The checker
 // performs no such subtraction, because there the subtraction is **unobservable** — its check is
 // lexical, so a root-level `global` is already visible through the seal at every read in the
 // document, and `boundaryHiding` is only ever consulted after a read has already failed. Measured,
@@ -168,7 +168,7 @@ test("a `global` is NOT boundary-hidden: both stages are clean", () => {
 
 test("a name only a top-level BLOCK binds is not boundary-hidden: both say ol-undefined-var", () => {
   // A block encloses no procedure body, so the boundary is not the reason the read failed
-  // (`spec/error-model.md:102`). Offering `global b = …` here would name a fix for a name that is
+  // (`spec/error-model.md#normative-code-registry`). Offering `global b = …` here would name a fix for a name that is
   // not a top-level name.
   assertAgree(
     "block-bound name",
@@ -186,7 +186,7 @@ test("a name bound nowhere at all: both say ol-undefined-var", () => {
 });
 
 test("the code is LEXICAL, not temporal: the read runs BEFORE the binding line and both still say ol-var-not-visible", () => {
-  // `spec/execution-model.md:405-414`. This is the case a temporal root set would get wrong in the
+  // `spec/execution-model.md#what-a-scope-can-see`. This is the case a temporal root set would get wrong in the
   // checker (it would report `ol-undefined-var`), and it is exactly what keeps the code decidable at
   // the `semantic` stage.
   assertAgree(
@@ -217,7 +217,7 @@ test("the spec's own worked example agrees at both stages, on the READ", () => {
 
 // ── The learner-facing prose is one string across both stages ────────────────────────────────
 
-test("ol-var-not-visible's message is byte-identical at both stages (spec/error-model.md:132)", () => {
+test("ol-var-not-visible's message is byte-identical at both stages (spec/error-model.md#normative-code-registry)", () => {
   const source =
     ":count = 0\ndefine draw_steps\n  print :count\nend\ndraw_steps\n";
   const checked = checkFindings(source)[0];
@@ -261,9 +261,9 @@ test("both stages stay clean on the programs the ruling exists to permit", () =>
 // ── The one sanctioned divergence, and the two cases that look like it ───────────────────────
 
 test("SANCTIONED DIVERGENCE: a read before a LATER `global` declaration — the checker is silent, the runtime raises", () => {
-  // `spec/execution-model.md:571-574` — a `global` declaration takes effect when it runs, so a read
+  // `spec/execution-model.md#global` — a `global` declaration takes effect when it runs, so a read
   // before that line "finds no binding and raises ol-undefined-var, like any other name". The
-  // checker must NOT report it: `spec/execution-model.md:423-424` forbids reporting a name a later
+  // checker must NOT report it: `spec/execution-model.md#what-a-scope-can-see` forbids reporting a name a later
   // declaration could reach, and here it plainly could (the same procedure called after the
   // declaration is clean). Conservatism, not a defect.
   const source = "define f\n  print :count\nend\nf\nglobal count = 1\n";
@@ -277,7 +277,7 @@ test("SANCTIONED DIVERGENCE: a read before a LATER `global` declaration — the 
 
 test("an EAGER block's read of a name its enclosing scope binds later: both stages report it", () => {
   // Round 1 of the review gate had this as a sanctioned divergence — the checker was silent while
-  // the runtime raised. `rubber-duck` was right that it should not be: `spec/tooling.md:184` names
+  // the runtime raised. `rubber-duck` was right that it should not be: `spec/tooling.md#layer-2-semantic-checking` names
   // "a block's read of an enclosing binding created later" as `ol-undefined-var` at Layer 2, and a
   // control body runs where it is written, so no execution order rescues it. The checker now agrees
   // with the runtime here, which is what this test exists to hold.
@@ -294,7 +294,7 @@ test("an EAGER block's read of a name its enclosing scope binds later: both stag
 
 test("a DEFERRED handler's read of a name bound later: the checker is silent, and so is the runtime", () => {
   // This sits beside the divergence above because it is the case people expect to be one, and is
-  // not. The checker MUST NOT report it (`spec/execution-model.md:401-403,423-424`: a handler sees
+  // not. The checker MUST NOT report it (`spec/execution-model.md#what-a-scope-can-see`: a handler sees
   // the binding whenever it fires), and `execute()` does not report it either — but for a reason
   // that carries no semantic weight: an `on_click` handler needs host input, so under an empty host
   // it never fires at all. **Zero print events, measured.**
@@ -316,7 +316,7 @@ test("a DEFERRED handler's read of a name bound later: the checker is silent, an
 test("NON-DIVERGENCE control: within ONE scope's straight-line list the two agree exactly", () => {
   // The paired positive control for the divergence above. Move the same read into the root scope's
   // own statement list and the checker reports it, because no execution order could make it
-  // visible there (`spec/execution-model.md:416-419`).
+  // visible there (`spec/execution-model.md#what-a-scope-can-see`).
   assertAgree("straight-line root read", "print :later\n:later = 1\n", {
     code: "ol-undefined-var",
     params: { name: "later" },

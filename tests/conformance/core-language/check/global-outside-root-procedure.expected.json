@@ -1,5 +1,5 @@
 {
-  "description": "ol-global-outside-root (spec/error-model.md:131): a global declaration inside a procedure body. spec/execution-model.md:561-563 makes the declaration legal \"only at the root scope\" and names this code for anywhere else; the span is the declared name, and params carry it.",
+  "description": "ol-global-outside-root (spec/error-model.md#normative-code-registry): a global declaration inside a procedure body. spec/execution-model.md#global makes the declaration legal \"only at the root scope\" and names this code for anywhere else; the span is the declared name, and params carry it.",
   "profiles": ["core-language"],
   "check": true,
   "events": [],

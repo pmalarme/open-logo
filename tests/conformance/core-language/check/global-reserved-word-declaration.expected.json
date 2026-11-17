@@ -1,5 +1,5 @@
 {
-  "description": "ol-reserved-word at a declaration slot: `global` is a built-in name (spec/grammar.md:388), so define global is rejected like define end or define forward. The message names the owner and never the words keyword, primitive or alias (spec/error-model.md:125).",
+  "description": "ol-reserved-word at a declaration slot: `global` is a built-in name (spec/grammar.md#keywords-primitives-and-built-in-names), so define global is rejected like define end or define forward. The message names the owner and never the words keyword, primitive or alias (spec/error-model.md#normative-code-registry).",
   "profiles": ["core-language"],
   "check": true,
   "events": [],

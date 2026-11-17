@@ -1,0 +1,44 @@
+{
+  "description": "Measured on this tree: `print :d.a` with the field access unsplit. 2 statements (Assign + Call); Call span [2,1]-[2,11]; prints 7. Baseline for the split form in `continuation-leading-dot-split`.",
+  "profiles": ["core-language", "data"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/delimitation/continuation-leading-dot-oneline",
+        "start": [1, 1],
+        "end": [1, 14]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/delimitation/continuation-leading-dot-oneline",
+        "start": [2, 1],
+        "end": [2, 11]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/delimitation/continuation-leading-dot-oneline",
+        "start": [2, 1],
+        "end": [2, 11]
+      },
+      "payload": {
+        "values": [7]
+      }
+    }
+  ],
+  "diagnostics": []
+}
