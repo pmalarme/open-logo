@@ -9,7 +9,7 @@ description: >-
   each dispatch, the dispatched SHA tagged, and the branch frozen once every verdict stamps one SHA.
   The orchestrator then does a final verification and merges.
 created: 2026-07-17T00:00
-updated: 2026-08-25T00:00
+updated: 2026-11-17T00:00
 ---
 
 ## Purpose
@@ -130,7 +130,9 @@ it measured, not merely which SHA:
 3. **Confirm a mutation actually applied before believing its result.** A string-replace mutation
    that silently matched nothing (a CRLF mismatch) once left an all-green suite reading as "my test
    is not load-bearing". `git diff` the file to confirm the change is present, then confirm it
-   reached `dist`. **A mutation you did not verify applied is not a mutation test.**
+   reached the artifact actually exercised: `dist/` for compiled package code, the edited source
+   for a directly executed script or workflow, or the generated workflow for a compiled workflow.
+   **A mutation you did not verify applied is not a mutation test.**
 
 ### The instrument may be measuring something other than what you think
 
@@ -226,7 +228,7 @@ defect the rule exists to prevent.
 ## The checklist
 
 The **logic/spec reviewer** (`rubber-duck`, or a named fallback) owns logic, design, and
-spec-fidelity; the **QA** sub-agent(s) re-prove items (a)–(f) below from a clean tree. Every
+spec-fidelity; the **QA** sub-agent(s) re-prove items (a)–(h) below from a clean tree. Every
 dispatched reviewer must clear every item before the PR is opened.
 
 ### (a) Clean-tree Definition-of-Done re-run
@@ -291,6 +293,79 @@ is an **unverified assertion** — nothing recomputes it (see
 reviewer checks them by measuring against the current tree, not by trusting the PR body: counts,
 file lengths, and `spec/*.md:<line>` ranges all drift silently, and this saga renumbered
 `spec/grammar.md` under existing citations.
+
+### (g) Mutation — break your own code and confirm something fails
+
+A passing suite does not establish that the behaviour you changed is **asserted**. It may be
+unexercised, exercised but not asserted, asserted on the wrong value, or measured against a stale
+artifact — and from outside, all of those look like success.
+
+So for each behaviour the change introduces, make an edit that **changes** that behaviour, rebuild
+whatever artifact needs compilation, and confirm a named test or fixture goes red. If nothing
+fails, the probe has not demonstrated regression protection in the tests run — however many tests
+pass elsewhere.
+
+For issue #1155, commit `066ce9fe` records this mutation surviving 25 unit tests and 1018 fixtures
+at its parent, `acd0364d`. It is behaviour-changing — it lets a program begin running and fail
+partway instead of being refused before any effect. The mutation was:
+
+```diff
+- { node: node.value, rootIsRead: true }
++ { node: node.value, rootIsRead: false }
+```
+
+PR #1176 describes mutation-detected gaps beside tests that passed.
+
+- **Verify the mutant reached the artifact under test.** For compiled package code that means
+  `dist/` — `tsc -b` serves a stale build when a restored file gets an older mtime, and
+  `Copy-Item -Recurse node_modules` dereferences workspace symlinks so a sandbox resolves a stale
+  package. These are the two package-artifact failures recorded in PR #1176. For directly executed
+  scripts or workflows, confirm the run loaded the edited source; for compiled workflows, confirm
+  the run exercised the generated workflow containing the mutation. These are applications of the
+  artifact-verification rule, not incidents described in PR #1176. Testing the *unmutated* artifact
+  cannot establish that a mutant survived.
+- **Read the result, not the diff.** A diff proves the text changed, not that behaviour changed —
+  confirm the mutation with a control whose observed result differs.
+  PR #1176's instrument-failure catalogue calls an equivalent predicate rewrite a no-op mutation:
+  it reports "not detected", indistinguishable from a real gap.
+- **A passing test may not distinguish the mutation.** Passing before and after a mutation does
+  not establish whether a test measures silence or reporting; either direction can pass when the
+  mutation changes a different behaviour. Assert the reporting direction as well as the clean
+  direction, and confirm a named assertion fails for the particular behaviour-changing mutation.
+
+Coverage percentage does not substitute for this: a line can be executed by a test that asserts
+nothing about it.
+
+### (h) Prose — audit it as prose, in its own pass
+
+Comments, fixture `description`s, and PR bodies are read *beside* the code they describe, so a false
+sentence next to correct code and a green fixture looks right. PR #1176 states that three rounds of
+review read false sentences and missed them.
+
+So make a pass over **only the prose this change adds or edits**, with the code out of view, and ask
+of each factual claim in it: **what measurement would falsify this, and did I run it?** Judge
+claims, not sentences — a sentence may carry several, and a purely prescriptive clause such as
+"delete rather than rewrite" asserts no fact to measure. "Findings — every finding gets resolved"
+below governs what to do with a false claim once found; it applies here unchanged.
+
+- **Remove a derived number, don't update it.** An updated count is a defect with a longer fuse.
+  Where a number must stay, anchor it to the revision it was measured at.
+- **In factual claims, avoid unenumerated absolutes** — *no*, *only*, *every*, *never*, *all*,
+  *none* — unless the universe is finite, enumerable, and you enumerated it *where the reader can
+  see it*.
+- **Prefer a pointer to a reconstructed cause.** Where deleting would invite a maintainer into a
+  trap, cite the mechanism's source instead of explaining it: a pointer avoids restating a causal
+  story you would have to verify. It is still a citation, so item (f) applies — check that it
+  resolves *and* that it supports the claim beside it, and prefer a stable symbol, an issue or PR
+  number, or a commit-anchored reference over a bare `file.ts:NN`.
+- **When you change what class something belongs to**, search for claims citing the subject as an
+  example of the old class, and revalidate them. The definition site is where the change is obvious;
+  the citing sites are where it is not.
+
+Unlike (g), the oracle here is narrow. Some prose has one — runnable examples, the citation and
+ADR-numbering gates, format checks. A fixture `description` does not: the conformance harness reads
+it (`scripts/harness/index.mjs`) but does not validate whether its prose is true, as
+`tests/conformance/README.md` states. That is why the pass has to be deliberate.
 
 ## Findings — every finding gets resolved, blocking or not
 
@@ -365,13 +440,15 @@ ground out.
 - [ ] All required reviews run as sub-agents, **all ≠ author** (at least two): the **logic/spec reviewer** — `rubber-duck` (Claude/GPT large session model) **or a named non-author fallback** — plus **every** dispatched domain QA expert; reviewers stayed read-only.
 - [ ] **Every reviewer read the commit its verdict names**: tree clean (`git status --porcelain` empty) and pushed before each dispatch, **the dispatched SHA tagged and the tag dispatched**, every reviewer idle before any edit, reviewers asserted cleanliness themselves, and the branch was **frozen** once all verdicts landed on one SHA.
 - [ ] **The instrument measured what you think**: each green run states what it enumerated (files, profiles, artifacts, runtime) and the work under review is inside that set — a `git ls-files` walk cannot see untracked work, and a verifier sharing its subject's parser inherits its blind spot.
-- [ ] **Artifacts, not just a SHA**: the tree was never mutated while a reviewer was measuring it (no two writers on one `dist`); write-capable checks ran in a disposable checkout of the exact SHA outside the worktree; any mutation was confirmed applied via `git diff` and confirmed in `dist` before its result was believed.
+- [ ] **Artifacts, not just a SHA**: the tree was never mutated while a reviewer was measuring it (no two writers on one `dist`); write-capable checks ran in a disposable checkout of the exact SHA outside the worktree; any mutation was confirmed applied via `git diff` and confirmed in the artifact actually exercised (`dist/` for compiled package code, source for directly executed scripts/workflows, generated workflow for compiled workflows) before its result was believed.
 - [ ] Clean-tree DoD re-run — build **emits** verified (no stale-`.tsbuildinfo` no-op; TS 7 confirmed).
 - [ ] Spec-fidelity — canonical vocabulary; `ol-*` codes with spans; profile boundaries.
 - [ ] Conformance fixtures present, green, and extended.
 - [ ] Runnable `spec/examples/*.logo` and doc snippets parse/run.
 - [ ] A11y / pedagogy checked where applicable.
 - [ ] Instructions / skills / docs / spec drift checked (in-PR if needed); every count and `file:line` citation the change touches was **re-derived**, not trusted.
+- [ ] **Mutation**: for each behaviour introduced, an edit that changes it was confirmed to turn a named test or fixture red, with the mutant verified live in the artifact actually exercised — an equivalent edit or a passing test alone does not demonstrate regression protection.
+- [ ] **Prose audited as prose**: a separate pass over only the prose this change adds or edits, each factual claim in it either measured with its scope and free of unenumerated absolutes, or resolved under "Findings".
 - [ ] **Every finding resolved — blocking *and* non-blocking**: each one fixed, or declined with a one-line rationale (+ follow-up issue number when it is real work outside the write-set).
 - [ ] Converged within the **10-round cap** (otherwise: not opened — escalated to `@orchestrator`/maintainer with the open findings and per-round SHAs).
 - [ ] All verdicts `pass` on the **same final HEAD** (SHA-stamped) and attached; any later commit re-ran every reviewer; no self-merge.
