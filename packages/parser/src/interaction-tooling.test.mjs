@@ -8,8 +8,8 @@
 // Two shapes with deliberately different mechanics — proven not to leak into each other:
 //
 //   1. Block-head forms `when`/`every`/`on_key`/`on_click` lower to a `ProfileStatement`. Their
-//      PAINT is profile-gated, but their DECLARATION is not: `spec/grammar.md:408` and
-//      `spec/interaction-events.md:43-47` state an unconditional rule ("what a profile decides is
+//      PAINT is profile-gated, but their DECLARATION is not: `spec/grammar.md#keywords-primitives-and-built-in-names` and
+//      `spec/interaction-events.md#profiles-and-reservation` state an unconditional rule ("what a profile decides is
 //      whether a name *works*, never whether a program may declare it"), #855 deleted the earlier
 //      "reserved only within this profile" wording from `spec/`, and #841 removed the matching gate
 //      from the checker — so the assertions below expect the SAME answer with the profile active
@@ -18,7 +18,7 @@
 //      LOCKS that half with fixtures rather than re-adding it.
 //      Reservation is a *legality* question and is independent of the token class, which #740
 //      makes profile-dependent — see the highlighting note below.
-//   2. `wait` and `input` are the profile's two ordinary calls (`spec/interaction-events.md:65`:
+//   2. `wait` and `input` are the profile's two ordinary calls (`spec/interaction-events.md#profile-grammar`:
 //      "`input` and `wait` are ordinary calls and take no block") and live in the arity table — a
 //      Kind-C command taking one number and a Kind-R reporter taking one prompt
 //      (`spec/interaction-events.md`'s "Profiles and reservation" table). I1 registered `wait`'s
@@ -44,14 +44,14 @@
 // guards is proven in both directions for every name.
 //
 // Highlighting is **profile-aware** since issue #740: `highlight()`/`semanticTokens()` take an
-// active-profile set. `spec/tooling.md:30` puts the profile block-heads in the `keyword` class
-// "while their profile is active", and `:31` puts "a profile word whose profile is inactive" in
+// active-profile set. `spec/tooling.md#normative-token-class-model` puts the profile block-heads in the `keyword` class
+// "while their profile is active", and `spec/interaction-events.md#profiles-and-reservation` puts "a profile word whose profile is inactive" in
 // `primitive`. So the six names split, and the split is the point of this file's highlighting
 // half: the four BLOCK-HEADS `when`/`every`/`on_key`/`on_click` are `keyword` with
 // `interaction-events` claimed and `primitive` without it, while `wait` and `input` are
-// `primitive` either way — they are ordinary primitives (`:31`, "profile primitives when
+// `primitive` either way — they are ordinary primitives (`spec/interaction-events.md#profiles-and-reservation`, "profile primitives when
 // enabled"), the same control case `sound-tooling.test.mjs` locks for the Sound commands.
-// `spec/interaction-events.md:47` states it directly: "`input` and `wait` are ordinary primitives
+// `spec/interaction-events.md#profiles-and-reservation` states it directly: "`input` and `wait` are ordinary primitives
 // rather than block-heads, as are the Sound command names; all of them are built-in names on the
 // same unconditional terms, and their profile decides only whether they work" — so declaring one
 // IS blocked while its token class stays `primitive`. Legality and classification are different
@@ -197,7 +197,7 @@ test("highlight: each Interaction name takes its profile-dependent class in isol
 });
 
 test("highlight: a profile word in an ORDINARY-NAME position still follows the profile", () => {
-  // `spec/tooling.md:30` is explicit that the keyword class applies "wherever it appears,
+  // `spec/tooling.md#normative-token-class-model` is explicit that the keyword class applies "wherever it appears,
   // including the positions where the grammar admits one as an ordinary name (`local end`,
   // `for end from 1 to 3`, `export end`, `:p.end`)". All four of the spec's own examples are
   // covered below, plus `set … to`. Every other test in this file uses a CALL position — so
@@ -209,7 +209,7 @@ test("highlight: a profile word in an ORDINARY-NAME position still follows the p
   // unites them is that the grammar admits an ordinary identifier there, not that they bind.
   //
   // `{ when: 1 }` is the deliberate exception and is asserted alongside: a bare dict key is
-  // `dict-key` "on grammatical grounds alone" (`:30`), so it must NOT follow the profile.
+  // `dict-key` "on grammatical grounds alone" (`spec/tooling.md#normative-token-class-model`), so it must NOT follow the profile.
   const ORDINARY_NAME_SOURCES = Object.freeze({
     local: "local when",
     "set-to": "set when to 1",
@@ -286,7 +286,7 @@ test("highlight: omitting the profile set reads as Core-only, so it matches the 
 });
 
 test("highlight: matching stays case-insensitive in BOTH profile directions", () => {
-  // `spec/tooling.md:23`: tokenization is case-insensitive for keywords and built-in primitives.
+  // `spec/tooling.md#normative-token-class-model`: tokenization is case-insensitive for keywords and built-in primitives.
   // Note what this does and does not pin: `highlight.ts` lowercases once before either lookup, so
   // both share that normalization and this test cannot detect `isProfileKeyword` losing its own
   // `.toLowerCase()` — `keywords.profiles.test.mjs`'s "Sprites keyword matching is
@@ -307,7 +307,7 @@ test("highlight: matching stays case-insensitive in BOTH profile directions", ()
 
 test("highlight: `wait` is never a keyword — a same-named procedure highlights as procedure-name", () => {
   // `wait` is an ordinary primitive, not a block-head, so it never reaches the `keyword` class in
-  // either direction — `spec/interaction-events.md:47` puts `input`/`wait` and the Sound names in
+  // either direction — `spec/interaction-events.md#profiles-and-reservation` puts `input`/`wait` and the Sound names in
   // that category. It is still a built-in name there, "on the same unconditional terms", so the
   // checker separately reports this redefinition as `ol-reserved-word` (asserted below) — a
   // legality question the highlighter does not answer.
@@ -325,7 +325,7 @@ test("highlight: `wait` is never a keyword — a same-named procedure highlights
 });
 
 test("highlight: symbol discovery still demotes a BLOCK-HEAD under an active profile", () => {
-  // `spec/tooling.md:30` — "[Disambiguating identifiers] is what demotes a token to
+  // `spec/tooling.md#normative-token-class-model` — "[Disambiguating identifiers] is what demotes a token to
   // `procedure-name`, `type-name`, or `field-name` once parsing or symbol discovery resolves it."
   // So the profile check must run AFTER discovery, not before. Hoisting it would silently paint
   // this learner's own procedure `keyword`, and nothing else in the suite would notice.
@@ -499,8 +499,8 @@ test("check: `input` checks clean under an active profile now that its slice (#6
 });
 
 test("check: `input` is STILL ol-unknown-command without the profile — it is not a Core name", () => {
-  // The other direction of the same gate: `spec/conformance.md:169-173` puts `input` in Interaction &
-  // Events, and `spec/interaction-events.md:11` is explicit that "OpenLogo **Core** remains
+  // The other direction of the same gate: `spec/conformance.md#interaction--events` puts `input` in Interaction &
+  // Events, and `spec/interaction-events.md#interaction-events` is explicit that "OpenLogo **Core** remains
   // non-interactive: `input` is defined here, not in Core". A Core-only program that calls it must
   // still be told the name is unknown. Written as a bare call (with an argument the profile-blind
   // reader CAN now group, since the reader's arity table is profile-blind by design, the semantic
@@ -516,7 +516,7 @@ test("check: `input` is STILL ol-unknown-command without the profile — it is n
 test("check: redefining an Interaction block-head under an active profile raises ol-reserved-word", () => {
   // This section is a lock on the RULE, not on a profile's behaviour. `when`/`every`/`on_key`/
   // `on_click` were once treated as reserved only while Interaction & Events was active (C1 #663);
-  // `spec/grammar.md:408` and `spec/interaction-events.md:43-47` make them unconditional ("reserved
+  // `spec/grammar.md#keywords-primitives-and-built-in-names` and `spec/interaction-events.md#profiles-and-reservation` make them unconditional ("reserved
   // **unconditionally**: every implementation reserves them whether or not it claims this
   // profile"), for `wait`/`input` and the Sound names too, and #841 removed the gate. So this test
   // and its Core-only twin below must agree name for name; a difference between them is the defect.
@@ -536,7 +536,7 @@ test("check: redefining an Interaction block-head under an active profile raises
 });
 
 test("#841: redefining an Interaction block-head raises under Core-only too", () => {
-  // `spec/interaction-events.md:43-47` and `spec/grammar.md:408` make these words built-in names
+  // `spec/interaction-events.md#profiles-and-reservation` and `spec/grammar.md#keywords-primitives-and-built-in-names` make these words built-in names
   // unconditionally, so the answer here must match the profile-ACTIVE test above name for name. A
   // difference between the two is the defect, not the point.
   for (const head of Object.keys(INTERACTION_BLOCK_HEADS)) {
@@ -553,12 +553,12 @@ test("#841: redefining an Interaction block-head raises under Core-only too", ()
 
 test("check: `wait` is a primitive, so redefining it under an active profile raises ol-reserved-word", () => {
   // `wait` is NOT a profile block-head (contrast the four heads above — it never appears in
-  // `OL_PROFILE_KEYWORDS`), but `spec/tooling.md:185` makes redefining a *primitive*
+  // `OL_PROFILE_KEYWORDS`), but `spec/tooling.md#layer-2-semantic-checking` makes redefining a *primitive*
   // `ol-reserved-word` all the same. That block-head/primitive distinction decides which BRANCH of
   // the checker reports it, and since issue #838 no longer shows up in the diagnostic at all:
-  // `spec/error-model.md:125` gives the code `params: { name }` only, and requires that "the words
+  // `spec/error-model.md#normative-code-registry` gives the code `params: { name }` only, and requires that "the words
   // *keyword*, *primitive*, and *alias* MUST NOT appear in the learner message" — because, as
-  // `spec/error-model.md:136` puts it, that is "an implementation distinction the learner never has
+  // `spec/error-model.md#normative-code-registry` puts it, that is "an implementation distinction the learner never has
   // to learn". Sound's identically-shaped `set_tempo`, Geometry's `grid`, and Data's `list` already
   // behaved this way; before I8 `wait` was the only one of those four profiles' primitives a
   // program could silently shadow.
@@ -577,7 +577,7 @@ test("check: `wait` is a primitive, so redefining it under an active profile rai
 });
 
 test("#841: `wait` raises under Core-only too — the same rule, on the primitive branch", () => {
-  // `spec/interaction-events.md:47`: `input`/`wait` "are built-in names on the same unconditional
+  // `spec/interaction-events.md#profiles-and-reservation`: `input`/`wait` "are built-in names on the same unconditional
   // terms". Asserting it on the PRIMITIVE branch as well as the block-head branch above is the
   // point — the two reach the predicate through different lookups, so a change that moves only one
   // of them leaves the other red.
@@ -597,8 +597,8 @@ test("#841: `wait` raises under Core-only too — the same rule, on the primitiv
 // --- Static arity: `wait` is strictly fixed-arity, gated on the same profile --------------------
 
 test("check: a `wait` call short of its one input raises ol-not-enough-inputs at stage=semantic", () => {
-  // `wait <n>` is Kind-C taking exactly one number (`spec/interaction-events.md:31`), so a bare
-  // `wait` that ran out of line is statically short — `spec/tooling.md:182`, "Not enough inputs for
+  // `wait <n>` is Kind-C taking exactly one number (`spec/interaction-events.md#profiles-and-reservation`), so a bare
+  // `wait` that ran out of line is statically short — `spec/tooling.md#layer-2-semantic-checking`, "Not enough inputs for
   // a fixed-arity or selected call form". Before I8 this checked clean, because `wait` had no
   // static arity range — the same shape Sound's `set_tempo` already had via #689.
   const [finding, ...rest] = checkDiagnostics("wait", INTERACTION_PROFILES);

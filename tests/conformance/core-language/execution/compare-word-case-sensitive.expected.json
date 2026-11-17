@@ -1,5 +1,5 @@
 {
-  "description": "Case-folding stops at identifiers: word values stay case-sensitive (issue #512 guard, `spec/grammar.md:13` folds keywords/identifiers only, not word data). `\"Cat\"` and `\"cat\"` are distinct words, so `print \"Cat\" == \"cat\"` prints `false`.",
+  "description": "Case-folding stops at identifiers: word values stay case-sensitive (issue #512 guard, `spec/grammar.md#lexical-form-and-encoding` folds keywords/identifiers only, not word data). `\"Cat\"` and `\"cat\"` are distinct words, so `print \"Cat\" == \"cat\"` prints `false`.",
   "profiles": ["core-language"],
   "execute": true,
   "events": [

@@ -1,5 +1,5 @@
 {
-  "description": "The parenthesized variadic `(list a b ...)` form (issue #397, `spec/data-structures.md:78`) returns a fresh list containing each evaluated argument as its own element, in order.",
+  "description": "The parenthesized variadic `(list a b ...)` form (issue #397, `spec/data-structures.md#mutating-list-operations`) returns a fresh list containing each evaluated argument as its own element, in order.",
   "profiles": ["core-language", "data"],
   "execute": true,
   "events": [

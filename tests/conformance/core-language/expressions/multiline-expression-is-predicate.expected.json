@@ -1,5 +1,5 @@
 {
-  "description": "Every slot of an unfinished `is` predicate tolerates a newline, because the predicate is a single expression and `spec/grammar.md:34` makes newlines insignificant inside one (issue #933): after `is`, around `member`/`of`, before the type word of `is a`, and around both bounds of `is between … and …`. Each of these positions is a parse error without the newline handling, so nothing that parsed cleanly before is re-read here.",
+  "description": "Every slot of an unfinished `is` predicate tolerates a newline, because the predicate is a single expression and `spec/grammar.md#lexical-form-and-encoding` makes newlines insignificant inside one (issue #933): after `is`, around `member`/`of`, before the type word of `is a`, and around both bounds of `is between … and …`. Each of these positions is a parse error without the newline handling, so nothing that parsed cleanly before is re-read here.",
   "profiles": ["core-language"],
   "execute": true,
   "events": [

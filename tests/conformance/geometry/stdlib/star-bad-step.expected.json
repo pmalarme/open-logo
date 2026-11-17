@@ -1,5 +1,5 @@
 {
-  "description": "issue #338: `(star 5 100 1)` (a `:step` not strictly between 1 and `:points`) raises `ol-user-error` with the exact spec message \"a star step must be a whole number between 2 and one less than the number of points\" (spec/geometry-module.md:93-95).",
+  "description": "issue #338: `(star 5 100 1)` (a `:step` not strictly between 1 and `:points`) raises `ol-user-error` with the exact spec message \"a star step must be a whole number between 2 and one less than the number of points\" (spec/geometry-module.md#star-points-size-step-2).",
   "profiles": ["geometry"],
   "execute": true,
   "events": [

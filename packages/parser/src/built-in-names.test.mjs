@@ -73,7 +73,7 @@ test("matching is case-insensitive, like every other identifier lookup", () => {
 });
 
 test("a Heritage alias is a built-in name exactly when its canonical is", () => {
-  // `spec/conformance.md:150` — Heritage is alternate spellings only, no new semantics — so
+  // `spec/conformance.md#heritage` — Heritage is alternate spellings only, no new semantics — so
   // `define pr` must be exactly as illegal as `define print`. The alias leg resolves and re-enters
   // the same lookup rather than consulting a table of its own, which is what makes this hold by
   // construction rather than by a second list kept in step.
@@ -101,7 +101,7 @@ test("alias resolution is depth-1, so the recursion terminates by construction",
 });
 
 test("the predicate takes no profile set, so supplying one changes nothing", () => {
-  // `spec/grammar.md:408`: a profile decides whether a name works, never whether a program may
+  // `spec/grammar.md#keywords-primitives-and-built-in-names`: a profile decides whether a name works, never whether a program may
   // declare it. The extra argument is ignored, which is exactly the property being pinned — there
   // is no profile parameter for a caller to get wrong.
   for (const name of [
@@ -124,8 +124,8 @@ test("the predicate takes no profile set, so supplying one changes nothing", () 
 // --- The two keyword axes, which read one registry and answer differently ------------------------
 
 test("isKeywordInAnyProfile is unconditional where isKeyword stays gated", () => {
-  // The split issue #841 introduced. `spec/tooling.md:30` gates the PAINT axis on the active
-  // profile ("while their profile is active"); `spec/grammar.md:408` refuses to gate the
+  // The split issue #841 introduced. `spec/tooling.md#normative-token-class-model` gates the PAINT axis on the active
+  // profile ("while their profile is active"); `spec/grammar.md#keywords-primitives-and-built-in-names` refuses to gate the
   // DECLARATION axis. Both read `OL_PROFILE_KEYWORDS`, so this pins that they disagree only about
   // *when* a word counts — never about which words there are.
   for (const [profile, words] of Object.entries(OL.OL_PROFILE_KEYWORDS)) {
@@ -219,7 +219,7 @@ test("a Heritage form head and its Core canonical are both built-in names", () =
   // A membership-consistency assertion, and no more than that. `canonicalOfHeritageFormHead`
   // resolves `to` → `define`, and this pins that the predicate answers alike for both sides of
   // every such edge — Heritage being "alternate spellings only, no new semantics"
-  // (`spec/conformance.md:150`) means a spelling cannot be declarable while its canonical is not.
+  // (`spec/conformance.md#heritage`) means a spelling cannot be declarable while its canonical is not.
   //
   // What it does NOT do: it asserts nothing about the `ol-reserved-word` diagnostic itself (that is
   // `checker-reserved-word.test.mjs`, which drives `check()`), and it does not rescue an unused

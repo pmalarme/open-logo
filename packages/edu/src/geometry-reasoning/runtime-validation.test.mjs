@@ -145,7 +145,7 @@ test("reasonAboutArc's center and finalPosition match the position left by a rea
   assert.ok(Math.abs(formula.finalPosition[1] - actualFinalPosition[1]) < 1e-6);
 });
 
-test("analyzeTurtlePathClosure's headingCloses over a real `arc 90 50` execution is direction-agnostic and correctly false — `arc` mostly turns left (`spec/geometry-module.md:241`), reconstructed here as large clockwise deltas close to 360", () => {
+test("analyzeTurtlePathClosure's headingCloses over a real `arc 90 50` execution is direction-agnostic and correctly false — `arc` mostly turns left (`spec/geometry-module.md#arc-angle-radius`), reconstructed here as large clockwise deltas close to 360", () => {
   const events = executeEvents(ARC_SOURCE);
   const closure = analyzeTurtlePathClosure(events);
   // The stepped construction turns left `:segments` times (reconstructed as deltas close to

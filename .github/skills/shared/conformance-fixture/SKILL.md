@@ -95,10 +95,10 @@ It is not the only unchecked thing in an `.expected.json`, and knowing the other
 writing an assertion that quietly asserts nothing:
 
 - A **diagnostic `message`** is compared **only when the fixture sets `"compareMessages": true`**
-  (issue #1025). The default is identity — `code` + `params` (`spec/error-model.md:254-259`) — and
-  `:261-263` positively permits a template author to reword prose, so most learner wording is
+  (issue #1025). The default is identity — `code` + `params` (`spec/error-model.md#localization-boundary`) — and
+  `spec/error-model.md#localization-boundary` positively permits a template author to reword prose, so most learner wording is
   presentation a conforming implementation may change. Opt in only where the spec fixes the words
-  themselves: `ol-reserved-word`'s `spec/error-model.md:125` both prescribes the sentence and makes
+  themselves: `ol-reserved-word`'s `spec/error-model.md#normative-code-registry` both prescribes the sentence and makes
   *keyword*/*primitive*/*alias* a MUST NOT in it. **Three** ways of holding a message that is not
   guaranteed to assert anything are each a fixture error: a `message` without the flag; the flag
   without any `message`; and the flag together with `expect: "mismatch"` (issue #1028), whose
@@ -121,7 +121,7 @@ the optional profiles the source uses and fails the fixture when the declared se
 dependency closure — does not cover them, so the array cannot quietly under-declare what the program
 needs. It gates executed fixtures only; `check` fixtures are already gated for real through
 `check(profiles)` (and deliberately name inactive profiles' forms), and parse-only fixtures have no
-profile semantics to gate (`spec/conformance.md:120`). See `tests/conformance/README.md`.
+profile semantics to gate (`spec/conformance.md#data`). See `tests/conformance/README.md`.
 
 So:
 

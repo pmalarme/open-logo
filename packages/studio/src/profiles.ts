@@ -8,8 +8,8 @@
  * guaranteed, not an invariant this module can enforce.)
  *
  * ## Why the host's supported profiles, and not Core Language alone
- * `spec/tooling.md:30` puts the profile block-heads — plus the Sprites mode-switch command `tell` —
- * in the `keyword` class *"while their profile is active"*, and `:31` puts *"a profile word whose
+ * `spec/tooling.md#normative-token-class-model` puts the profile block-heads — plus the Sprites mode-switch command `tell` —
+ * in the `keyword` class *"while their profile is active"*, and `spec/tooling.md#normative-token-class-model` puts *"a profile word whose
  * profile is inactive"* in `primitive`. The class of `tell`/`ask`/`each`/`when`/`every`/`on_key`/
  * `on_click` is therefore a function of the active set, and a caller that supplies none gets
  * `@openlogo/parser`'s profile-neutral default (`DEFAULT_CHECK_PROFILES`, Core Language alone) —
@@ -19,11 +19,11 @@
  * (`import` loads modules, not profiles), so the learner's active set is simply **whatever this
  * build supports**: `@openlogo/core`'s {@link SUPPORTED_PROFILES}, the same list `getHostMetadata()`
  * publishes for feature detection. A learner really can write `ask :t [ right 90 ]` in this editor
- * (`spec/turtles-and-sprites.md:23`), so `ask` must paint as the `keyword` it is, and the checker —
+ * (`spec/turtles-and-sprites.md#canonical-forms`), so `ask` must paint as the `keyword` it is, and the checker —
  * reading the same set — must treat it as an available name rather than an unknown command.
  *
  * What a profile set decides is exactly that: **whether a name works**, never whether a program may
- * declare it. Profile words are built-in names *unconditionally* (`spec/grammar.md:408`), so
+ * declare it. Profile words are built-in names *unconditionally* (`spec/grammar.md#keywords-primitives-and-built-in-names`), so
  * `ol-reserved-word` is not a profile-conditional judgement and nothing here should be read as
  * making it one.
  *

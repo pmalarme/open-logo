@@ -58,7 +58,7 @@ test("OLRecord.set overwrites a declared field's value in place", () => {
   assert.deepEqual(record.fields(), ["x", "y"]);
 });
 
-test("OLRecord folds field case on has/get/set but keeps the declared spelling (spec/grammar.md:13)", () => {
+test("OLRecord folds field case on has/get/set but keeps the declared spelling (spec/grammar.md#lexical-form-and-encoding)", () => {
   const record = new OL.OLRecord("Point", ["X", "Y"], [3, 4]);
   // fields() and the type keep their declared spelling for display.
   assert.equal(record.type, "Point");
@@ -76,7 +76,7 @@ test("OLRecord folds field case on has/get/set but keeps the declared spelling (
   assert.equal(record.get("Z"), undefined);
 });
 
-test("OLRecord collapses case-only duplicate fields to one field, keeping fields() 1:1 with its slots (spec/grammar.md:13)", () => {
+test("OLRecord collapses case-only duplicate fields to one field, keeping fields() 1:1 with its slots (spec/grammar.md#lexical-form-and-encoding)", () => {
   // `x` and `X` fold to the same identifier, so this declares ONE field, not two — the record
   // must not expose a phantom declared position that no slot backs (no split-brain).
   const record = new OL.OLRecord("point", ["x", "X"], [1, 2]);

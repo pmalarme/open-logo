@@ -9,7 +9,7 @@
 //   1. Block-head forms `tell`/`ask`/`each` lower to a `ProfileStatement` and are keywords of the
 //      Sprites profile (`spec/turtles-and-sprites.md#reserved-words-in-this-profile`, C1 #663).
 //      Their PAINT is profile-gated — `isKeyword` matches them only while Sprites is active — while
-//      their DECLARATION is not: `spec/grammar.md:408` makes profile words built-in names
+//      their DECLARATION is not: `spec/grammar.md#keywords-primitives-and-built-in-names` makes profile words built-in names
 //      unconditionally, #855 realigned the profile documents, and #841 retired the checker gate, so
 //      **declaring** one — `define` or `struct`, not a binding — raises `ol-reserved-word` whether
 //      or not the profile is claimed. The Layer-2 checker was taught to treat them as visible
@@ -25,7 +25,7 @@
 //      so they now check clean with the profile active and stay `ol-unknown-command` without it.
 //      Issue #746 then closed the mirror-image hole: being a *primitive* rather than a keyword
 //      decides which BRANCH of the checker reports a redefinition, not
-//      whether it is reportable at all (`spec/tooling.md:185`), so `define who` collides under
+//      whether it is reportable at all (`spec/tooling.md#layer-2-semantic-checking`), so `define who` collides under
 //      an active profile exactly as `define grid`/`define wait` do — and, since issue #841 retired
 //      the profile gate on declarations, without the profile too. Only CALL visibility is still
 //      profile-gated: `who` under Core alone is `ol-unknown-command` at a call and
@@ -34,17 +34,17 @@
 //      diagnostic; the branches remain, the label does not.)
 //
 // Highlighting is **profile-aware** since issue #740: `highlight()`/`semanticTokens()` take an
-// active-profile set. `spec/tooling.md:30` puts in the `keyword` class, "while their profile is
+// active-profile set. `spec/tooling.md#normative-token-class-model` puts in the `keyword` class, "while their profile is
 // active", "a profile's block-heads and its mode-switch commands" — so precisely: `ask` and `each`
 // are the block-heads and `tell` is the
-// mode-switch command, and all three move. `:31` puts "a profile word whose profile is inactive"
+// mode-switch command, and all three move. `spec/tooling.md#normative-token-class-model` puts "a profile word whose profile is inactive"
 // in `primitive`. So the six names split, and the split is the point of this file's highlighting
 // half: `tell`/`ask`/`each` are `keyword` with `sprites` claimed and
 // `primitive` without it, while the three REPORTERS `new_turtle`/`who`/`turtles` are `primitive`
-// either way — they are ordinary primitives (`:31`, "profile primitives when enabled"), which is
+// either way — they are ordinary primitives (`spec/tooling.md#normative-token-class-model`, "profile primitives when enabled"), which is
 // the same control case `sound-tooling.test.mjs` locks for the Sound commands.
 // (Elsewhere this file uses "block-head" as long-standing shorthand for all three forms, which
-// predates #740 and is left as-is; `spec/tooling.md:30` is the precise wording.)
+// predates #740 and is left as-is; `spec/tooling.md#normative-token-class-model` is the precise wording.)
 //
 // Both directions are asserted for every name. Before #740 this file asserted only the
 // profile-neutral `primitive` reading and carried a KNOWN DEVIATION note saying the parser could
@@ -164,7 +164,7 @@ test("highlight: each Sprites name takes its profile-dependent class in isolatio
 });
 
 test("highlight: a profile word in an ORDINARY-NAME position still follows the profile", () => {
-  // `spec/tooling.md:30` is explicit that the keyword class applies "wherever it appears,
+  // `spec/tooling.md#normative-token-class-model` is explicit that the keyword class applies "wherever it appears,
   // including the positions where the grammar admits one as an ordinary name (`local end`,
   // `for end from 1 to 3`, `export end`, `:p.end`)". All four of the spec's own examples are
   // covered below, plus `set … to`. Every other test in this file uses a CALL position — so
@@ -176,7 +176,7 @@ test("highlight: a profile word in an ORDINARY-NAME position still follows the p
   // unites them is that the grammar admits an ordinary identifier there, not that they bind.
   //
   // `{ ask: 1 }` is the deliberate exception and is asserted alongside: a bare dict key is
-  // `dict-key` "on grammatical grounds alone" (`:30`), so it must NOT follow the profile. Pinning
+  // `dict-key` "on grammatical grounds alone" (`spec/tooling.md#normative-token-class-model`), so it must NOT follow the profile. Pinning
   // it here rather than only transitively is what keeps the dict-key/profile ordering honest.
   const ORDINARY_NAME_SOURCES = Object.freeze({
     local: "local ask",
@@ -270,7 +270,7 @@ test("highlight: a Sprites reporter name is never a keyword — its call site hi
 });
 
 test("highlight: symbol discovery still demotes a BLOCK-HEAD under an active profile", () => {
-  // `spec/tooling.md:30` — "[Disambiguating identifiers] is what demotes a token to
+  // `spec/tooling.md#normative-token-class-model` — "[Disambiguating identifiers] is what demotes a token to
   // `procedure-name`, `type-name`, or `field-name` once parsing or symbol discovery resolves it."
   // So the profile check must run AFTER discovery, not before. Hoisting it would silently paint
   // this learner's own procedure `keyword`, and nothing else in the suite would notice.
@@ -407,7 +407,7 @@ test("check: that same program under Core-only flags each Sprites name as unknow
 
 test("check: redefining a Sprites block-head under an active profile raises ol-reserved-word", () => {
   // `tell`/`ask`/`each` were once reserved only while Sprites was active (C1 #663), a gate
-  // `spec/grammar.md:408` overruled and issue #841 removed — so this test's Core-only twin below
+  // `spec/grammar.md#keywords-primitives-and-built-in-names` overruled and issue #841 removed — so this test's Core-only twin below
   // must agree with it head for head. The reporters are NOT keywords in any profile — they collide
   // through the checker's *primitive* branch instead (issue #746, asserted by the reporter
   // redefinition tests below), which since issue #838 is a difference in branch only: both report
@@ -426,7 +426,7 @@ test("check: redefining a Sprites block-head under an active profile raises ol-r
 });
 
 test("#841: redefining a Sprites block-head raises under Core-only too", () => {
-  // `spec/grammar.md:408` and `spec/turtles-and-sprites.md:154`: a profile decides whether a name
+  // `spec/grammar.md#keywords-primitives-and-built-in-names` and `spec/turtles-and-sprites.md#reserved-words-in-this-profile`: a profile decides whether a name
   // works, never whether a program may declare it. So this must match the profile-ACTIVE test above
   // head for head — a difference between the two would be the defect.
   for (const head of Object.keys(SPRITES_BLOCK_HEADS)) {
@@ -444,7 +444,7 @@ test("#841: redefining a Sprites block-head raises under Core-only too", () => {
 test("check: redefining a Sprites reporter under an active profile raises ol-reserved-word", () => {
   // Issue #746. Until this fix the reporters were the one Sprites shape a program could silently
   // shadow: this test asserted `define who … end` checked *clean* under an active profile, which
-  // pinned the defect rather than the rule. `spec/tooling.md:185` is a normative Layer-2 "Required
+  // pinned the defect rather than the rule. `spec/tooling.md#layer-2-semantic-checking` is a normative Layer-2 "Required
   // behavior" row listing **primitive** beside "keyword" — and profile primitives count there
   // whether or not their profile is claimed — so `new_turtle`/`who`/`turtles` (C3 Kind-R
   // primitives) collide exactly
@@ -452,7 +452,7 @@ test("check: redefining a Sprites reporter under an active profile raises ol-res
   //
   // The reporter/block-head distinction this file exists to keep separate is preserved in the
   // checker's BRANCHES, but is no longer visible in the diagnostic: issue #838 removed the
-  // `namespace` param, because `spec/error-model.md:125,132-141` makes keyword-vs-primitive "an
+  // `namespace` param, because `spec/error-model.md#normative-code-registry` makes keyword-vs-primitive "an
   // implementation distinction the learner never has to learn". `params.name` is the surface
   // spelling the learner wrote, at that name's own span (#737).
   for (const reporter of Object.keys(SPRITES_REPORTERS)) {
@@ -484,7 +484,7 @@ test("#841: redefining a Sprites reporter raises under Core-only too", () => {
   // PRIMITIVES while the block-heads above reach it as keywords, so asserting both under Core-only
   // is what distinguishes a complete fix from one that moved a single branch. A *call* to the name
   // is still `ol-unknown-command` under Core-only — that is the availability axis
-  // (`spec/tooling.md:175-176`) and a different rule, exercised above.
+  // (`spec/tooling.md#layer-2-semantic-checking`) and a different rule, exercised above.
   for (const reporter of Object.keys(SPRITES_REPORTERS)) {
     const codes = checkDiagnostics(
       `define ${reporter}\nend`,

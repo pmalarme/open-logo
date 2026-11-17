@@ -6,7 +6,7 @@
 // `turtle_id`) folding into id 0, isolation between turtles, and the render-following obligation
 // from `spec/turtles-and-sprites.md`'s "Per-turtle state and Turtle commands" section — plus
 // (issue #749) the **last-acted** turtle the non-visual state description names as its subject
-// (`spec/rendering.md:115`/`:193`).
+// (`spec/rendering.md#turtle-avatar-and-shapes`/`spec/rendering.md#non-visual-state-descriptions`).
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import * as Core from "@openlogo/core";
@@ -202,7 +202,7 @@ test("a clean clear leaves per-turtle state untouched", () => {
 
 test("a clear_screen clear moves no turtle here — the homing arrives as move/turn", () => {
   // Issue #738: one `clear_screen` homes EVERY addressed turtle, which no single identity on one
-  // shared-surface event could name, so `spec/turtles-and-sprites.md:113` makes the `clear` purely a
+  // shared-surface event could name, so `spec/turtles-and-sprites.md#per-turtle-state-and-turtle-commands` makes the `clear` purely a
   // surface event — "consumers MUST NOT read a `clear` event as an instruction to move a turtle: a
   // turtle's position and heading change only through the events that report that turtle's
   // movement". This reducer therefore ignores it, in either mode. The single-turtle
@@ -276,7 +276,7 @@ test("reducing no events returns the seed unchanged", () => {
   assert.equal(world, OL.INITIAL_TURTLE_WORLD_STATE);
 });
 
-// --- the last-acted turtle (`spec/rendering.md:193`) ---
+// --- the last-acted turtle (`spec/rendering.md#non-visual-state-descriptions`) ---
 
 test("the turtle a state-bearing event targeted becomes the last-acted turtle", () => {
   const world = OL.reduceTurtleWorldEvents([
@@ -290,7 +290,7 @@ test("the turtle a state-bearing event targeted becomes the last-acted turtle", 
 });
 
 test("creating a turtle does not make it the last-acted one — only acting does", () => {
-  // `:friend = new_turtle` leaves the addressed set alone (spec/turtles-and-sprites.md:42), so the
+  // `:friend = new_turtle` leaves the addressed set alone (spec/turtles-and-sprites.md#addressing-model), so the
   // main turtle is still the one a learner is driving until something addresses the new turtle.
   const afterSpawn = OL.reduceTurtleWorldEvents([spawn(1)]);
   assert.equal(afterSpawn.lastActedTurtleId, OL.MAIN_TURTLE_ID);
@@ -337,7 +337,7 @@ test("an un-stamped event makes the main turtle the last-acted one again", () =>
 
 test("a scene-only per-turtle command (stamp) makes its turtle the last-acted one", () => {
   // `tell :a` / `forward 10` / `ask :b [ stamp ]`. `stamp` and `fill` are per-turtle commands
-  // (spec/turtles-and-sprites.md:109 — they "use the current turtle's pen and shape state") that
+  // (spec/turtles-and-sprites.md#per-turtle-state-and-turtle-commands — they "use the current turtle's pen and shape state") that
   // write into the shared scene rather than the turtle, so they change no TurtleState. Ignoring
   // them would leave `:a` reported as the last turtle to act while `:b` is the one that just did
   // something.
@@ -405,7 +405,7 @@ test("lastActedTurtleState falls back to the program-start defaults for a hand-b
   assert.deepEqual(OL.lastActedTurtleState(world), OL.INITIAL_TURTLE_STATE);
 });
 
-// --- the addressed turtle set (#770, consumer half of #766; spec/rendering.md:193) -------------
+// --- the addressed turtle set (#770, consumer half of #766; spec/rendering.md#non-visual-state-descriptions) -------------
 
 /** An addressing `primitive` event, exactly as the runtime emits it (issue #766): the snapshot
  * rides the existing `primitive` payload, and carries no envelope `turtle_id` because it describes
@@ -425,7 +425,7 @@ function addressing(name, addressedTurtleIds, currentTurtleId) {
 }
 
 test("the initial world addresses the single default turtle", () => {
-  // spec/turtles-and-sprites.md:44 — "In a program without the Sprites profile, the addressed set
+  // spec/turtles-and-sprites.md#addressing-model — "In a program without the Sprites profile, the addressed set
   // contains the single default turtle."
   assert.deepEqual(OL.INITIAL_TURTLE_WORLD_STATE.addressedTurtleIds, [
     OL.MAIN_TURTLE_ID,
@@ -465,7 +465,7 @@ test("tell folds the whole addressed set, which no single turtle_id could expres
 
 test("tell [ :a :b ] / forward 10 / ask :b [ hide_turtle ] ends addressed { 1, 2 } with current turtle 1 (#770 acceptance criterion)", () => {
   // The stream of tests/conformance/sprites/addressing-tell-ask-restore, folded. After `ask`
-  // restores (spec/turtles-and-sprites.md:58) the last turtle-stamped effect still belongs to
+  // restores (spec/turtles-and-sprites.md#addressing-model) the last turtle-stamped effect still belongs to
   // turtle 2 — so `lastActedTurtleId` is 2 while the addressed set is back to { 1, 2 } and the
   // current turtle is 1. That difference is the whole point of folding the snapshot.
   const world = OL.reduceTurtleWorldEvents([
@@ -505,7 +505,7 @@ test("ask entry narrows the addressed set, and the restore puts the previous set
 });
 
 test("each narrows to one turtle per iteration and restores the set afterwards", () => {
-  // spec/turtles-and-sprites.md:78 — `each` "runs its block once per turtle in the current tell or
+  // spec/turtles-and-sprites.md#addressing-model — `each` "runs its block once per turtle in the current tell or
   // ask set", and `who` reports that iteration's turtle. Every narrowing is its own snapshot, so
   // folding by assignment tracks each iteration exactly.
   const events = [
@@ -610,7 +610,7 @@ test("a widening tell is folded, not swallowed as an unchanged set", () => {
   // same current turtle, so a member-by-member comparison that forgot to compare LENGTHS would
   // treat [1] and [1, 2] as identical and silently drop the widening — leaving the text claiming
   // one addressed turtle when the next turtle command will drive two, the exact failure
-  // spec/rendering.md:193
+  // spec/rendering.md#non-visual-state-descriptions
   // forbids. (The narrowing direction [1, 2] -> [1] cannot hide this way, so only widening needs
   // the guard.)
   const narrow = OL.reduceTurtleWorldEvents([

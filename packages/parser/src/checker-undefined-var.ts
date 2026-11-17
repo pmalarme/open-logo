@@ -2,18 +2,18 @@
  * The `ol-undefined-var` semantic rule (issue #113): a static read of an unbound `:name` — a
  * bare {@link VarRefNode}, a `thing "name"` call whose literal argument names a variable, or the
  * base of a postfixed {@link PlaceNode} (`:people.tom.age`, `:nums[1]`) — with no visible
- * declaration in the program's static scope chain (`spec/tooling.md:183-184`).
+ * declaration in the program's static scope chain (`spec/tooling.md#layer-2-semantic-checking`).
  *
  * Scope model: OpenLogo uses genuine lexical frame scoping, not a flat whole-program namespace
- * (`spec/execution-model.md:340-342`). A procedure's parameters and `local` names live only in
+ * (`spec/execution-model.md#variables-scoping-and-procedures`). A procedure's parameters and `local` names live only in
  * that procedure's own frame, invisible to its callers and to every other procedure; a `for`/
  * comprehension binder lives only within its own loop/comprehension body, shadowing an outer
  * binding of the same name and never leaking past the end of that body; the top-level program
  * runs in a root frame, and an assignment or a top-level `local` that has no other visible
  * binding creates or updates a *global* — a binding in that root frame
- * (`spec/execution-model.md:344-348`). Treating that root-frame binding as visible throughout the
+ * (`spec/execution-model.md#variables-scoping-and-procedures`). Treating that root-frame binding as visible throughout the
  * program regardless of textual order is this checker's own resolution model, not a spec rule:
- * the spec grants forward references only to `define`/`struct` (`spec/execution-model.md:83`),
+ * the spec grants forward references only to `define`/`struct` (`spec/execution-model.md#reader-pipeline`),
  * never to variables. This rule resolves
  * every read against that chain: innermost binder scope → the enclosing procedure's own frame
  * (if any) → the global/root frame.
@@ -25,7 +25,7 @@
  *    flow), plus every zero-segment assignment target (`:name = value`) whose name is not already
  *    visible via an enclosing procedure frame or binder scope at that point — an assignment to an
  *    *already-visible* name is just an update, not a new global
- *    (`spec/execution-model.md:344-348`). This pass must run to completion before pass 2, since a
+ *    (`spec/execution-model.md#variables-scoping-and-procedures`). This pass must run to completion before pass 2, since a
  *    read may forward-reference a global declared later in the file — globals, unlike procedure
  *    frames and binder scopes, are order-insensitive.
  * 2. {@link checkReads} walks the whole program again, this time emitting `ol-undefined-var` for
@@ -42,7 +42,7 @@
  * `spec/execution-model.md`'s frame model actually specifies.
  *
  * A segmented place's base (`:people` in `:people.tom = 1`) is always checked as a **read**, never
- * treated as a declaration — `spec/execution-model.md:251-291` is explicit that there is no
+ * treated as a declaration — `spec/execution-model.md#postfix-reads, spec/execution-model.md#assignable-places-and-mutation` is explicit that there is no
  * intermediate auto-vivification; only a bare, zero-segment `:name = value` can create a new
  * binding.
  */
@@ -64,7 +64,7 @@ import type { CheckProfile } from "./check.js";
 
 /**
  * The lowercase name(s) a `for … in` / `map`/`filter`/`reduce` binder introduces: one for a bare
- * `name`, or one per `:name` in a destructuring `[ :x :y ]` pattern (`spec/grammar.md:136-137`).
+ * `name`, or one per `:name` in a destructuring `[ :x :y ]` pattern (`spec/grammar.md#ebnf-notation`).
  * Resolving which destructured name a given read maps to is out of scope here (#114); every
  * destructured name is simply visible throughout the loop/comprehension body, same as today's
  * single bare-name binder.
@@ -341,7 +341,7 @@ function checkReadsIn(
       if (target.kind === "Place") {
         if (target.segments.length > 0) {
           // Segmented target: the base must already be a bound variable — no intermediate
-          // auto-vivification (spec/execution-model.md:251-291) — so it is checked as a read.
+          // auto-vivification (spec/execution-model.md#postfix-reads, spec/execution-model.md#assignable-places-and-mutation) — so it is checked as a read.
           checkBaseRead(target, scopeContext, globals, diagnostics);
           for (const segment of target.segments) {
             if (segment.kind === "index") {

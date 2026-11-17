@@ -25,12 +25,12 @@
  * same code path as its Core equivalent — there is no divergent Heritage evaluation anywhere.
  *
  * Slice H5 (issue #670) adds the `value of <dict> for key <key>` reader
- * (`spec/grammar.md:213`'s `value-of-reader`) to this same family. Unlike the four form *heads*, it
+ * (`spec/grammar.md#expressions-and-calls`'s `value-of-reader`) to this same family. Unlike the four form *heads*, it
  * is a four-keyword *reader* form, not an alias-able name — the reader lowers it to a
  * {@link ValueOfKeyNode} whose evaluation is byte-identical to the Core dict read `:d[:k]`/`:d.key`
- * (`spec/data-structures.md:183-195`). It has no single Core *word* equivalent (the Core spelling is
+ * (`spec/data-structures.md#malformed-dictionary-literal-entries`). It has no single Core *word* equivalent (the Core spelling is
  * the `[]`/`.` selector *syntax*, not a keyword), so — like `ol-unknown-command`'s no-candidate
- * branch (`spec/error-model.md:96`) — its rejection carries no `suggestion`, only the "check the
+ * branch (`spec/error-model.md#normative-code-registry`) — its rejection carries no `suggestion`, only the "check the
  * spelling, or define it with 'define'" message, at the `value` head word. Because it operates on a
  * dict, Heritage depends on Data (`spec/conformance.md#heritage`), so an accepting fixture claims
  * both `data` and `heritage`.
@@ -88,7 +88,7 @@ function headSpan(nodeSpan: SourceSpan, head: string): SourceSpan {
 }
 
 /**
- * The learner-facing `ol-unknown-command` message template (`spec/error-model.md:96`). When a Core
+ * The learner-facing `ol-unknown-command` message template (`spec/error-model.md#normative-code-registry`). When a Core
  * spelling to point at exists, the did-you-mean names it; the `value of … for key` reader has no
  * single-word Core equivalent, so — like `ol-unknown-command`'s no-candidate branch — it falls back
  * to the "check the spelling, or define it with 'define'" message.

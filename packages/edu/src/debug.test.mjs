@@ -210,7 +210,7 @@ test("debug's turtle state reflects a clear_screen homing position and heading, 
 
 test("debug reports the turtle a clear_screen did NOT home, because no turtle was addressed", () => {
   // Issue #738: `clear_screen` homes every ADDRESSED turtle, so `tell [ ]` homes none while still
-  // clearing the shared surface. `spec/turtles-and-sprites.md:113` forbids a consumer reading the
+  // clearing the shared surface. `spec/turtles-and-sprites.md#per-turtle-state-and-turtle-commands` forbids a consumer reading the
   // `clear` as an instruction to move a turtle, and names `debug` as one of the consumers the rule
   // exists for. Folding the `clear` here used to report position (0, 0) heading 0 for a turtle the
   // runtime had left at (0, 10) heading 30 — `debug` contradicting the `pos` the same program
@@ -246,7 +246,7 @@ test("debug follows the addressed turtle's own homing under tell", () => {
 /**
  * Issue #891: `turtleStateSegment` used to fold every event through one set of variables, so under
  * Sprites an addressed set of several turtles collapsed into a single *blended* state — last write
- * wins per field — that no turtle ever actually had. `spec/turtles-and-sprites.md:113` requires the
+ * wins per field — that no turtle ever actually had. `spec/turtles-and-sprites.md#per-turtle-state-and-turtle-commands` requires the
  * per-event identities to exist precisely "so animation, stepping, `why`, and `debug` can explain
  * which turtle moved or changed", and names `debug` among the consumers the rule exists for.
  *
@@ -289,7 +289,7 @@ test("debug reports a position per addressed turtle when one command moved them 
 });
 
 test("debug's turtle state does not depend on the order the turtles were addressed in", () => {
-  // `spec/turtles-and-sprites.md:113`: "the result never depends on the order the turtles were
+  // `spec/turtles-and-sprites.md#per-turtle-state-and-turtle-commands`: "the result never depends on the order the turtles were
   // listed in: `tell [ :a :b ]` and `tell [ :b :a ]` home the same two turtles". Those two forms
   // genuinely emit their per-turtle events in OPPOSITE orders, so reporting the turtle that acted
   // last — the obvious alternative to reporting per turtle — would make `debug` contradict this.
@@ -340,7 +340,7 @@ test("debug leaves a turtle unnamed only in a one-turtle world", () => {
 test("debug names the moving turtle as soon as a second turtle exists, even though only one moved", () => {
   // The simplest Sprites program there is. Only turtle #1 has state, so counting turtles-with-state
   // would print `position (0, 5), heading 0.` — byte-identical to what a bare `forward 5` prints
-  // for the MAIN turtle, which here has not moved at all. `spec/rendering.md:193`: "Implementations
+  // for the MAIN turtle, which here has not moved at all. `spec/rendering.md#non-visual-state-descriptions`: "Implementations
   // with multiple turtles MUST identify the active turtle or addressed turtle set."
   assert.equal(
     turtleStateOf(":a = new_turtle\nask :a [ forward 5 ]"),
@@ -568,7 +568,7 @@ test("debug treats an unusable turtle_id as naming no turtle, not as `turtle #Na
 
   // And an unusable id among well-formed turtles must not disturb THEIR ordering. These two
   // streams differ only in where the unusable event sits; a NaN sort key made the answer depend
-  // on that, which is exactly the order-independence spec/turtles-and-sprites.md:113 requires.
+  // on that, which is exactly the order-independence spec/turtles-and-sprites.md#per-turtle-state-and-turtle-commands requires.
   const withUnusableFirst = segmentFor([
     moveEvent(0, Number.NaN, 9),
     moveEvent(1, 3, 3),
@@ -757,7 +757,7 @@ test("debug distinguishes the main turtle from another turtle, naming it turtle 
 });
 
 test("debug names turtles with the same `turtle #<id>` tag a turtle value prints as", () => {
-  // `spec/turtles-and-sprites.md:13` / `spec/execution-model.md:540`: a turtle's printed form is
+  // `spec/turtles-and-sprites.md#profile-status-and-dependency` / `spec/execution-model.md#equality-and-ordering`: a turtle's printed form is
   // `turtle #<id>`. `debug` uses the same tag so a learner can line its clauses up against what
   // `print who` just showed them, rather than having to translate between two spellings. The tag
   // is taken from the runtime's own `printedForm`, so the two cannot drift apart silently.
@@ -778,7 +778,7 @@ test("debug names turtles with the same `turtle #<id>` tag a turtle value prints
 
 test("debug reports addressed turtles in ascending id order, not the order they were listed", () => {
   // `tell [ :c :a :b ]` emits its per-turtle events in the listed order, so an event-order report
-  // would start at :c. `spec/turtles-and-sprites.md:113` requires the result not to depend on the
+  // would start at :c. `spec/turtles-and-sprites.md#per-turtle-state-and-turtle-commands` requires the result not to depend on the
   // listing order, so the clauses are sorted by id — three turtles make the sort observable in a
   // way two cannot (a two-element reversal is also a swap).
   assert.equal(
@@ -804,7 +804,7 @@ test("debug reports only the fields each turtle actually changed", () => {
 });
 
 test("debug lists one turtle's fields in the spec's order: position, heading, pen, color, width", () => {
-  // `spec/educational-model.md:520` fixes the order ("position, heading, pen, color, width"), so a
+  // `spec/educational-model.md#debug` fixes the order ("position, heading, pen, color, width"), so a
   // single turtle must carry ALL five at once for the sequence itself to be pinned — splitting them
   // across turtles leaves neighbouring pairs (e.g. color/width) free to swap unnoticed.
   assert.equal(

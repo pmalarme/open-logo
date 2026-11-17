@@ -1,7 +1,7 @@
 // Guard tests for a newline **inside** the Heritage `value of … for key …` reader (issue #962).
 //
-// `value-of-reader ::= "value" "of" expression "for" "key" expression` (`spec/grammar.md:217`) is a
-// single expression, and `spec/grammar.md:34` says newlines are insignificant inside one. The
+// `value-of-reader ::= "value" "of" expression "for" "key" expression` (`spec/grammar.md#expressions-and-calls`) is a
+// single expression, and `spec/grammar.md#lexical-form-and-encoding` says newlines are insignificant inside one. The
 // reader nonetheless stopped at the newline before its required `for key` tail, so every spelling
 // below raised `ol-bad-token` — and wrapped in parentheses it raised `ol-unmatched-paren` twice
 // more, on parentheses that are correctly matched, the phantom-diagnostic class #933 removed for
@@ -26,7 +26,7 @@
 // cross-product was a real defect in this fix's first draft, found in review.
 //
 // **Case is the third axis of that cross-product** and is varied for the same reason. OpenLogo
-// keywords are case-insensitive (`spec/grammar.md:13`), so `FOR KEY` must continue across a
+// keywords are case-insensitive (`spec/grammar.md#lexical-form-and-encoding`), so `FOR KEY` must continue across a
 // newline exactly as `for key` does — and a continuation that compared surface text instead of
 // folding case would break only the uppercase spelling, which every lowercase row leaves
 // unasserted. Both halves of the predicate need it: the half that CONTINUES (`for`, `key`) and the
@@ -298,14 +298,14 @@ test("a newline still terminates a statement", () => {
 
 test("an incomplete reader does not swallow the `for` statement on the next line", () => {
   // `for` is the one word this reader crosses a newline for that can also BEGIN a statement
-  // (`for-in-statement`/`for-range-statement`, `spec/grammar.md:129-130`). The newline is therefore
+  // (`for-in-statement`/`for-range-statement`, `spec/grammar.md#ebnf-notation`). The newline is therefore
   // only crossed when the whole two-word `for key` tail follows it AND `key` is not the loop's own
   // binder. Without those guards the loops below would be consumed into the broken reader's error
   // recovery and vanish from the tree — and this program is already invalid, which is exactly why
   // nothing else would notice.
   //
   // The `key`-binder rows are the ones the two-word guard alone gets wrong: a `binder` is a `name`
-  // (`spec/grammar.md:138`) and a reserved keyword is legal in that slot (`:386`), so `key` is a
+  // (`spec/grammar.md#ebnf-notation`) and a reserved keyword is legal in that slot (`spec/grammar.md#keywords-primitives-and-built-in-names`), so `key` is a
   // legal binder and `for key in …` satisfies "the tail is there" while being a loop. Only the word
   // after `key` tells them apart.
   for (const [loop, kind] of [
@@ -514,8 +514,8 @@ test("`for` and `key` remain usable as dictionary keys across a newline", () => 
   // every mutation of it. It is here because `for` and `key` being ordinary keys — legal data, not
   // declarations — is the property a careless continuation would break. Two passages carry that,
   // and both are cited because reviewers have twice disagreed about which one does:
-  // `spec/grammar.md:390` is the precise one for KEYWORDS ("The positions that name data … admit
-  // keywords freely: a plain `name`, … a `key-term`, a `dict-key` …"), and `:406` states the
+  // `spec/grammar.md#keywords-primitives-and-built-in-names` is the precise one for KEYWORDS ("The positions that name data … admit
+  // keywords freely: a plain `name`, … a `key-term`, a `dict-key` …"), and `spec/grammar.md#keywords-primitives-and-built-in-names` states the
   // property in the words used here ("Dictionary keys and selector bare keys are data, not
   // declarations, so built-in names are legal keys") — which reaches `for`/`key` because
   // `spec/built-in-names.json` lists both as `category: "keyword"`, and that file is the

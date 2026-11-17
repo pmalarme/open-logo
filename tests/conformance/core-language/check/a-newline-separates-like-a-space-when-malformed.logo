@@ -15,7 +15,7 @@
 # parenthesized rows raising the substituted `ol-bad-token` and no `ol-unmatched-paren` at all. Its
 # twin, by contrast, passes unchanged against that same pre-fix parser.
 #
-# The second group is the round-2 review finding on `spec/grammar.md:314`: a call still owed an
+# The second group is the round-2 review finding on `spec/grammar.md#collections-records-and-comprehensions`: a call still owed an
 # operand is unfinished exactly as an operator is, so *"the unfinished value's own grammar position
 # wins and no entry opens"*. `{ a: sentence 1 mod: 2 }` must be a malformed entry — not an entry
 # keyed `mod` leaving `sentence` one argument short — and its newline spelling must agree.
@@ -28,7 +28,7 @@ print ( :nums [1] )
 
 # The regression this direction had to avoid, and the half its execution twin cannot carry: a
 # newline after a comprehension or control header selects the long `... end` body form
-# (`spec/grammar.md:34`), so the `[` binds as a BODY, not as a selector on the header's last
+# (`spec/grammar.md#lexical-form-and-encoding`), so the `[` binds as a BODY, not as a selector on the header's last
 # operand. A narrowing can only make the `[` LESS likely to bind, so these are strictly more
 # protected than before — asserted here rather than assumed. Each raises `ol-missing-end`.
 print map n in :nums

@@ -163,7 +163,7 @@ npm run coverage     # node:test 100% line/branch/function gate — verify on No
 npm run conformance  # stack-neutral fixtures (placeholder until issue #6)
 npm run examples     # two gates: every spec/examples/*.logo file, then every ```logo block fenced in spec/ + docs/ markdown
 npm run built-in-names # spec/built-in-names.json vs the parser's registries, both directions + the prose lists
-npm run spec-citations # every spec/<file>.md:<line> citation in the tree, against the text it claims
+npm run spec-citations # citations resolve, section anchors name a real heading, quoted productions match, status claims name an issue
 npm run adr-numbering  # ADR numbers unique, filename↔heading agreement, every ADR reference resolves
 ```
 
@@ -182,13 +182,13 @@ keyword block in `spec/grammar.md` and the C19 mirror in `spec/tooling.md`, both
 **derivedly** — the expected words are computed from the manifest, and the mirror must carry the same
 words in the same order as the block (the extracted words, not the bytes) — plus `spec/tooling.md`'s
 `keyword` **token-class** declaration. That class is a different set from the keyword list on purpose
-(`spec/grammar.md:378`), and until issue #959 the row enumerated it in 2,055 characters of English
+(`spec/grammar.md#keywords-primitives-and-built-in-names`), and until issue #959 the row enumerated it in 2,055 characters of English
 that the gate could only **change-detect** — inverting the row's meaning and recomputing the digest
 passed every check. What issue #855 had refuted was *deriving* the class from the lists that already
 existed; *declaring* it was never tried. So each name now carries a `tokenClass` beside its
 `category` — two independent axes, "may a program declare this name?" and "how is this word
 painted?" — and the gate re-paints every name through the shipped `highlight()` in nine grammatical
-positions, including the profile gating of `spec/tooling.md:31`. The reverse direction compares the
+positions, including the profile gating of `spec/tooling.md#normative-token-class-model`. The reverse direction compares the
 name **sources** `highlight()` classifies from, which is narrower than comparing against arbitrary
 highlighter output; ADR-0026 names each mechanism and what it does not reach.
 The four words that are keywords **by position only** (`empty`, `member`, `of`, `a`) cannot be table
@@ -237,16 +237,28 @@ execution stops at a block's first runtime error, so lines below it are parsed a
 checked but not run. See [ADR-0022](docs/adr/0022-documentation-example-gate.md).
 
 `npm run spec-citations` (issue #934, logic in `scripts/spec-citations-gate.mjs`) checks the other
-ungated prose surface: the **2,400+ `spec/<file>.md:<line>` citations** hand-written into comments,
+ungated prose surface: the **thousands of** `spec/` citations hand-written into comments,
 tests, fixture prose, and docs. They are what binds the implementation to the normative contract, and
-nothing checked a single one — so one `spec/` edit silently invalidated 665 of them (#846), and #885
-merged green carrying ten that pointed at the wrong lines.
+nothing checked a single one — so one `spec/` edit silently shifted 113 of them across 68 files
+(#846), and #885 merged green carrying ten that pointed at the wrong lines.
+
+**Cite the spec by section anchor — `spec/<file>.md#a-heading` — and never by line.** A heading does
+not move when text is inserted above it. There is no precision carve-out, no exception and no
+grandfathering: a line number and a `#L`-style line fragment are both **rejected**, and where a
+claim rests on one table row or one production you quote the words it relies on instead. The gate
+**resolves** anchors (#1181): a fragment naming no heading in the file it cites fails, with a
+did-you-mean that is reported and never acted on. It proves the heading exists and nothing more.
+Rejecting the line form, and sweeping the corpus onto anchors, are done: the gate rejects every
+spelling and the tree carries no line citation. The rule, its limits and the evidence live in
+[`shared/spec-fidelity`](.github/skills/shared/spec-fidelity/SKILL.md) and
+[ADR-0036](docs/adr/0036-cite-the-spec-by-section-anchor-only.md).
 
 **Read the coverage statement it prints, which names what it does *not* check.** A stale citation
 fails in four ways and only two are mechanically detectable: it **does not resolve** (missing file,
-past EOF, inverted range, or a region holding no text — covered); it resolves but points at the
+or no heading in it publishes the named anchor — covered; line-form citations are rejected rather
+than resolved); it resolves but points at the
 **wrong passage while paraphrasing** (*not* covered, except where the site **quotes an EBNF
-production**, which must then be inside the range cited); the line is right and the **prose beside it
+production**, which must then be inside the section cited); the section is right and the **prose beside it
 misstates it** (*not* covered); or it is a **stale implementation-status claim** — "not yet
 implemented", "a later slice will…" — which is a claim about the repository, not the spec, and must
 name a tracking issue so something can re-check it (the sweep for the ones that predate the gate is
@@ -256,12 +268,13 @@ are joined by commas, by line wraps, by slashes, by a `,139` tail, and by whole 
 every bare `:N` in a citing file is enumerated and accounted for — a separator regex is not a
 completeness argument, and three separately-written ones gave three different counts of this corpus.
 And **there is no automatic tolerance**: the gate never searches nearby lines and passes, because the
-wrong passage is usually *adjacent* to the right one. A citation it cannot resolve either fails or
-carries an entry in `scripts/spec-citations-exceptions.json` that declares the exact state it is in,
-keyed by a hash of the citing line, the citation, the entry's own `why`, **and the issue it is
-tracked by** — so a rationale cannot drift away from the text it describes, and an exception cannot
-be silently retargeted. Entries are **deleted** when fixed, never re-fingerprinted, and the live
-`UNRESOLVED` total prints every run; the corpus sweep that empties it is #948.
+wrong passage is usually *adjacent* to the right one. A citation it cannot accept **fails** — there
+is no second disposition. Saga #1180 deleted `scripts/spec-citations-exceptions.json` along with its
+fingerprinting and its `UNRESOLVED` counter, because a manifest is a list that must grow to stay
+useful and a growing list of excused sites is an exemption. Its 84 entries went with it: 83 were
+`blank-region` citations tracked by #948, which the sweep converted into anchors that now **resolve**
+and so can no longer fail — the audit record is gone, and #948's corpus sweep is what still owes
+them a correct section.
 
 `npm run adr-numbering` (issue #1042, logic in `scripts/adr-numbering-gate.mjs`) checks the surface
 that binds the decision *records* together: ADR numbers are unique, each filename agrees with its own
