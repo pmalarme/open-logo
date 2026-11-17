@@ -9,7 +9,7 @@ description: >-
   each dispatch, the dispatched SHA tagged, and the branch frozen once every verdict stamps one SHA.
   The orchestrator then does a final verification and merges.
 created: 2026-07-17T00:00
-updated: 2026-08-25T00:00
+updated: 2026-11-17T00:00
 ---
 
 ## Purpose
@@ -130,7 +130,9 @@ it measured, not merely which SHA:
 3. **Confirm a mutation actually applied before believing its result.** A string-replace mutation
    that silently matched nothing (a CRLF mismatch) once left an all-green suite reading as "my test
    is not load-bearing". `git diff` the file to confirm the change is present, then confirm it
-   reached `dist`. **A mutation you did not verify applied is not a mutation test.**
+   reached the artifact actually exercised: `dist/` for compiled package code, the edited source
+   for directly executed code, or the generated workflow for a compiled workflow.
+   **A mutation you did not verify applied is not a mutation test.**
 
 ### The instrument may be measuring something other than what you think
 
@@ -226,7 +228,7 @@ defect the rule exists to prevent.
 ## The checklist
 
 The **logic/spec reviewer** (`rubber-duck`, or a named fallback) owns logic, design, and
-spec-fidelity; the **QA** sub-agent(s) re-prove items (a)–(f) below from a clean tree. Every
+spec-fidelity; the **QA** sub-agent(s) re-prove items (a)–(g) below from a clean tree. Every
 dispatched reviewer must clear every item before the PR is opened.
 
 ### (a) Clean-tree Definition-of-Done re-run
@@ -291,6 +293,36 @@ is an **unverified assertion** — nothing recomputes it (see
 reviewer checks them by measuring against the current tree, not by trusting the PR body: counts,
 file lengths, and `spec/*.md:<line>` ranges all drift silently, and this saga renumbered
 `spec/grammar.md` under existing citations.
+
+### (g) Targeted mutation checks
+
+For each executable behaviour introduced or changed, choose a targeted mutation that breaks that
+behaviour, not an equivalent rewrite. Use the disposable-checkout rules above.
+
+- **Establish the baseline.** Name the test or fixture and the specific assertion expected to detect
+  the regression; run it unmutated and record that it passes.
+- **Verify the tested artifact.** Confirm the edit with `git diff`, then verify the mutation is in
+  what the run actually loads: force a rebuild and inspect the compiled package output and resolved
+  module path; for directly executed code, verify the loaded source path and content; for compiled
+  workflows, recompile and verify the generated workflow containing the mutation is exercised.
+- **Prove the behaviour changed.** Run a control input before and after the edit and record the
+  differing observable results. A textual diff alone does not distinguish an effective mutation
+  from an equivalent edit or an edit to an artifact the run never loads.
+- **Identify the detecting assertion.** Re-run in a fresh process and record the named assertion
+  passing before and failing after, because of the intended behavioural regression. A build failure,
+  harness error, or aggregate failure count is not that evidence.
+
+For checks that report problems, distinguish **clean-direction** assertions (valid input produces no
+report) from **reporting-direction** assertions (problematic input produces the required report).
+Assert both. A mutation that suppresses a required report can leave the clean-direction assertion
+passing; that pass is not evidence that reporting is covered. Confirm a named reporting-direction
+assertion fails under that suppression mutation.
+
+Record the mutation, commands, artifact verification, control results, and assertion outcomes.
+Restore the unmutated artifact and re-run the baseline. If the control changes but the assertion
+stays green, record the regression-protection gap and resolve it under "Findings" below; do not claim
+the mutation was detected. When no executable behaviour changes (for example, a skills-only edit),
+record N/A with the reason. This is review guidance, not a new CI gate.
 
 ## Findings — every finding gets resolved, blocking or not
 
@@ -365,13 +397,14 @@ ground out.
 - [ ] All required reviews run as sub-agents, **all ≠ author** (at least two): the **logic/spec reviewer** — `rubber-duck` (Claude/GPT large session model) **or a named non-author fallback** — plus **every** dispatched domain QA expert; reviewers stayed read-only.
 - [ ] **Every reviewer read the commit its verdict names**: tree clean (`git status --porcelain` empty) and pushed before each dispatch, **the dispatched SHA tagged and the tag dispatched**, every reviewer idle before any edit, reviewers asserted cleanliness themselves, and the branch was **frozen** once all verdicts landed on one SHA.
 - [ ] **The instrument measured what you think**: each green run states what it enumerated (files, profiles, artifacts, runtime) and the work under review is inside that set — a `git ls-files` walk cannot see untracked work, and a verifier sharing its subject's parser inherits its blind spot.
-- [ ] **Artifacts, not just a SHA**: the tree was never mutated while a reviewer was measuring it (no two writers on one `dist`); write-capable checks ran in a disposable checkout of the exact SHA outside the worktree; any mutation was confirmed applied via `git diff` and confirmed in `dist` before its result was believed.
+- [ ] **Artifacts, not just a SHA**: the tree was never mutated while a reviewer was measuring it (no two writers on one `dist`); write-capable checks ran in a disposable checkout of the exact SHA outside the worktree; any mutation was confirmed applied via `git diff` and verified in the artifact actually exercised (compiled package output, directly executed source, or generated workflow) before its result was believed.
 - [ ] Clean-tree DoD re-run — build **emits** verified (no stale-`.tsbuildinfo` no-op; TS 7 confirmed).
 - [ ] Spec-fidelity — canonical vocabulary; `ol-*` codes with spans; profile boundaries.
 - [ ] Conformance fixtures present, green, and extended.
 - [ ] Runnable `spec/examples/*.logo` and doc snippets parse/run.
 - [ ] A11y / pedagogy checked where applicable.
 - [ ] Instructions / skills / docs / spec drift checked (in-PR if needed); every count and `file:line` citation the change touches was **re-derived**, not trusted.
+- [ ] **Targeted mutation checks (g)**: recorded artifact verification, a behaviour-changing control, and a named assertion passing before and failing after; clean-direction and reporting-direction assertions distinguished where applicable; gaps resolved, or N/A justified.
 - [ ] **Every finding resolved — blocking *and* non-blocking**: each one fixed, or declined with a one-line rationale (+ follow-up issue number when it is real work outside the write-set).
 - [ ] Converged within the **10-round cap** (otherwise: not opened — escalated to `@orchestrator`/maintainer with the open findings and per-round SHAs).
 - [ ] All verdicts `pass` on the **same final HEAD** (SHA-stamped) and attached; any later commit re-ran every reviewer; no self-merge.
