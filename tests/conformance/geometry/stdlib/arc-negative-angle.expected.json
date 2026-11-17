@@ -1,5 +1,5 @@
 {
-  "description": "issue #338: `arc -10 50` (negative `:angle`) raises `ol-user-error` with the exact spec message \"an arc needs an angle of 0 or more\" (spec/geometry-module.md:222-224).",
+  "description": "issue #338: `arc -10 50` (negative `:angle`) raises `ol-user-error` with the exact spec message \"an arc needs an angle of 0 or more\" (spec/geometry-module.md#arc-angle-radius).",
   "profiles": ["geometry"],
   "execute": true,
   "events": [

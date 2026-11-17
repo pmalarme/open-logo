@@ -1,0 +1,21 @@
+{
+  "description": "Measured on this tree: a newline after `=` does not continue the assignment. 1 statement; `ol-bad-token` at parse stage for the end-of-line after `=`. Recovery discards the assignment; the surviving node is a bare NumberLit `3` (not an Assign) — measured but not mechanically asserted, because the harness format supports only events and diagnostics, and a parse error suppresses instruction events. See #1077.",
+  "profiles": ["core-language"],
+  "check": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-bad-token",
+      "source_span": {
+        "document": "core-language/delimitation/assignment-recovery-equals-split",
+        "start": [1, 5],
+        "end": [2, 1]
+      },
+      "params": {
+        "text": "end of line"
+      },
+      "stage": "parse",
+      "severity": "error"
+    }
+  ]
+}

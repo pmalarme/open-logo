@@ -1,4 +1,4 @@
-// Unit tests for the dict-value reporters (issue #322, spec/data-structures.md:150,236-237): the
+// Unit tests for the dict-value reporters (issue #322, spec/data-structures.md#dictionaries, spec/data-structures.md#dictionary-writes-and-upserts): the
 // `dict` empty-constructor reporter, `keys`/`values`, and the dict half of the `is empty`/`empty?`
 // and `is member of`/`member?` predicates (list halves are covered by is-predicate-eval.test.mjs).
 // Conformance fixtures under tests/conformance/data/dict-runtime/ cover the primary literal-

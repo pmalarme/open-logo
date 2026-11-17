@@ -1,5 +1,5 @@
 {
-  "description": "A comprehension body is a block scope (spec/execution-model.md:367-369), so its binder goes out of scope at the `]` like any other block-born name (spec/execution-model.md:603-605). `print :doubled` reports `[2 4]` — which is what proves the binder was bound and the body ran — and the read of `:n` afterwards raises `ol-undefined-var` (spec/error-model.md:102). The existing check fixture `undefined-var-binder-not-leaked` makes this claim for `for … in` at the semantic stage; this is the comprehension binder at runtime.",
+  "description": "A comprehension body is a block scope (spec/execution-model.md#scopes-and-bindings), so its binder goes out of scope at the `]` like any other block-born name (spec/execution-model.md#blocks-update-what-they-can-see). `print :doubled` reports `[2 4]` — which is what proves the binder was bound and the body ran — and the read of `:n` afterwards raises `ol-undefined-var` (spec/error-model.md#normative-code-registry). The existing check fixture `undefined-var-binder-not-leaked` makes this claim for `for … in` at the semantic stage; this is the comprehension binder at runtime.",
   "profiles": ["core-language"],
   "execute": true,
   "events": [

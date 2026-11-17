@@ -1,5 +1,5 @@
 {
-  "description": "Slice #330 — the worded `set <place> to <value>` write form (`spec/data-structures.md:41-45`) routes through the exact same chain-write path as the colon-place `:place = value` form: `set people.tom.age to 10` walks `.tom` (dict-key) then `.age` (record-field) and mutates the same nested-record slot the colon form would, with no leading colon in the target text.",
+  "description": "Slice #330 — the worded `set <place> to <value>` write form (`spec/data-structures.md#the-uniform-collection-access-idiom`) routes through the exact same chain-write path as the colon-place `:place = value` form: `set people.tom.age to 10` walks `.tom` (dict-key) then `.age` (record-field) and mutates the same nested-record slot the colon form would, with no leading colon in the target text.",
   "profiles": ["core-language", "data"],
   "execute": true,
   "events": [

@@ -1,5 +1,5 @@
 {
-  "description": "A procedure frame is created by each CALL (spec/execution-model.md:365-366) and its bindings are fresh, so each level of the recursion has its own `:tmp` and the unwinding prints `0 1 2`. Before the sealed boundary every frame's `:tmp = :n` reached one shared top-level binding and the same program printed `0 0 0` — the deepest call's value, three times.",
+  "description": "A procedure frame is created by each CALL (spec/execution-model.md#scopes-and-bindings) and its bindings are fresh, so each level of the recursion has its own `:tmp` and the unwinding prints `0 1 2`. Before the sealed boundary every frame's `:tmp = :n` reached one shared top-level binding and the same program printed `0 0 0` — the deepest call's value, three times.",
   "profiles": ["core-language"],
   "execute": true,
   "events": [

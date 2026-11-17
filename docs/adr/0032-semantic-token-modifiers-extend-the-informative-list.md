@@ -14,7 +14,7 @@
 Saga #819's variable-scoping ruling seals the procedure boundary. It accepts one readability cost
 knowingly: when a procedure's first touch of a name it cannot see is a **write**, that write silently
 creates a procedure-local — "which is correct, because that is a genuinely different variable"
-(`spec/execution-model.md:441-446`) — and so is deliberately **not** diagnosed. Issue #825's checker
+(`spec/execution-model.md#what-a-scope-can-see`) — and so is deliberately **not** diagnosed. Issue #825's checker
 will not flag it and no other diagnostic covers it. Inside one procedure body, `:private = 1` and
 `:shared = 1` are therefore indistinguishable to a reader while meaning entirely different things.
 
@@ -46,10 +46,10 @@ whatever class it already has and gains the `global` modifier.
 1. **The spec already answers this shape of question with a modifier, and says so.** Brackets have
    **five** grammatical roles — list, instruction-block, selector, pattern, field-list — spread over
    just **two** classes, since a selector's `[`/`]` is `index/dot` rather than `bracket`
-   (`spec/tooling.md:36,40`). So the roles are not a partition of one class; what matters is that the
+   (`spec/tooling.md#normative-token-class-model`). So the roles are not a partition of one class; what matters is that the
    spec declines to give each role a class of its own and directs instead: "Editors SHOULD expose
    these roles as semantic-token modifiers where possible, **even when the visible theme maps all
-   roles to the same bracket color**" (`:83-84`), with `listRole`/`blockRole`/`selectorRole` named in
+   roles to the same bracket color**" (`spec/tooling.md#delimiter-roles`), with `listRole`/`blockRole`/`selectorRole` named in
    the LSP list as the vehicle. Globals-over-`:variable` is the same shape. A sixteenth class would
    make this the one sub-role in the language promoted to a top-level class, which is the
    inconsistency rather than the fix.
@@ -57,7 +57,7 @@ whatever class it already has and gains the `global` modifier.
 2. **The two lists have opposite dispositions, and both are explicit.** The class table is
    Normative and closed. The modifier list sits under a heading that reads, literally,
    `## Informative LSP-style editor integration`, and enumerates "optional modifiers **such as** …"
-   (`:281-283`). "Such as" is an open list. Extending the open one needs no maintainer edit;
+   (`spec/tooling.md#informative-lsp-style-editor-integration`). "Such as" is an open list. Extending the open one needs no maintainer edit;
    extending the closed one is a contract change.
 
 3. **No implementation change is required in another agent's package.** A sixteenth class would have
@@ -111,16 +111,16 @@ table already has.
   use — though it still carries `false`, because the field is total on `:variable`; measured, a bare
   declared name carries no field at all while `:param` carries `false`. What the modifier *does*
   reach is every **use** of a variable name, across all three assignment spellings
-  (`spec/execution-model.md:478-481` makes them resolve identically): a `:variable` token, a `set`
+  (`spec/execution-model.md#what-an-assignment-targets` makes them resolve identically): a `:variable` token, a `set`
   target's bare place head (`primitive`), and a `make`/`thing` word literal (`word/string`). That is
   possible precisely because a modifier decorates a class rather than replacing it — marking a word
-  literal classifies nothing *inside* the string, so `spec/tooling.md:25-26`'s MUST NOT is untouched.
+  literal classifies nothing *inside* the string, so `spec/tooling.md#normative-token-class-model`'s MUST NOT is untouched.
   An earlier revision of this slice declined the worded forms on the grounds that they are not
   `:variable` tokens, which is true and irrelevant; `rubber-duck` caught the false premise. What
   remains open is the **class**, not the resolution: whether a bare place head or a binder spelling
   should carry a variable-ish class at all is a `spec/` question covering every binding form at once
   — issue **#1107**.
-- **It does not decide a deferred handler body.** `spec/execution-model.md:401-403` resolves a
+- **It does not decide a deferred handler body.** `spec/execution-model.md#what-a-scope-can-see` resolves a
   handler "whenever the handler fires", so one token can have two resolutions depending on an event
   time no static pass can know. The implementation resolves handler bodies at their registration
   position, pinned by a test, and issue **#1108** seeks a ruling.

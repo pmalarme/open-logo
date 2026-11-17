@@ -1,5 +1,5 @@
 {
-  "description": "The two rules meeting: `local` shadows the `global` for the rest of the block (spec/execution-model.md:503-506), but a procedure body sees only its parameters, its own bindings, and names declared `global` (spec/execution-model.md:389-394) — and what `global count` names is the root binding (spec/execution-model.md:576-583), never the block's shadow. So the block prints `42`, `peek` called from inside that same live block prints `1`, and the root binding is still `1` afterwards. A dynamic-scoping intuition predicts `42` for the middle line, which is exactly the reading this fixture exists to refute.",
+  "description": "The two rules meeting: `local` shadows the `global` for the rest of the block (spec/execution-model.md#local), but a procedure body sees only its parameters, its own bindings, and names declared `global` (spec/execution-model.md#what-a-scope-can-see) — and what `global count` names is the root binding (spec/execution-model.md#global), never the block's shadow. So the block prints `42`, `peek` called from inside that same live block prints `1`, and the root binding is still `1` afterwards. A dynamic-scoping intuition predicts `42` for the middle line, which is exactly the reading this fixture exists to refute.",
   "profiles": ["core-language"],
   "execute": true,
   "events": [

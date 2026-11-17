@@ -175,8 +175,8 @@ test("a procedure's `procedure-enter` args are point-in-time snapshots that pres
 
 test("print's payload reflects mutation caused by evaluating a *later* argument, in an *earlier* argument's snapshot: all arguments finish evaluating before any of them is snapshotted", () => {
   // The list reaches `mutate` as a PARAMETER: the sealed procedure boundary
-  // (`spec/execution-model.md:389-394`) hides the caller's `:l`, while the mutation itself is
-  // untouched — "the boundary seals names, not values" (`:455-474`). What this test is about, the
+  // (`spec/execution-model.md#what-a-scope-can-see`) hides the caller's `:l`, while the mutation itself is
+  // untouched — "the boundary seals names, not values" (`spec/execution-model.md#the-boundary-seals-names-not-values`). What this test is about, the
   // whole-statement snapshot instant, is unchanged.
   const result = execute(
     "define mutate :items\n  add 2 to :items\n  return 0\nend\n:l = [1]\n(print :l mutate :l)",

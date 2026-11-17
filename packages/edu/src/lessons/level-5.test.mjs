@@ -29,7 +29,7 @@ const level5Exercises = OL.getExercisesByLevel("5");
 // earlier lesson and the runtime runs it — the DoD only asks "does it run?". The guard below is
 // what issue #399 added after a lowercase `set_xy` (Level 6) slipped into an L5 challenge. It
 // classifies on the parsed AST, not on text, so it is immune to the two ways a string scan leaks:
-// casing (`SET_XY` — identifiers are case-insensitive, spec/grammar.md:13, and the lexer normalizes
+// casing (`SET_XY` — identifiers are case-insensitive, spec/grammar.md#lexical-form-and-encoding, and the lexer normalizes
 // them) and comments (an explanatory `# … set_xy is a Level 6 idea` never becomes a node). It also
 // resolves the block-vs-list-literal `[ ]` ambiguity a regex cannot: a list is a `ListLit` node, a
 // block is not.
@@ -57,7 +57,7 @@ const LATER_LEVEL_NODE_KINDS = new Set([
 // case-insensitive) sorts them by level. The parser preserves the surface spelling and does not
 // canonicalize aliases today, so every documented one-word alias of a denied command is listed
 // beside its canonical spelling; among the denied commands only `set_xy`/`set_heading` have one
-// (`setxy`/`seth` — spec/commands.md:1300,1317). The learner-built `polygon` is Level 5 and absent.
+// (`setxy`/`seth` — spec/commands.md#set_xy, spec/commands.md#set_heading). The learner-built `polygon` is Level 5 and absent.
 const LATER_LEVEL_CALL_NAMES = new Set([
   // Level 6 — derived geometry beyond the learner-built polygon
   "star",
@@ -257,7 +257,7 @@ test("the objective states define/return/the procedure boundary and the build-po
 
 // Issue #829's headline consequence for this level, pinned so a later edit cannot quietly
 // reintroduce it. `local` survives the ruling as a way to shadow a name that is already visible
-// (`spec/execution-model.md:501-506`), which is only meaningful after a learner has met `global`
+// (`spec/execution-model.md#local`), which is only meaningful after a learner has met `global`
 // — so no Level 5 program may use it, and no learner-facing Level 5 string may name it. The
 // scan covers the whole level, both lessons, not just the one that used to carry it.
 test("no Level 5 content teaches local — privacy is automatic under the scoping ruling", () => {
@@ -315,7 +315,7 @@ test("the maintainer's formulation reaches the learner in its own words, not par
 });
 
 // Round 1 (rubber-duck, blocking): "shared with every procedure" is broader than the contract.
-// `spec/execution-model.md:585-590` scopes a `global` to the procedures declared in the same
+// `spec/execution-model.md#global` scopes a `global` to the procedures declared in the same
 // document — `import` shares procedures and alias declarations, never variables. Level 5 learners
 // write one document, so the accurate claim is about *this program*, and the unqualified
 // universal must not come back.
@@ -445,7 +445,7 @@ test("all three surfaces state the visibility rule with the categories the runti
   );
   const specRule = privacyBullets[0];
 
-  // The three things a procedure can see (`spec/execution-model.md:389-394`), each with the
+  // The three things a procedure can see (`spec/execution-model.md#what-a-scope-can-see`), each with the
   // spellings a learner-facing sentence may reasonably use. This constrains the claim, never the
   // wording — which is the point: the prose is duplicated on purpose, but the duplication was
   // undetectable, and it needed the same correction twice (round 2 and round 3). The `parameters`
@@ -632,7 +632,7 @@ test("the concept→level gate flags every Level 6+ form, command, alias, and ac
   // detected nothing. It deliberately includes the exact bypasses a string scan leaks through: an
   // uppercase `SET_XY` (identifiers are case-insensitive) and a `[ 30 50 ]` list literal (which a
   // regex cannot tell from a Level-2 block), plus the `setxy`/`seth` one-word Turtle & Rendering
-  // short aliases (spec/commands.md:14 — short aliases of the canonical names, not Heritage).
+  // short aliases (spec/commands.md#notation-and-language-surface — short aliases of the canonical names, not Heritage).
   const laterLevelSamples = [
     "set_xy 120 0", // the original regression: Level 6 placement …
     "SET_XY 120 0", // … caught case-insensitively (a string scan would miss this)
@@ -872,7 +872,7 @@ test("the reporter worked example (double :n) returns 80 for double 40, and the 
   assert.deepEqual(privacyResult.diagnostics, []);
   assert.deepEqual(printedValues(privacyResult), [[42], [5]]);
 
-  // The other half of the boundary (`spec/execution-model.md:471-474`): rebinding a parameter
+  // The other half of the boundary (`spec/execution-model.md#the-boundary-seals-names-not-values`): rebinding a parameter
   // never escapes, so an input really is the procedure's to change. 107 then 7.
   const inputExample = lesson.workedExamples[3];
   const inputResult = execute(inputExample.source, "input-is-yours.logo");

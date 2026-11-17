@@ -1,5 +1,7 @@
 // Unit tests for comprehension evaluation: map/filter/reduce (issue #105,
-// spec/execution-model.md:734-846, worked examples :1241-1277). Conformance fixtures under
+// spec/execution-model.md#comprehensions-map-filter-and-reduce,
+// spec/execution-model.md#records-and-destructuring, worked examples
+// spec/execution-model.md#map and spec/execution-model.md#reduce). Conformance fixtures under
 // tests/conformance/core-language/comprehensions/*.expected.json cover the primary
 // event/diagnostic shapes end to end (the spec's own worked map/reduce traces, destructuring item
 // binders, and the headline diagnostics). These unit tests fill in what a fixture cannot: every
@@ -60,7 +62,7 @@ test("reduce folds an accumulator across every element, seeded by `from` (spec's
   assert.deepEqual(printedValues(result), [6]);
 });
 
-test("reduce's accumulator name case-folds: declared `Sum`, read `:sum` (issue #512, spec/grammar.md:13)", () => {
+test("reduce's accumulator name case-folds: declared `Sum`, read `:sum` (issue #512, spec/grammar.md#lexical-form-and-encoding)", () => {
   const result = execute(
     ":nums = [1 2 3]\n:total = reduce Sum n in :nums from 0 [ :sum + :n ]\nprint :total",
     doc,
@@ -69,7 +71,7 @@ test("reduce's accumulator name case-folds: declared `Sum`, read `:sum` (issue #
   assert.deepEqual(printedValues(result), [6]);
 });
 
-test("reduce over an empty list returns `from` unchanged (spec/execution-model.md:769)", () => {
+test("reduce over an empty list returns `from` unchanged (spec/execution-model.md#comprehensions-map-filter-and-reduce)", () => {
   const result = execute(
     ":total = reduce sum n in [] from 42 [ :sum + :n ]\nprint :total",
     doc,
@@ -84,7 +86,7 @@ test("map over an empty list produces an empty list, no diagnostic", () => {
   assert.deepEqual(printedValues(result), [[]]);
 });
 
-test("a destructuring item binder destructures each element positionally (spec/execution-model.md:824-826)", () => {
+test("a destructuring item binder destructures each element positionally (spec/execution-model.md#records-and-destructuring)", () => {
   const result = execute(
     ":corners = [[1 2] [3 4]]\n:xs = map [:x :y] in :corners [ :x ]\nprint :xs",
     doc,

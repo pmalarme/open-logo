@@ -147,7 +147,7 @@ const PROBES = [
     source: `${name} 3 50`,
     profiles: ["geometry"],
   })),
-  // `area`/`perimeter` also add `data` (spec/conformance.md:265), which is the whole reason
+  // `area`/`perimeter` also add `data` (spec/conformance.md#feature-to-profile-table), which is the whole reason
   // GEOMETRY_STDLIB_ALSO_DATA_NAMES exists — so their probes assert both profiles, and deleting
   // either name from that second table fails test (A), not just test (B).
   ...["area", "perimeter"].map((name) => ({

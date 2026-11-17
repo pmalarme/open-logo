@@ -244,7 +244,7 @@ export function tokenize(source: string, document: string): LexResult {
         push("variable", `:${name}`, start, name);
       } else {
         // A colon that doesn't lead a `:name` variable reference is the dict-entry
-        // key/value separator (`spec/grammar.md`'s `dict-entry ::= dict-key ":" expression`).
+        // key/value separator (`spec/grammar.md#expressions-and-calls`'s `dict-entry ::= dict-key ":" expression`).
         // It is a real token, not a lexical error — a lone colon in a place the parser
         // doesn't expect one still surfaces `ol-bad-token` via `unexpected()`'s default case.
         advance();

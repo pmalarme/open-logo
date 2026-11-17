@@ -502,8 +502,8 @@ test("the two worked examples differ only by where the :x = 0 line sits", () => 
   assert.deepEqual(moved.slice(1), outsideLines.slice(1));
 });
 
-// `spec/execution-model.md:367-369` says the `[ … ]` and long `… end` spellings are the same
-// block scope, and `spec/execution-model.md:607-615` writes the normative contrast with
+// `spec/execution-model.md#scopes-and-bindings` says the `[ … ]` and long `… end` spellings are the same
+// block scope, and `spec/execution-model.md#blocks-update-what-they-can-see` writes the normative contrast with
 // brackets while the lesson uses the long form. That is a substitution the lesson depends on,
 // so it is measured here rather than assumed: the spec's own two programs must print exactly
 // what the lesson's two programs print.
@@ -621,7 +621,7 @@ test("l3-born-outside-growing-sides grows the drawing and totals the distance wi
   );
 
   // …and born inside, `:total` does not merely restart — it is gone by the time `print` runs,
-  // which is the block-lifetime half of the ruling (`spec/execution-model.md:603-605`) and a
+  // which is the block-lifetime half of the ruling (`spec/execution-model.md#blocks-update-what-they-can-see`) and a
   // sharper claim than "the number would be wrong". Measured, including the message.
   const totalInside = source.replace(
     "\n:side = 30\n:total = 0\nrepeat 4\n",

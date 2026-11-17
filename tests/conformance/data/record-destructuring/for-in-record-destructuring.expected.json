@@ -1,5 +1,5 @@
 {
-  "description": "F2: a `for [:x :y] in <records>` destructures each OLRecord positionally by its declared field order (fields()/get(), spec/data-structures.md:329-345), not just JS arrays — bindElement() now derives a values array from the record before the arity check. Issue #403.",
+  "description": "F2: a `for [:x :y] in <records>` destructures each OLRecord positionally by its declared field order (fields()/get(), spec/data-structures.md#nested-records-and-dictionaries), not just JS arrays — bindElement() now derives a values array from the record before the arity check. Issue #403.",
   "profiles": ["core-language", "data"],
   "execute": true,
   "events": [

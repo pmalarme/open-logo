@@ -2,16 +2,16 @@
  * The Layer-2 placement rule for `global` (issue #823) — one semantic diagnostic,
  * `ol-global-outside-root`, at `stage: "semantic"` with the identity `@openlogo/core` registers.
  *
- * `spec/execution-model.md:561-563` makes the rule a single sentence: a `global` declaration is
+ * `spec/execution-model.md#global` makes the rule a single sentence: a `global` declaration is
  * legal **only at the root scope** — "never inside a procedure body, a block, or any other scope" —
- * and raises `ol-global-outside-root` anywhere else. `spec/error-model.md:131` enumerates the four
+ * and raises `ol-global-outside-root` anywhere else. `spec/error-model.md#normative-code-registry` enumerates the four
  * places that "anywhere else" covers (a procedure body, a control-form body, a handler block, a
  * comprehension body), gives the code the single param `name`, and asks the message to say that the
  * declaration belongs at the top level and that `local {name} = …` is how to make a private name
  * here.
  *
  * **The rule is positional, so it is written positionally.** The root scope is exactly
- * `program.body` — `spec/execution-model.md:361-369` gives OpenLogo three kinds of scope, and the
+ * `program.body` — `spec/execution-model.md#scopes-and-bindings` gives OpenLogo three kinds of scope, and the
  * other two (a procedure frame, and a block scope created by *each entry into a block*) are both
  * reached only by descending through some other node. So a `Global` that is a direct element of
  * `program.body` is legal and every other one is not, with no list of "nesting" kinds to keep in
@@ -22,9 +22,9 @@
  * **A legal root-level declaration is exempted, but its subtree is still walked.** Only the
  * declaration itself is at the root; everything below it is not. That distinction is load-bearing
  * rather than pedantic, because a comprehension is an **expression whose body holds statements**
- * (`spec/grammar.md:144`, `expression-block ::= "[" { terminator } { statement { terminator } }
+ * (`spec/grammar.md#ebnf-notation`, `expression-block ::= "[" { terminator } { statement { terminator } }
  * "]"`), so a `global` really can be written inside a root `global`'s own initializer — and
- * `spec/error-model.md:131` names the comprehension body as one of the four places this code
+ * `spec/error-model.md#normative-code-registry` names the comprehension body as one of the four places this code
  * covers. An earlier revision skipped the whole subtree, on the reasoning that the initializer is
  * an expression and `global-statement` is statement-only; the second half is true and the
  * conclusion does not follow from it. All three review-gate reviewers caught the same hole.
@@ -39,9 +39,9 @@ import type { AnyNode, GlobalNode, ProgramNode } from "./ast.js";
 import { childrenOf } from "./ast.js";
 
 /**
- * The learner-facing prose. `spec/error-model.md:131` asks for both halves — where the declaration
+ * The learner-facing prose. `spec/error-model.md#normative-code-registry` asks for both halves — where the declaration
  * belongs, and the form that makes a private name here — in the warm lowercase Logo voice
- * (`spec/error-model.md:18`). Prose is presentation; identity is `code` + `params`.
+ * (`spec/error-model.md#philosophy`). Prose is presentation; identity is `code` + `params`.
  */
 function messageFor(name: string): string {
   return `global ${name} belongs at the top level of your program. to make a private name here, write local ${name} = ...`;

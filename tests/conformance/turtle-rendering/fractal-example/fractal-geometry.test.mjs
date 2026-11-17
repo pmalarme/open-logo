@@ -98,7 +98,7 @@
 // `../../geometry/stdlib/source-drift.test.mjs` exists to police. Reading the real
 // `spec/examples/12-fractal.logo` makes drift impossible and keeps the assertions readable. It also
 // stays renderer-independent: everything asserted here comes from the normative trace/event stream
-// (`draw-segment` payload shape: `spec/execution-model.md:1078`), not from a rasterized image, so a
+// (`draw-segment` payload shape: `spec/execution-model.md#trace-and-event-registry`), not from a rasterized image, so a
 // legitimate rendering change cannot break this file for the wrong reason.
 
 import assert from "node:assert/strict";

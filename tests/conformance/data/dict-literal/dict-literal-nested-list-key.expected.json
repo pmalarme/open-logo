@@ -1,5 +1,5 @@
 {
-  "description": "A nested list literal used as a dict key (`print { [ 1 2 ]: 3 }`) is a grammar-position error, not a bracket-matching one: dict-key ::= identifier | number (spec/grammar.md) excludes list literals exactly like dict literals, so the inner `[` reports exactly one ol-bad-token — never ol-unmatched-bracket — and the outer, correctly-matched dict literal still closes cleanly (spec/error-model.md, spec/data-structures.md#dictionaries, issue #546).",
+  "description": "A nested list literal used as a dict key (`print { [ 1 2 ]: 3 }`) is a grammar-position error, not a bracket-matching one: dict-key ::= identifier | number (spec/grammar.md#expressions-and-calls) excludes list literals exactly like dict literals, so the inner `[` reports exactly one ol-bad-token — never ol-unmatched-bracket — and the outer, correctly-matched dict literal still closes cleanly (spec/error-model.md, spec/data-structures.md#dictionaries, issue #546).",
   "profiles": ["core-language", "data"],
   "expect": "match",
   "events": [],

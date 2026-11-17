@@ -58,7 +58,7 @@ export type DiagnosticCode = (typeof OL_DIAGNOSTIC_CODES)[number];
 
 /**
  * Style-lint codes. These reuse the diagnostic shape with `severity: "warning"` and MUST
- * NOT change program meaning. `spec/tooling.md:240-254` registers 13 `ol-style-*` codes; issue
+ * NOT change program meaning. `spec/tooling.md#layer-3-style-lints` registers 15 `ol-style-*` codes; issue
  * #115 slice 1 wired `ol-style-useless-value`, `ol-style-equality-confusion`, and
  * `ol-style-name-case`; #169 slice 2a added `ol-style-magic-number` and
  * `ol-style-predicate-name`; slice 2b (this one) adds the layout group —
@@ -72,6 +72,12 @@ export type DiagnosticCode = (typeof OL_DIAGNOSTIC_CODES)[number];
  * budget (the guard that *bounds* unbounded handler accumulation) with a check-time lint that
  * *teaches* why it happens. The budget catches; the lint explains. Registered normatively in
  * `spec/tooling.md`'s "Layer 3: style lints" table alongside the other codes.
+ *
+ * Issue #1074 added `ol-style-ambiguous-continuation`, which flags lines whose reading depends on
+ * whitespace under the continuation rules (`spec/grammar.md#lexical-form-and-encoding`): a leading infix operator that
+ * continues the previous statement, or a leading negative literal that starts a new one when the
+ * same tokens with a space would have continued. The normative hook is `spec/grammar.md#lexical-form-and-encoding`, which
+ * names this lint as the mechanism that surfaces the ambiguity.
  */
 export const OL_STYLE_DIAGNOSTIC_CODES = [
   "ol-style-useless-value",
@@ -84,6 +90,7 @@ export const OL_STYLE_DIAGNOSTIC_CODES = [
   "ol-style-block-indentation",
   "ol-style-prefer-block",
   "ol-style-nested-handler",
+  "ol-style-ambiguous-continuation",
 ] as const;
 
 /** A stable `ol-style-*` linter code. */

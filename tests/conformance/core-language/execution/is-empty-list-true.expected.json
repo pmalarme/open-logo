@@ -1,5 +1,5 @@
 {
-  "description": "The worded is-predicate `<v> is empty` accepts a list and reports whether it has zero elements (spec/execution-model.md:146-166): `[] is empty` is `true`. Issue #99.",
+  "description": "The worded is-predicate `<v> is empty` accepts a list and reports whether it has zero elements (spec/execution-model.md#precedence-and-evaluation-order): `[] is empty` is `true`. Issue #99.",
   "profiles": ["core-language"],
   "execute": true,
   "events": [

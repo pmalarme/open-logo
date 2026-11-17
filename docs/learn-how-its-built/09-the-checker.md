@@ -69,9 +69,47 @@ spell-checker you're writing in French" idea from page 01) — so a plain `fowad
 don't know how to fowad," while switching on the turtle vocabulary turns that into "did you mean
 forward?"
 
-Finally, a small set of **style nudges** — a gentle heads-up, not an error, like suggesting your
-own procedure names use `snake_case` — are entirely optional. They only show up if you explicitly
-ask the checker to include them.
+Finally, a small set of **style nudges** sit alongside those error-level checks — a gentle
+heads-up, not an error, and entirely optional. They only show up if you explicitly ask the checker
+to include them.
+
+Two are worth seeing, because they catch things that would otherwise slip by silently.
+
+**A value nobody uses.** The checker can spot an expression whose result goes nowhere — you computed
+something, but nothing reads the answer:
+
+```logo
+:side = 50
+repeat 4 [ :side * 2 ]
+```
+
+Inside that `repeat`, `:side * 2` computes `100` four times — and throws it away every time,
+because `repeat` runs its block for *actions* (like `forward` or `print`), not for values.
+The style nudge `ol-style-useless-value` flags this so you notice before wondering why nothing
+happened.
+
+**The ` - 5` / `-5` trap.** Page 05 showed that a newline normally ends a statement — unless
+a continuation trigger like a leading operator holds the door open. But `-` is special: with a
+space, `- 5` is the subtraction *operator* and continues the previous line; without a space, `-5`
+is a negative *number* and starts a brand-new statement:
+
+```logo
+print 10
+- 5
+```
+
+That prints `5` — the `- 5` reached back and subtracted from `10`. But:
+
+```logo
+print 10
+-5
+```
+
+That prints `10` — the `-5` started a new statement (a negative number sitting on its own, doing
+nothing). Same two characters, different program, and neither one produces an error.
+`ol-style-ambiguous-continuation` flags both forms to make the ambiguity visible. For a deeper look
+at *why* the language works this way, see
+[LDR-0008](../design-notes/0008-statement-delimitation-and-continuation.md).
 
 Remember: the checker is a **helper you can ask for, not a gate you must pass**. Your program can
 run without ever asking the checker anything first — running and checking are two separate,
@@ -87,6 +125,9 @@ today, out of the box.
 
 ℹ️ **Turtle-word suggestions need the turtle vocabulary switched on** — by default the checker only
 knows Core words; `forward`/`right` typos only get suggested once the turtle vocabulary is active.
+
+✅ **Style nudges are real** — `ol-style-useless-value` and `ol-style-ambiguous-continuation` are
+shipped today, along with several others. Ask the checker to include style lints and they show up.
 
 ## Try it yourself
 

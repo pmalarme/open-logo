@@ -1,0 +1,44 @@
+{
+  "description": "Measured on this tree: `abs 3` after a newline is an orphan expression statement (a call whose value is discarded). 2 statements (print 10, then orphan abs 3), no diagnostics. Pins the silence explicitly so issue #1073 has a baseline to change.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/delimitation/orphan-call",
+        "start": [1, 1],
+        "end": [1, 9]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/delimitation/orphan-call",
+        "start": [1, 1],
+        "end": [1, 9]
+      },
+      "payload": {
+        "values": [10]
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/delimitation/orphan-call",
+        "start": [2, 1],
+        "end": [2, 6]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    }
+  ],
+  "diagnostics": []
+}

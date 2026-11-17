@@ -38,14 +38,14 @@ lesson-content shape elsewhere in the codebase — extend this contract instead.
 
 - `lessons/level-1.ts` — the Level 1 lesson ("Leaving a mark") + graded exercises, covering
   turtle position/heading/pen/color/width and `forward`/`back`/`right`/`left`/`pen_up`/
-  `pen_down`/`clear_screen`/`home` (`spec/educational-model.md:39-64`). The open challenge
+  `pen_down`/`clear_screen`/`home` (`spec/educational-model.md#level-1--movement-and-drawing`). The open challenge
   follows the compose-a-recognizable-object rule (`spec/educational-model.md`,
   `.github/skills/curriculum/author-a-lesson/SKILL.md`): a house — a square body and a triangle
   roof, each with a door and two windows — with every side of the square and roof typed out one
   at a time, since `repeat` is not introduced until Level 2.
 - `lessons/level-2.ts` — the Level 2 lesson ("One side, repeated") + graded exercises, covering
   `repeat` as an effects-only block and `repcount`, including the canonical square worked
-  example (`spec/educational-model.md:66-87`). The graded exercises follow the same
+  example (`spec/educational-model.md#level-2--patterns-and-repetition`). The graded exercises follow the same
   compose-a-recognizable-object rule: a guided change to the square, the triangle pattern as
   practice, then a tree (a trunk plus repeated triangle tiers, each tier the exact same `repeat`
   body) as the open challenge, and a further "taller tree" exercise that changes only the
@@ -53,13 +53,13 @@ lesson-content shape elsewhere in the codebase — extend this contract instead.
   would mean retyping every tier.
 - `lessons/level-3.ts` — the Level 3 lessons + graded exercises. "One name, many places" covers
   the `:name` variable idiom, `=` and worded `set ... to` assignment, and `==` comparison
-  (`spec/educational-model.md:89-122`); its worked examples reproduce the spec's `:size` square
+  (`spec/educational-model.md#level-3--variables`); its worked examples reproduce the spec's `:size` square
   verbatim, and its exercises introduce `:size` into a fixed square, resize it once with the
   worded form, then reuse the single `:size` name across a resizable house's walls and roof
   together, so one change resizes the whole shape. "Where a name is born decides how long it
   lives" ([#829](https://github.com/pmalarme/open-logo/issues/829)) then teaches saga
   [#819](https://github.com/pmalarme/open-logo/issues/819)'s scoping ruling at the point it first
-  matters: `spec/execution-model.md:607-615`'s born-inside / born-outside contrast, where the same
+  matters: `spec/execution-model.md#blocks-update-what-they-can-see`'s born-inside / born-outside contrast, where the same
   loop body prints `1 1 1 1` or `1 2 3 4` depending only on which side of the `repeat` the first
   assignment sits. Its exercises ramp from moving that one line, to carrying two names across the
   turns at once, to a heart made of two mirrored curls whose second curl matches the first only
@@ -67,7 +67,7 @@ lesson-content shape elsewhere in the codebase — extend this contract instead.
 - `lessons/level-4.ts` — the Level 4 lesson ("A condition must already be true or false") +
   graded exercises, covering `if … else`, the comparisons `==`/`!=`/`<`/`>`/`<=`/`>=`, the boolean
   combinators `and`/`or`/`not`, and a worded predicate such as `is between`
-  (`spec/educational-model.md:124-155`). The first worked example reproduces the spec's
+  (`spec/educational-model.md#level-4--conditions`). The first worked example reproduces the spec's
   `:sides == 4` color-choice program verbatim; the graded exercises follow the same
   compose-a-recognizable-object rule: a guided single-operator change (`==` to `!=`), a practice
   single-operator change (`!=` to `>=`) on the same shape and value, then a challenge that
@@ -75,7 +75,7 @@ lesson-content shape elsewhere in the codebase — extend this contract instead.
 - `lessons/level-5.ts` — the Level 5 lessons + graded exercises. "`define` names a reusable idea;
   `return` hands back its answer" covers `define … end` procedures, parameters as variables that belong
   to the procedure, `return` for reporters, and the procedure boundary
-  (`spec/educational-model.md:157-219`). The first two worked examples reproduce the spec's
+  (`spec/educational-model.md#level-5--functions-and-procedures`). The first two worked examples reproduce the spec's
   `polygon` and `double` examples verbatim — `polygon` is always built up from `repeat`, never
   handed over as an opaque primitive — and two more show the boundary itself: the names a
   procedure sets are its own automatically, and re-assigning an input never changes the
@@ -91,7 +91,7 @@ lesson-content shape elsewhere in the codebase — extend this contract instead.
   written identically, because the rise is shared and the tread is handed in. Under saga
   [#819](https://github.com/pmalarme/open-logo/issues/819)'s ruling a procedure's variables are
   private automatically, so `local` — which survives as a way to deliberately *shadow* a visible
-  name (`spec/execution-model.md:501-506`) — is no longer taught at this level: shadowing only
+  name (`spec/execution-model.md#local`) — is no longer taught at this level: shadowing only
   means something once a learner has met `global`, which makes it a later, narrower idea. A test
   in `level-5.test.mjs` pins that absence so it cannot be reintroduced by accident.
 - `lessons/exercise.ts` — the `Exercise` contract: a graded exercise additive to `Lesson`
@@ -119,7 +119,7 @@ name.** For lesson content that splits cleanly in two.
   `arc`, `area`, `perimeter` — is OpenLogo source and stays free, which is what keeps
   `spec/educational-model.md`'s "Learners build `polygon` from `repeat`" true. The meta-commands
   `explain`, `why`, `hint`, `debug`, and `challenge` are owned as well, so no lesson may define one.
-  Identifiers are case-insensitive (`spec/grammar.md:13`), so `define FD` is `define fd`.
+  Identifiers are case-insensitive (`spec/grammar.md#lexical-form-and-encoding`), so `define FD` is `define fd`.
 - **Binding** — `:name = value`, `set … to`, `make`, `local`, parameters, `for`/`map`/`filter`/
   `reduce` binders, destructuring names, struct field names, and dictionary keys — accepts **any**
   name. `:end = 1`, `local count`, and `{ value: 1 }` are conforming programs. A lesson must never
@@ -145,4 +145,4 @@ Turtle & Rendering nor the Educational table, so `define forward` and `define hi
 
 Each authored level adds its own `lessons/level-N.ts` module and extends the registry
 additively — no shared file needs an ever-growing literal, and no level uses a concept from a later
-level (`spec/educational-model.md:37`'s discovery guardrail).
+level (`spec/educational-model.md#the-8-progressive-levels`'s discovery guardrail).

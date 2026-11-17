@@ -15,31 +15,32 @@ and the syntax + semantic **checker** (parse/semantic lint + `ol-style-*` style 
 ## Semantic tokens (LSP contract) for studio
 
 `highlight(source, document, options)` classifies tokens into the 15 normative token classes + 5
-bracket roles from [`tooling.md`](../../spec/tooling.md#L28-L84). `semanticTokens(source, document,
+bracket roles from [`tooling.md`](../../spec/tooling.md#normative-token-class-model) — see also
+`spec/tooling.md#disambiguating-identifiers` and `spec/tooling.md#delimiter-roles`. `semanticTokens(source, document,
 options)` (`src/semantic-tokens.ts`) layers an LSP `textDocument/semanticTokens`-shaped response on
 top of that: each returned token keeps `highlight()`'s `class`/`role`/span fields and adds a
 `modifiers` array drawn from the modifier vocabulary in
-[`tooling.md:281-283`](../../spec/tooling.md#L281-L283) — `declaration`, `reference`, `readonly`,
+[`spec/tooling.md#informative-lsp-style-editor-integration`](../../spec/tooling.md#informative-lsp-style-editor-integration) — `declaration`, `reference`, `readonly`,
 `defaultLibrary`, `listRole`, `blockRole`, `selectorRole` — plus one extension, `global`.
 
 `global` marks a **use** of a variable name that resolves to a name the program declared `global`
 (issue #826). It is the reader-facing half of the variable-scoping ruling: a procedure's first
 *write* to a name it cannot see silently creates a private binding — correct, and deliberately never
-diagnosed ([`execution-model.md:441-446`](../../spec/execution-model.md#L441-L446)) — so nothing but
+diagnosed ([`spec/execution-model.md#what-a-scope-can-see`](../../spec/execution-model.md#what-a-scope-can-see)) — so nothing but
 the paint can tell a learner that `:private = 1` and `:shared = 1` in one body mean different things.
 It is a **modifier rather than a sixteenth token class** because that is how `tooling.md` already
 models a grammar-derived sub-distinction: five bracket roles across two classes, exposed "as
 semantic-token modifiers where possible, even when the visible theme maps all roles to the same
-bracket color" ([`:83-84`](../../spec/tooling.md#L83-L84)), with the LSP list open — "optional
+bracket color" ([`spec/tooling.md#delimiter-roles`](../../spec/tooling.md#delimiter-roles)), with the LSP list open — "optional
 modifiers **such as** …". The normative class table is unchanged; see
 [ADR-0032](../../docs/adr/0032-semantic-token-modifiers-extend-the-informative-list.md).
 
 Because a modifier decorates whatever class a token already has, it is **not tied to `:variable`**.
 All three assignment spellings resolve identically
-([`execution-model.md:478-481`](../../spec/execution-model.md#L478-L481)), so all three are marked:
+([`spec/execution-model.md#what-an-assignment-targets`](../../spec/execution-model.md#what-an-assignment-targets)), so all three are marked:
 a `:variable` token (`:count = 1`, and every read), a `set` target's bare place head (`primitive`),
 and a `make` target or `thing` argument's word literal (`word/string`). Marking a word literal
-classifies nothing *inside* the string, so `tooling.md:25-26`'s MUST NOT is untouched. A name a
+classifies nothing *inside* the string, so `spec/tooling.md#normative-token-class-model`'s MUST NOT is untouched. A name a
 program only **declares** — `global count = 0`, `local count` — carries nothing, because those
 tokens introduce a binding rather than resolve to one.
 
@@ -51,10 +52,10 @@ in this repository consumes it yet** (issue #1106 is the studio slice that will)
 
 It follows **resolution, not spelling**: a `local` that shadows a global does not carry it, a
 procedure parameter of the same name does not, and a root-scope `local` — which
-[`execution-model.md:520-526`](../../spec/execution-model.md#L520-L526) says "leaves it global" —
+[`spec/execution-model.md#local`](../../spec/execution-model.md#local) says "leaves it global" —
 does not remove it. `src/global-variable-resolution.ts` owns that scope walk, documents each clause
 behind it, and names the one case it knowingly cannot decide: a deferred handler body, which
-[`:401-403`](../../spec/execution-model.md#L401-L403) resolves at fire time, so one token can have
+[`spec/execution-model.md#what-a-scope-can-see`](../../spec/execution-model.md#what-a-scope-can-see) resolves at fire time, so one token can have
 two resolutions (issue #1108).
 
 `options` is optional on both (`HighlightOptions`); `document` is **required** on both, and that is
@@ -74,8 +75,8 @@ point in `@openlogo/runtime` already has that shape.
 `options`' one field, `profiles`, is the **active profile set**, in the same vocabulary `check()`
 uses. It decides a single thing: a profile block-head — Sprites' `ask`/`each` and its mode-switch
 command `tell`, Interaction's `when`/`every`/`on_key`/`on_click` — is `keyword` while its profile
-is active ([`tooling.md:30`](../../spec/tooling.md#L30)) and `primitive` without it
-([`:31`](../../spec/tooling.md#L31)). Profile *primitives* (the Sound commands, `wait`, `input`,
+is active ([`spec/tooling.md#normative-token-class-model`](../../spec/tooling.md#normative-token-class-model)) and `primitive` without it
+([`spec/tooling.md#normative-token-class-model`](../../spec/tooling.md#normative-token-class-model)). Profile *primitives* (the Sound commands, `wait`, `input`,
 the Sprites reporters) are `primitive` under every profile set. Omit `options` and both APIs read
 as Core Language alone, which is exactly what callers saw before the option existed.
 

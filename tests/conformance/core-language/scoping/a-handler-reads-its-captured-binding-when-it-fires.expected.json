@@ -1,5 +1,5 @@
 {
-  "description": "A handler captures THE SCOPE ITSELF, \"not a snapshot of the values in it\" (spec/execution-model.md:619-623), and resolves the names it reads when it fires. `:x` holds `1` at registration and `99` by the time the handler runs, so the program prints `99`. An implementation that copied the values it could see at registration — the obvious way to make capture work — prints `1` and passes every other handler fixture in this corpus.",
+  "description": "A handler captures THE SCOPE ITSELF, \"not a snapshot of the values in it\" (spec/execution-model.md#frames-handlers-and-lifetime), and resolves the names it reads when it fires. `:x` holds `1` at registration and `99` by the time the handler runs, so the program prints `99`. An implementation that copied the values it could see at registration — the obvious way to make capture work — prints `1` and passes every other handler fixture in this corpus.",
   "profiles": ["core-language", "interaction-events"],
   "execute": true,
   "events": [

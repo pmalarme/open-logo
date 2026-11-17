@@ -1,5 +1,5 @@
 {
-  "description": "List literals with SPACE-separated, mixed-type elements (number/word/boolean) and nested list elements all parse cleanly, per grammar.md:189-193,204,310.",
+  "description": "List literals with SPACE-separated, mixed-type elements (number/word/boolean) and nested list elements all parse cleanly, per spec/grammar.md#expressions-and-calls, spec/grammar.md#collections-records-and-comprehensions.",
   "profiles": ["core-language"],
   "expect": "match",
   "events": [],

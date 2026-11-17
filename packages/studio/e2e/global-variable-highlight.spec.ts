@@ -43,7 +43,7 @@ const SHADOWING_PROGRAM = [
 
 /**
  * The same program with only the `local score = 5` line deleted, followed by the other two
- * assignment spellings. `spec/execution-model.md:478-481` makes `:x = …`, `set x to …` and
+ * assignment spellings. `spec/execution-model.md#what-an-assignment-targets` makes `:x = …`, `set x to …` and
  * `make "x" …` resolve identically, so all three are painted — which is what makes the second
  * snapshot worth committing: it shows the treatment on a `:variable`, on a `primitive` place head,
  * and on a `word/string` literal at once.

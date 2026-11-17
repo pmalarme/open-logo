@@ -1,0 +1,34 @@
+{
+  "description": "Measured on this tree: a newline after `set :x to` does not continue. 2 statements (VarRef + NumberLit) — statement kinds measured but not mechanically asserted (see #1077). 2x `ol-bad-token` at parse stage. `check()` would additionally report `ol-undefined-var` for `:x`, but it is not reached under the harness's documented short-circuit (tests/conformance/README.md:80-82): when parse diagnostics exist, `check()` is not called.",
+  "profiles": ["core-language"],
+  "check": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-bad-token",
+      "source_span": {
+        "document": "core-language/delimitation/assignment-recovery-set-split",
+        "start": [1, 5],
+        "end": [1, 7]
+      },
+      "params": {
+        "text": ":x"
+      },
+      "stage": "parse",
+      "severity": "error"
+    },
+    {
+      "code": "ol-bad-token",
+      "source_span": {
+        "document": "core-language/delimitation/assignment-recovery-set-split",
+        "start": [1, 8],
+        "end": [1, 10]
+      },
+      "params": {
+        "text": "to"
+      },
+      "stage": "parse",
+      "severity": "error"
+    }
+  ]
+}

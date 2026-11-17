@@ -1,5 +1,5 @@
 {
-  "description": "The positive baseline of spec/execution-model.md:431-447's worked example: the identical loop body, written at the top level instead of inside a `define`, is a conforming program. The block may update the binding it can see (spec/execution-model.md:597-601), so the turtle moves `0`, `10`, `20`, `30` — four `move`/`draw-segment` pairs whose distances are the whole point — and the counter reaches `4`. `procedure-boundary-hides-a-top-level-read` is the same source inside a procedure, where it is a diagnostic; the pair is what shows the boundary, not the loop, is what changed.",
+  "description": "The positive baseline for the worked example in spec/execution-model.md#what-a-scope-can-see: the identical loop body, written at the top level instead of inside a `define`, is a conforming program. The block may update the binding it can see (spec/execution-model.md#blocks-update-what-they-can-see), so the turtle moves `0`, `10`, `20`, `30` — four `move`/`draw-segment` pairs whose distances are the whole point — and the counter reaches `4`. `procedure-boundary-hides-a-top-level-read` is the same source inside a procedure, where it is a diagnostic; the pair is what shows the boundary, not the loop, is what changed.",
   "profiles": ["core-language", "turtle-rendering"],
   "execute": true,
   "events": [

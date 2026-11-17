@@ -58,7 +58,7 @@
       "codes": ["ol-not-a-place"]
     }
   ],
-  "docs/design-notes/0008-sealed-procedure-boundary-and-block-lifetime.md": [
+  "docs/design-notes/0009-sealed-procedure-boundary-and-block-lifetime.md": [
     {
       "fingerprint": "9063362e0d0560cf",
       "excerpt": ":count = 0",
@@ -336,7 +336,7 @@
       "fingerprint": "a22fb14d246e681c",
       "excerpt": ":count = 0",
       "kind": "deliberate-error",
-      "why": "The section's own worked example of a program the sealed procedure boundary breaks, and the prose immediately below it (spec/execution-model.md:441-447) says so: `draw_steps` cannot see the top-level `:count`, so the read raises `ol-var-not-visible`. The fix the prose names, `global count = 0`, would make the block clean; keeping it broken is the point. NOTE what this entry does and does not assert: the gate compares the SET of codes a block produces, not how many of each, so this pins that `ol-var-not-visible` is raised and nothing else is — it does not prove BOTH body reads are reported. That count is asserted where it can be: `tests/conformance/core-language/check/var-not-visible-worked-example` and `packages/parser/src/variable-visibility.test.mjs`.",
+      "why": "The section's own worked example of a program the sealed procedure boundary breaks, and the prose immediately below it (spec/execution-model.md#what-a-scope-can-see) says so: `draw_steps` cannot see the top-level `:count`, so the read raises `ol-var-not-visible`. The fix the prose names, `global count = 0`, would make the block clean; keeping it broken is the point. NOTE what this entry does and does not assert: the gate compares the SET of codes a block produces, not how many of each, so this pins that `ol-var-not-visible` is raised and nothing else is — it does not prove BOTH body reads are reported. That count is asserted where it can be: `tests/conformance/core-language/check/var-not-visible-worked-example` and `packages/parser/src/variable-visibility.test.mjs`.",
       "codes": ["ol-var-not-visible"]
     }
   ],

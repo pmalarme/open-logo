@@ -1,5 +1,5 @@
 {
-  "description": "`remove key ... from ...` deletes a dict entry (issue #322, `spec/data-structures.md:219-231`); removing `tom` from a two-entry dict leaves only `sophie`, and `count` drops from 2 to 1.",
+  "description": "`remove key ... from ...` deletes a dict entry (issue #322, `spec/data-structures.md#dictionary-operations`); removing `tom` from a two-entry dict leaves only `sophie`, and `count` drops from 2 to 1.",
   "profiles": ["core-language", "data"],
   "execute": true,
   "events": [
