@@ -326,8 +326,8 @@ PR #1176 describes mutation-detected gaps beside tests that passed.
   cannot establish that a mutant survived.
 - **Read the result, not the diff.** A diff proves the text changed, not that behaviour changed —
   confirm the mutation with a control whose observed result differs.
-  PR #1176's instrument-failure catalogue records an equivalent `RepeatContext` predicate rewrite
-  misread as a coverage gap.
+  PR #1176's instrument-failure catalogue calls an equivalent predicate rewrite a no-op mutation:
+  it reports "not detected", indistinguishable from a real gap.
 - **A passing test may not distinguish the mutation.** Passing before and after a mutation does
   not establish whether a test measures silence or reporting; either direction can pass when the
   mutation changes a different behaviour. Assert the reporting direction as well as the clean
