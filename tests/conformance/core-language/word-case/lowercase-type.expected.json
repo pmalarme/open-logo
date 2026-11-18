@@ -1,0 +1,35 @@
+{
+  "description": "lowercase requires a word and does not coerce a boolean.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/word-case/lowercase-type",
+        "start": [1, 1],
+        "end": [1, 21]
+      },
+      "payload": { "statement_kind": "Call" }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-type",
+      "source_span": {
+        "document": "core-language/word-case/lowercase-type",
+        "start": [1, 17],
+        "end": [1, 21]
+      },
+      "params": {
+        "expected": "word",
+        "actual": "boolean",
+        "value": true,
+        "operation": "lowercase"
+      },
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

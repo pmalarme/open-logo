@@ -63,7 +63,8 @@ layer got fancy — like sketching a stick figure before adding muscle and skin.
 - **Words, lists, and math** — Core **reporters** (an instruction handing back an answer instead of
   doing something):
   - text and lists: `word`/`sentence`/`first`/`last`/`butfirst`/`butlast`/`fput`/`lput`/`count`/
-    `uppercase`/`lowercase`
+    [`uppercase`](../../spec/commands.md#uppercase)/
+    [`lowercase`](../../spec/commands.md#lowercase) convert letters in a word using Unicode casing
   - math: `abs`/`sqrt`/`round`/`power`/`random`
   - **predicates** — yes/no tests like `empty?`/`member?`
   - `print`/`show` let your program talk back

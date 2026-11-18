@@ -1,0 +1,2 @@
+print uppercase "Straße!"
+print lowercase "ÉCOLE!"
