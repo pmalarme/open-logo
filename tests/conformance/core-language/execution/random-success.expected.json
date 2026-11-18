@@ -1,0 +1,79 @@
+{
+  "description": "`random 1` can only report 0, and a two-bound range with equal endpoints can only report that endpoint. A wider negative range reports a whole number between its inclusive bounds; the expected output does not prescribe which one (spec/commands.md#random).",
+  "profiles": ["core-language"],
+  "execute": true,
+  "executeOptions": { "randomSeed": 123 },
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/random-success",
+        "start": [1, 1],
+        "end": [1, 15]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 1,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/execution/random-success",
+        "start": [1, 1],
+        "end": [1, 15]
+      },
+      "payload": { "values": [0] }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/random-success",
+        "start": [2, 1],
+        "end": [2, 23]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 3,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/execution/random-success",
+        "start": [2, 1],
+        "end": [2, 23]
+      },
+      "payload": { "values": [-4] }
+    },
+    {
+      "seq": 4,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/random-success",
+        "start": [3, 1],
+        "end": [3, 27]
+      },
+      "payload": { "statement_kind": "Assign" }
+    },
+    {
+      "seq": 5,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/random-success",
+        "start": [4, 1],
+        "end": [4, 57]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 6,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/execution/random-success",
+        "start": [4, 1],
+        "end": [4, 57]
+      },
+      "payload": { "values": [true] }
+    }
+  ],
+  "diagnostics": []
+}

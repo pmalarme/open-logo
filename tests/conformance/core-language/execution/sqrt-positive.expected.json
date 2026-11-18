@@ -1,0 +1,28 @@
+{
+  "description": "`sqrt` of 6.25 reports 2.5 without rounding it to a whole number (spec/commands.md#sqrt).",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/sqrt-positive",
+        "start": [1, 1],
+        "end": [1, 16]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 1,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/execution/sqrt-positive",
+        "start": [1, 1],
+        "end": [1, 16]
+      },
+      "payload": { "values": [2.5] }
+    }
+  ],
+  "diagnostics": []
+}

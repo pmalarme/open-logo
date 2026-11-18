@@ -1,0 +1,4 @@
+print random 1
+print (random -4 (-4))
+:sample = (random -7 (-2))
+print ((:sample == int :sample) and (-7 <= :sample <= -2))

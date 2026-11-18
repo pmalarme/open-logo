@@ -1,0 +1,38 @@
+{
+  "description": "`thing` reports the value stored under the supplied name, not the name itself (spec/commands.md#thing).",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/thing-bound-name",
+        "start": [1, 1],
+        "end": [1, 12]
+      },
+      "payload": { "statement_kind": "Assign" }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/thing-bound-name",
+        "start": [2, 1],
+        "end": [2, 20]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 2,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/execution/thing-bound-name",
+        "start": [2, 1],
+        "end": [2, 20]
+      },
+      "payload": { "values": [42] }
+    }
+  ],
+  "diagnostics": []
+}

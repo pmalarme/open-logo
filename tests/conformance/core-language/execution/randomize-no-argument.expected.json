@@ -1,0 +1,49 @@
+{
+  "description": "Bare `randomize` runs without inputs or diagnostics and the following `random` still reports a whole number in range (spec/commands.md#randomize). This portable trace does not distinguish reseeding from a no-op.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "executeOptions": { "randomSeed": 123 },
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/randomize-no-argument",
+        "start": [1, 1],
+        "end": [1, 10]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/randomize-no-argument",
+        "start": [2, 1],
+        "end": [2, 18]
+      },
+      "payload": { "statement_kind": "Assign" }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/randomize-no-argument",
+        "start": [3, 1],
+        "end": [3, 49]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 3,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/execution/randomize-no-argument",
+        "start": [3, 1],
+        "end": [3, 49]
+      },
+      "payload": { "values": [true] }
+    }
+  ],
+  "diagnostics": []
+}
