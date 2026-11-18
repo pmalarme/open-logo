@@ -788,7 +788,6 @@ test("Heritage/Core semantic diagnostics match while full-name warns only on ali
     if (alias !== undefined) {
       const preferred = canonicalOfHeritageAlias(alias);
       const aliasPattern = alias.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-      // Twin aliases occur only in call-shaped positions, never comments, literals, or variables.
       // Source counting keeps the expected count independent of checker output.
       const aliasMatches = twin.heritage.match(
         new RegExp(`\\b${aliasPattern}\\b`, "gi"),
