@@ -1,0 +1,28 @@
+{
+  "description": "`power` raises the first input to the second: 2 cubed reports 8, not 9 (spec/commands.md#power).",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/power-base-and-exponent",
+        "start": [1, 1],
+        "end": [1, 16]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 1,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/execution/power-base-and-exponent",
+        "start": [1, 1],
+        "end": [1, 16]
+      },
+      "payload": { "values": [8] }
+    }
+  ],
+  "diagnostics": []
+}
