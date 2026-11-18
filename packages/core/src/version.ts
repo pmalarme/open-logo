@@ -1,6 +1,6 @@
 /**
  * The OpenLogo specification version this implementation targets, per
- * `spec/conformance.md#conformance-claims` ("the supported OpenLogo specification version, exactly `0.2.0` for
+ * `spec/conformance.md#conformance-claims` ("the supported OpenLogo specification version, exactly `0.3.0` for
  * this draft") and `spec/conformance.md#feature-to-profile-table` (`openlogo.version`). Kept in its own module so
  * both the public entry point and {@link ./host-metadata.js} can depend on it without a
  * circular import.
@@ -10,4 +10,4 @@
  * contract, never at release time; `docs/delivery.md` §1 states the rule and
  * `docs/adr/0033-contract-version-moves-with-the-contract.md` records why.
  */
-export const OPENLOGO_VERSION = "0.2.0";
+export const OPENLOGO_VERSION = "0.3.0";

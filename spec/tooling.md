@@ -1,4 +1,4 @@
-> OpenLogo Specification v0.2.0 — Draft (Status: Normative)
+> OpenLogo Specification v0.3.0 — Draft (Status: Normative)
 
 # Tooling
 
@@ -235,7 +235,7 @@ Finding: `code=ol-no-value`, `stage=semantic`, `severity=error`, `params={ form:
 
 Style lints are warnings. They reuse the C10 diagnostic shape with `severity=warning`, `stage=semantic`,
 and an `ol-style-*` code. The source of each rule is [style-guide.md](style-guide.md); the codes below
-are the normative registry for v0.1. A conforming linter MAY allow users to disable style rules, but
+are the normative registry for this draft. A conforming linter MAY allow users to disable style rules, but
 it MUST keep the code identity stable when the rule is enabled.
 
 Comment form alone (`#`, `//`, or `/* ... */`) MUST NOT produce a style warning. Advice about

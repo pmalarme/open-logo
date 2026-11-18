@@ -1,4 +1,4 @@
-> OpenLogo Specification v0.2.0 — Draft (Status: Normative)
+> OpenLogo Specification v0.3.0 — Draft (Status: Normative)
 
 # Rendering
 

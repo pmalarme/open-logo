@@ -165,7 +165,7 @@ Match the merged spec exactly. Common mistakes to avoid:
   `@openlogo/runtime`, consumed by `@openlogo/turtle` and `@openlogo/studio`). Keep turtle
   **state/events deterministic and headless**, with animation layered on top — so
   `repeat 10000 [ forward 1 ]` tests semantics, not frames.
-- Feature-detection metadata exposes `openlogo.version` = `0.2.0`, supported profiles, extension
+- Feature-detection metadata exposes `openlogo.version` = `0.3.0`, supported profiles, extension
   names, and rendering targets. Extensions use the `<vendor>.<feature>` namespace and must not
   redefine profile behavior. **That version is a contract identifier, not a release artifact: it
   moves in the PR that changes the normative contract — never at release time, and never "aligned"

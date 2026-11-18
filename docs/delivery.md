@@ -13,10 +13,10 @@
 
 ## 1. Versioning model
 
-- **The language spec is the pace-setter.** `spec/` has its own version (currently `0.2.0`).
+- **The language spec is the pace-setter.** `spec/` has its own version (currently `0.3.0`).
   Everything downstream targets a spec version.
 - **Every package advertises what it implements** via feature-detection metadata
-  (`spec/conformance.md`): `openlogo.version` (e.g. `0.2.0`) + the list of **profiles** it supports.
+  (`spec/conformance.md`): `openlogo.version` (e.g. `0.3.0`) + the list of **profiles** it supports.
   This is the contract between packages, not their npm version numbers.
 - **Package versions:** all `@openlogo/*` packages release **in lockstep** (one monorepo version) to
   start — simplest thing that works (KISS). We split a package onto its own line only when a real
