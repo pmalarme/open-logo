@@ -13,6 +13,7 @@ test("word casing composes with reporters without changing the source word", () 
       "print :text",
       'print uppercase ""',
       'print lowercase ""',
+      'print lowercase "ΟΣ ΟΣΑ"',
     ].join("\n"),
     document,
   );
@@ -21,7 +22,7 @@ test("word casing composes with reporters without changing the source word", () 
     result.events
       .filter((event) => event.kind === "print")
       .map((event) => event.payload.values),
-    [["ÉCOLE!42SS"], ["école!42"], ["École!42"], [""], [""]],
+    [["ÉCOLE!42SS"], ["école!42"], ["École!42"], [""], [""], ["ος οσα"]],
   );
 });
 
