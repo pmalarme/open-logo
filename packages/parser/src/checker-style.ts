@@ -2189,6 +2189,7 @@ function preferredPrimitiveName(
   profiles: readonly CheckProfile[],
   heritageCanonical: string | undefined,
 ): string | undefined {
+  // Turtle aliases use their own registry; Heritage aliases carry the canonical on the AST node.
   const turtleCanonical = canonicalOfTurtleAlias(name);
   if (turtleCanonical !== undefined) {
     return activeProfilePrimitiveArityRange(turtleCanonical, profiles) ===

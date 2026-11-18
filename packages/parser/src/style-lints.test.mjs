@@ -2230,6 +2230,28 @@ test("ol-style-full-name: nested Heritage aliases in arguments are visited", () 
   });
 });
 
+test("ol-style-full-name: Heritage aliases in comprehension bodies are visited", () => {
+  const diagnostics = checkStyle(
+    ":items = [1 2]\n:result = map item in :items [ bf :items ]",
+    ["core-language", "data", "heritage"],
+  ).filter(isFullName);
+  assert.deepEqual(
+    diagnostics.map(({ params }) => params),
+    [{ alias: "bf", preferred: "butfirst" }],
+  );
+});
+
+test("ol-style-full-name: Heritage aliases in procedure bodies are visited", () => {
+  const diagnostics = checkStyle(
+    "define first_item :items\n  return bf :items\nend define",
+    ["core-language", "data", "heritage"],
+  ).filter(isFullName);
+  assert.deepEqual(
+    diagnostics.map(({ params }) => params),
+    [{ alias: "bf", preferred: "butfirst" }],
+  );
+});
+
 test("ol-style-full-name: Heritage form heads are not primitive alias calls", () => {
   const diagnostics = checkStyle(
     "to first_value\n  output 1\nend\n" +

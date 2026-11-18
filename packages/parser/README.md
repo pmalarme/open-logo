@@ -18,6 +18,8 @@ and the syntax + semantic **checker** (parse/semantic lint + `ol-style-*` style 
 `ol-style-full-name` warning points at an active primitive alias and includes its source spelling
 in `params.alias` and the available canonical replacement in `params.preferred`
 (`spec/tooling.md#layer-3-style-lints`).
+The `fd 100` / `rt 90` calls in that section illustrate the warning; with Core, Turtle & Rendering,
+and Heritage enabled, each call warns when style checks are on.
 
 ## Semantic tokens (LSP contract) for studio
 
