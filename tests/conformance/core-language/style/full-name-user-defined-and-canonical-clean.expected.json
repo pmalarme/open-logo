@@ -1,6 +1,6 @@
 {
-  "description": "A full Turtle & Rendering primitive spelling and a user-defined reporter call do not trigger ol-style-full-name.",
-  "profiles": ["core-language", "turtle-rendering"],
+  "description": "A canonical Core primitive and a user-defined reporter call do not trigger ol-style-full-name.",
+  "profiles": ["core-language"],
   "check": true,
   "style": true,
   "events": [],

@@ -2190,7 +2190,8 @@ function preferredPrimitiveName(
 ): string | undefined {
   const turtleCanonical = canonicalOfTurtleAlias(name);
   if (turtleCanonical !== undefined) {
-    return activeProfilePrimitiveArityRange(name, profiles) === undefined
+    return activeProfilePrimitiveArityRange(turtleCanonical, profiles) ===
+      undefined
       ? undefined
       : turtleCanonical;
   }

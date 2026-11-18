@@ -1,5 +1,5 @@
 {
-  "description": "With Turtle & Rendering active, the one-word alias setcolor suggests set_color.",
+  "description": "With Turtle & Rendering active, the one-word alias setcolor suggests set_color; the canonical spelling is clean.",
   "profiles": ["core-language", "turtle-rendering"],
   "check": true,
   "style": true,

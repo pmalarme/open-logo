@@ -768,23 +768,57 @@ test("every TWINS program parses clean, so its findings are genuinely semantic-s
   }
 });
 
-test("Heritage and Core twins match outside the intentional full-name style diagnostic", () => {
+test("Heritage/Core semantic diagnostics match while full-name warns only on aliases", () => {
   for (const twin of [...TWINS, ...PARSE_TWINS]) {
-    const heritage = stagedDiagnosticsFor(twin.heritage).filter(
+    const heritageFindings = stagedDiagnosticsFor(twin.heritage);
+    const coreFindings = stagedDiagnosticsFor(twin.core);
+    const heritageOtherFindings = heritageFindings.filter(
       (diagnostic) => diagnostic.code !== "ol-style-full-name",
     );
-    const core = stagedDiagnosticsFor(twin.core).filter(
+    const coreOtherFindings = coreFindings.filter(
       (diagnostic) => diagnostic.code !== "ol-style-full-name",
     );
+    const fullNameFindings = heritageFindings.filter(
+      (diagnostic) => diagnostic.code === "ol-style-full-name",
+    );
+    const alias = twin.covers.find((spelling) =>
+      heritageAliasNames().includes(spelling),
+    );
+
+    if (alias !== undefined) {
+      assert.ok(
+        fullNameFindings.length > 0,
+        `${twin.note}: the Heritage spelling must trigger ol-style-full-name`,
+      );
+      assert.deepEqual(
+        fullNameFindings.map(({ params }) => [params.alias, params.preferred]),
+        fullNameFindings.map(() => [alias, canonicalOfHeritageAlias(alias)]),
+        `${twin.note}: the full-name warning must identify the alias and canonical replacement`,
+      );
+      assert.deepEqual(
+        coreFindings.filter(
+          (diagnostic) => diagnostic.code === "ol-style-full-name",
+        ),
+        [],
+        `${twin.note}: the canonical spelling must not trigger ol-style-full-name`,
+      );
+    } else {
+      assert.deepEqual(
+        fullNameFindings,
+        [],
+        `${twin.note}: Heritage form heads are not primitive aliases`,
+      );
+    }
+
     assert.equal(
-      heritage.length,
-      core.length,
+      heritageOtherFindings.length,
+      coreOtherFindings.length,
       `${twin.note}: Heritage and Core twins must raise the same number of diagnostics\n` +
-        `  heritage: ${JSON.stringify(heritage.map((d) => d.code))}\n` +
-        `  core:     ${JSON.stringify(core.map((d) => d.code))}`,
+        `  heritage: ${JSON.stringify(heritageOtherFindings.map((d) => d.code))}\n` +
+        `  core:     ${JSON.stringify(coreOtherFindings.map((d) => d.code))}`,
     );
-    for (const [index, actual] of heritage.entries()) {
-      const expected = core[index];
+    for (const [index, actual] of heritageOtherFindings.entries()) {
+      const expected = coreOtherFindings[index];
       assert.equal(
         actual.code,
         expected.code,
