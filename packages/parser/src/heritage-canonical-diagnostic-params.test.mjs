@@ -781,9 +781,14 @@ test("Heritage/Core semantic diagnostics match while full-name warns only on ali
     const fullNameFindings = heritageFindings.filter(
       (diagnostic) => diagnostic.code === "ol-style-full-name",
     );
-    const alias = twin.covers.find((spelling) =>
+    const aliases = twin.covers.filter((spelling) =>
       heritageAliasNames().includes(spelling),
     );
+    assert.ok(
+      aliases.length <= 1,
+      `${twin.note}: each twin may cover at most one command alias`,
+    );
+    const alias = aliases[0];
 
     if (alias !== undefined) {
       const preferred = canonicalOfHeritageAlias(alias);
