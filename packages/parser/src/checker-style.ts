@@ -1,6 +1,6 @@
 /**
- * The Layer-3 style-lint rules (issue #115, slices 1, 2a, and 2b of the 15-code `ol-style-*`
- * family `spec/tooling.md#layer-3-style-lints` registers, sourced from `spec/style-guide.md`). Every finding
+ * The Layer-3 style-lint rules (issue #115 and related `ol-style-*` slices, sourced from
+ * `spec/style-guide.md`). Every finding
  * here reuses the C10 diagnostic shape with `severity: "warning"` and `stage: "semantic"` — a
  * style lint never changes program meaning, unlike a Layer-2 `ol-*` error.
  *
@@ -8,9 +8,9 @@
  * `{ style: true }`, so every existing Layer-2-only caller and conformance fixture is unaffected
  * (`check.ts`'s module doc explains why unconditional style-checking is unsafe).
  *
- * These three slices — together with the `ol-style-nested-handler` and
- * `ol-style-ambiguous-continuation` rules added by later issues — implement eleven of the fifteen registered codes; the rest are tracked in
- * the #169 follow-up issue:
+ * The rules documented here include the #115 style slices, later additions, and
+ * `ol-style-full-name` from the #169 Heritage follow-up. Other deferred codes have separate
+ * infrastructure or specification dependencies and are not implemented by that slice.
  *
  * - `ol-style-useless-value` — a control block (`if`/`while`/`repeat`/`forever`/`for … in`/
  *   `for … from … to`) whose body's final statement statically produces a value that the block
@@ -81,6 +81,11 @@
  *   guessed at — see {@link isBooleanProducing}/{@link isDefinitelyNonBoolean}'s doc comments.
  *   `Return`s belonging to a *nested* `ProcedureDef` are never attributed to the outer one (see
  *   {@link collectOwnReturns}).
+ * - `ol-style-full-name` — a call to a registered alias in an active profile suggests the
+ *   canonical spelling (`spec/style-guide.md#prefer-the-full-underscored-command-name` and
+ *   `spec/tooling.md#layer-3-style-lints`). Turtle aliases require their Turtle & Rendering
+ *   primitive to be active; Heritage aliases require Heritage and their canonical primitive's
+ *   profile to be active, so a suggestion is itself available in the active set.
  * - `ol-style-one-command-per-line` (slice 2b, the layout group) — a `Block` body, itself spanning
  *   more than one physical line (its own span's start and end lines differ — the AST's only
  *   available "is this a deliberately short one-line block" signal, since surface delimiter form
@@ -113,8 +118,8 @@
  *   reliably from spans alone — see its doc comment for the exact parser invariant this exploits.
  *   See {@link preferBlockRule}.
  *
- * Two candidates from the #169 remainder were assessed and deliberately **not** attempted in any
- * slice so far, each for a concrete write-set/infrastructure reason (not merely difficulty):
+ * Two other codes from the #169 remainder are deliberately **not** implemented here, each for a
+ * concrete write-set/infrastructure reason (not merely difficulty):
  *
  * - `ol-style-comment-style` needs comment *trivia* to exist somewhere in the token/AST stream to
  *   inspect at all. `tokens.ts`'s lexer treats every `#`/`//`/`/* … *\/` comment as pure whitespace
@@ -127,7 +132,7 @@
  *   `ol-style-predicate-name` above — implementing it separately would either duplicate those two
  *   findings verbatim or require inventing an un-normative "vague verb" word list the spec never
  *   supplies (`spec/style-guide.md` gives no such list, only illustrative examples like `do_it`).
- *   Left to the #169 follow-up pending that clarification.
+ *   Not implemented in this slice; #169 tracks the pending clarification.
  */
 
 import type { Diagnostic, Position, SourceSpan } from "@openlogo/core";
@@ -150,6 +155,7 @@ import { producesValue } from "./checker-control-flow.js";
 import {
   activeProfilePrimitiveArityRange,
   canonicalOfHeritageAlias,
+  canonicalOfTurtleAlias,
   isActiveProfileCommandName,
 } from "./signatures.js";
 
@@ -2175,6 +2181,63 @@ export function ambiguousContinuationRule(
 }
 
 /**
+ * Resolve a registered alias to its canonical spelling only when that spelling is available
+ * under the active profile set.
+ */
+function preferredPrimitiveName(
+  name: string,
+  profiles: readonly CheckProfile[],
+): string | undefined {
+  const turtleCanonical = canonicalOfTurtleAlias(name);
+  if (turtleCanonical !== undefined) {
+    return activeProfilePrimitiveArityRange(name, profiles) === undefined
+      ? undefined
+      : turtleCanonical;
+  }
+
+  if (!profiles.includes("heritage")) {
+    return undefined;
+  }
+  const heritageCanonical = canonicalOfHeritageAlias(name);
+  if (
+    heritageCanonical === undefined ||
+    activeProfilePrimitiveArityRange(heritageCanonical, profiles) === undefined
+  ) {
+    return undefined;
+  }
+  return heritageCanonical;
+}
+
+/** `ol-style-full-name`: suggest the canonical spelling for each active primitive alias call. */
+export function fullNameRule(
+  program: ProgramNode,
+  profiles: readonly CheckProfile[],
+): readonly Diagnostic[] {
+  const diagnostics: Diagnostic[] = [];
+
+  walk(program, (node) => {
+    if (node.kind !== "Call" && node.kind !== "ParenCall") {
+      return;
+    }
+    const alias = node.callee.name;
+    const preferred = preferredPrimitiveName(alias, profiles);
+    if (preferred === undefined) {
+      return;
+    }
+    diagnostics.push({
+      code: "ol-style-full-name",
+      source_span: node.callee.source_span,
+      params: { alias, preferred },
+      message: `for learning examples, prefer ${preferred} over ${alias}.`,
+      stage: "semantic",
+      severity: "warning",
+    });
+  });
+
+  return diagnostics;
+}
+
+/**
  * The opt-in Layer-3 style-rule registry (issue #115), run by `check()` only when
  * `options.style === true`. Order is the order findings are reported in; a later #169 slice
  * appends its rule(s) here the same way {@link RULES} in `check.ts` grows for Layer-2.
@@ -2183,6 +2246,7 @@ export const STYLE_RULES: readonly CheckRule[] = [
   uselessValueRule,
   equalityConfusionRule,
   nameCaseRule,
+  fullNameRule,
   magicNumberRule,
   predicateNameRule,
   oneCommandPerLineRule,

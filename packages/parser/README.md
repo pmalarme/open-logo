@@ -12,6 +12,13 @@ and the syntax + semantic **checker** (parse/semantic lint + `ol-style-*` style 
   [`commands.md`](../../spec/commands.md), [`error-model.md`](../../spec/error-model.md).
 - **Depends on:** `@openlogo/core`.
 
+## Style checks
+
+`check(program, { style: true, profiles })` enables the optional Layer-3 style lints. The
+`ol-style-full-name` warning points at an active primitive alias and includes its source spelling
+in `params.alias` and the available canonical replacement in `params.preferred`
+(`spec/tooling.md#layer-3-style-lints`).
+
 ## Semantic tokens (LSP contract) for studio
 
 `highlight(source, document, options)` classifies tokens into the 15 normative token classes + 5

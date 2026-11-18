@@ -1,0 +1,53 @@
+{
+  "description": "With Heritage and its dependencies active, aliases suggest their canonical primitive spellings.",
+  "profiles": ["core-language", "data", "turtle-rendering", "heritage"],
+  "check": true,
+  "style": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-style-full-name",
+      "source_span": {
+        "document": "heritage/style/full-name-heritage-aliases",
+        "start": [2, 15],
+        "end": [2, 17]
+      },
+      "params": { "alias": "bf", "preferred": "butfirst" },
+      "stage": "semantic",
+      "severity": "warning"
+    },
+    {
+      "code": "ol-style-full-name",
+      "source_span": {
+        "document": "heritage/style/full-name-heritage-aliases",
+        "start": [3, 1],
+        "end": [3, 3]
+      },
+      "params": { "alias": "fd", "preferred": "forward" },
+      "stage": "semantic",
+      "severity": "warning"
+    },
+    {
+      "code": "ol-style-full-name",
+      "source_span": {
+        "document": "heritage/style/full-name-heritage-aliases",
+        "start": [4, 1],
+        "end": [4, 3]
+      },
+      "params": { "alias": "pd", "preferred": "pen_down" },
+      "stage": "semantic",
+      "severity": "warning"
+    },
+    {
+      "code": "ol-style-full-name",
+      "source_span": {
+        "document": "heritage/style/full-name-heritage-aliases",
+        "start": [5, 1],
+        "end": [5, 3]
+      },
+      "params": { "alias": "pr", "preferred": "print" },
+      "stage": "semantic",
+      "severity": "warning"
+    }
+  ]
+}

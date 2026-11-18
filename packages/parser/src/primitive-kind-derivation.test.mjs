@@ -443,14 +443,17 @@ test("challenge is classified a command even though it has no checker visibility
   );
 });
 
-test("the spec's own instruction-block example is style-clean (issue #932)", () => {
+test("the spec's canonical instruction-block example is style-clean and Heritage aliases are linted (issue #932)", () => {
   // `repeat 4 [ forward 100 right 90 ]` is the example in `spec/grammar.md#blocks-and-bracket-roles`.
   const profiles = ["core-language", "turtle-rendering", "heritage"];
   assert.deepEqual(
     checkCodes("repeat 4 [ forward 100 right 90 ]", profiles, true),
     [],
   );
-  assert.deepEqual(checkCodes("repeat 4 [ fd 100 rt 90 ]", profiles, true), []);
+  assert.deepEqual(checkCodes("repeat 4 [ fd 100 rt 90 ]", profiles, true), [
+    "ol-style-full-name",
+    "ol-style-full-name",
+  ]);
   assert.deepEqual(checkCodes("repeat 3 [ print 1 ]", profiles, true), []);
 });
 

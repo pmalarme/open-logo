@@ -2150,3 +2150,85 @@ test("ol-style-ambiguous-continuation: non-BMP chars in inline comment — colum
   assert.equal(diagnostics[0].source_span.start[1], 9);
   assert.equal(diagnostics[0].source_span.end[1], 10);
 });
+
+// --- ol-style-full-name -----------------------------------------------------------------------
+
+function isFullName(diagnostic) {
+  return diagnostic.code === "ol-style-full-name";
+}
+
+test("ol-style-full-name: Turtle alias maps to its canonical name and covers only the callee", () => {
+  const diagnostics = checkStyle('setcolor "blue"', [
+    "core-language",
+    "turtle-rendering",
+  ]).filter(isFullName);
+  assert.equal(diagnostics.length, 1);
+  assert.deepEqual(diagnostics[0].params, {
+    alias: "setcolor",
+    preferred: "set_color",
+  });
+  assert.deepEqual(diagnostics[0].source_span, {
+    document: doc,
+    start: [1, 1],
+    end: [1, 9],
+  });
+  assert.equal(
+    diagnostics[0].message,
+    "for learning examples, prefer set_color over setcolor.",
+  );
+  assert.equal(diagnostics[0].stage, "semantic");
+  assert.equal(diagnostics[0].severity, "warning");
+});
+
+test("ol-style-full-name: parenthesized alias calls use the callee span", () => {
+  const diagnostics = checkStyle('(setcolor "blue")', [
+    "core-language",
+    "turtle-rendering",
+  ]).filter(isFullName);
+  assert.equal(diagnostics.length, 1);
+  assert.deepEqual(diagnostics[0].source_span, {
+    document: doc,
+    start: [1, 2],
+    end: [1, 10],
+  });
+});
+
+test("ol-style-full-name: Heritage aliases resolve to canonical command and reporter names", () => {
+  const diagnostics = checkStyle(
+    ':items = [1 2]\n:first_item = bf :items\nfd 40\npd\npr "done"',
+    ["core-language", "data", "turtle-rendering", "heritage"],
+  ).filter(isFullName);
+  assert.deepEqual(
+    diagnostics.map((diagnostic) => [
+      diagnostic.params.alias,
+      diagnostic.params.preferred,
+    ]),
+    [
+      ["bf", "butfirst"],
+      ["fd", "forward"],
+      ["pd", "pen_down"],
+      ["pr", "print"],
+    ],
+  );
+});
+
+test("ol-style-full-name: aliases outside their active profile or without an active canonical stay clean", () => {
+  assert.deepEqual(checkStyle("fd 40").filter(isFullName), []);
+  assert.deepEqual(
+    checkStyle('setcolor "blue"', ["core-language"]).filter(isFullName),
+    [],
+  );
+  assert.deepEqual(
+    checkStyle("fd 40", ["core-language", "data", "heritage"]).filter(
+      isFullName,
+    ),
+    [],
+  );
+});
+
+test("ol-style-full-name: a user-defined procedure call is not treated as an alias", () => {
+  const diagnostics = checkStyle(
+    "define draw_value\n  return 10\nend define\nprint draw_value",
+  ).filter(isFullName);
+  assert.deepEqual(diagnostics, []);
+});

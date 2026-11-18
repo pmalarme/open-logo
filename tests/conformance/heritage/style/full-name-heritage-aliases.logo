@@ -1,0 +1,5 @@
+:items = [1 2]
+:first_item = bf :items
+fd 40
+pd
+pr "done"

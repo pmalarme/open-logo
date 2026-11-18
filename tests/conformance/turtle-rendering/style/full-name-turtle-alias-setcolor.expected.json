@@ -1,0 +1,20 @@
+{
+  "description": "With Turtle & Rendering active, the one-word alias setcolor suggests set_color.",
+  "profiles": ["core-language", "turtle-rendering"],
+  "check": true,
+  "style": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-style-full-name",
+      "source_span": {
+        "document": "turtle-rendering/style/full-name-turtle-alias-setcolor",
+        "start": [1, 1],
+        "end": [1, 9]
+      },
+      "params": { "alias": "setcolor", "preferred": "set_color" },
+      "stage": "semantic",
+      "severity": "warning"
+    }
+  ]
+}

@@ -1,0 +1,5 @@
+define draw_value
+  return 10
+end define
+set_color "blue"
+print draw_value

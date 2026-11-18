@@ -58,14 +58,14 @@ export type DiagnosticCode = (typeof OL_DIAGNOSTIC_CODES)[number];
 
 /**
  * Style-lint codes. These reuse the diagnostic shape with `severity: "warning"` and MUST
- * NOT change program meaning. `spec/tooling.md#layer-3-style-lints` registers 15 `ol-style-*` codes; issue
+ * NOT change program meaning. `spec/tooling.md#layer-3-style-lints` registers the `ol-style-*` codes; issue
  * #115 slice 1 wired `ol-style-useless-value`, `ol-style-equality-confusion`, and
  * `ol-style-name-case`; #169 slice 2a added `ol-style-magic-number` and
- * `ol-style-predicate-name`; slice 2b (this one) adds the layout group —
+ * `ol-style-predicate-name`; slice 2b added the layout group —
  * `ol-style-one-command-per-line`, `ol-style-deep-nesting`, `ol-style-block-indentation`, and
- * `ol-style-prefer-block` — the remaining four (`ol-style-full-name`, `ol-style-procedure-name`,
- * `ol-style-comment-style`, `ol-style-hidden-abstraction`) are tracked in the #169 follow-up
- * issue.
+ * `ol-style-prefer-block`; the #169 follow-up adds `ol-style-full-name`.
+ * `ol-style-procedure-name`, `ol-style-comment-style`, and
+ * `ol-style-hidden-abstraction` remain outside that slice.
  *
  * Issue #828 adds `ol-style-nested-handler`, the first code in this family that is not sourced
  * from `spec/style-guide.md`: it comes from the #828 ruling, which pairs the runtime's instruction
@@ -83,6 +83,7 @@ export const OL_STYLE_DIAGNOSTIC_CODES = [
   "ol-style-useless-value",
   "ol-style-equality-confusion",
   "ol-style-name-case",
+  "ol-style-full-name",
   "ol-style-magic-number",
   "ol-style-predicate-name",
   "ol-style-one-command-per-line",

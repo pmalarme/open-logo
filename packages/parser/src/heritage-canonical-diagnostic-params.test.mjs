@@ -36,7 +36,8 @@
 //
 //   1. TWIN EQUALITY — for each Heritage spelling, a program written with it and the same program
 //      written with its Core spelling produce diagnostics with identical `code`, `stage`,
-//      `severity`, and `params`.
+//      `severity`, and `params`, apart from `ol-style-full-name`, which intentionally distinguishes
+//      aliases from their canonical spellings and is covered by its own tests.
 //   2. NO SURFACE SPELLING IN PARAMS — no param value of any diagnostic in the corpus contains a
 //      Heritage-only spelling as a whole word.
 //
@@ -185,6 +186,11 @@ const SURFACE_SUBJECT_PARAMS = {
       "subject is the literal source slice, so a surface value is the point. A canonical value " +
       'would report `name: "return"` for a learner who wrote `OUTPUT` — advice to lowercase a ' +
       "word that is already lowercase and that they never typed.",
+  },
+  "ol-style-full-name": {
+    alias:
+      '`spec/tooling.md#layer-3-style-lints` specifies `{ alias: "fd", preferred: "forward" }`. ' +
+      "The `alias` param is the surface spelling the rule is about; `preferred` remains canonical.",
   },
   "ol-bad-token": {
     text:
@@ -762,10 +768,14 @@ test("every TWINS program parses clean, so its findings are genuinely semantic-s
   }
 });
 
-test("a Heritage program's diagnostics are byte-identical to its Core twin's in code and params", () => {
+test("Heritage and Core twins match outside the intentional full-name style diagnostic", () => {
   for (const twin of [...TWINS, ...PARSE_TWINS]) {
-    const heritage = stagedDiagnosticsFor(twin.heritage);
-    const core = stagedDiagnosticsFor(twin.core);
+    const heritage = stagedDiagnosticsFor(twin.heritage).filter(
+      (diagnostic) => diagnostic.code !== "ol-style-full-name",
+    );
+    const core = stagedDiagnosticsFor(twin.core).filter(
+      (diagnostic) => diagnostic.code !== "ol-style-full-name",
+    );
     assert.equal(
       heritage.length,
       core.length,

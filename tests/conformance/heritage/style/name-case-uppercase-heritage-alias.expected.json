@@ -1,5 +1,5 @@
 {
-  "description": "ol-style-name-case (issue #854): a Heritage short alias callee written non-lowercase is flagged like any other built-in. Heritage aliases carry no arity of their own, so the primitive tables cannot see them — they reach the lint through `signatures.ts`'s `heritageSurfaceSpellings()`, the enumerable definition of a Heritage surface spelling (issue #852). The lint judges CASING only: choosing `fd` over `forward` is a profile choice, not a style violation this code expresses (that is `ol-style-full-name`), so lowercase `fd` is clean here.",
+  "description": "ol-style-name-case (issue #854): a Heritage short alias callee written non-lowercase is flagged like any other built-in. Heritage aliases carry no arity of their own, so the primitive tables cannot see them — they reach the lint through `signatures.ts`'s `heritageSurfaceSpellings()`, the enumerable definition of a Heritage surface spelling (issue #852). This lint judges casing only; the separate ol-style-full-name rule recommends the canonical spelling for an active alias.",
   "profiles": ["core-language", "turtle-rendering", "heritage"],
   "check": true,
   "style": true,
@@ -14,6 +14,20 @@
       },
       "params": {
         "name": "FD"
+      },
+      "stage": "semantic",
+      "severity": "warning"
+    },
+    {
+      "code": "ol-style-full-name",
+      "source_span": {
+        "document": "heritage/style/name-case-uppercase-heritage-alias",
+        "start": [1, 1],
+        "end": [1, 3]
+      },
+      "params": {
+        "alias": "FD",
+        "preferred": "forward"
       },
       "stage": "semantic",
       "severity": "warning"

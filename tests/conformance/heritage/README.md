@@ -61,6 +61,8 @@ Its per-slice behavior is proven here fixture-by-fixture, slice by slice:
 - `check/heritage-form-head-keyword-casing-clean` — a lowercase Heritage form head (`to`, `output`)
   raises no `ol-style-name-case`. That lint judges casing only, so a hardcoded per-kind canonical
   keyword made it slice past a shorter Heritage spelling and warn about correct code (#737).
+- `style/full-name-heritage-aliases` — active Heritage aliases suggest their available canonical
+  primitive spellings with `ol-style-full-name`.
 - `check/heritage-value-of-key-{accepted-when-active,rejected-in-core}` — the worded dictionary
   reader `value of … for key` is gated on the `heritage` profile (with its Data dependency), visible
   only when active and otherwise `ol-unknown-command` (slice H5, #670).
