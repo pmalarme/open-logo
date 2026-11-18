@@ -1,0 +1,30 @@
+{
+  "description": "Executing lowercase with two inputs reports the extra input at the callable.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/word-case/lowercase-extra",
+        "start": [1, 1],
+        "end": [1, 26]
+      },
+      "payload": { "statement_kind": "Call" }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-too-many-inputs",
+      "source_span": {
+        "document": "core-language/word-case/lowercase-extra",
+        "start": [1, 8],
+        "end": [1, 17]
+      },
+      "params": { "callable": "lowercase", "expected": 1, "actual": 2 },
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

@@ -1157,6 +1157,8 @@ export function isSupportedExpression(
         name === "lput" ||
         name === "sentence" ||
         name === "word" ||
+        name === "uppercase" ||
+        name === "lowercase" ||
         name === "count" ||
         name === "reverse" ||
         name === "pick" ||
@@ -2446,6 +2448,9 @@ function evaluateCall(
   }
   if (name === "word") {
     return evaluateWord(node, environment);
+  }
+  if (name === "uppercase" || name === "lowercase") {
+    return evaluateWordCase(node, environment, name);
   }
   if (name === "count") {
     return evaluateCount(node, environment);
@@ -4205,6 +4210,36 @@ function evaluateWord(
     result += value;
   }
   return ok(result);
+}
+
+function evaluateWordCase(
+  node: ArithmeticCallNode,
+  environment: Environment,
+  operation: "uppercase" | "lowercase",
+): EvalResult {
+  const arityDiagnostic = requireExactArgs(node, operation, 1);
+  if (arityDiagnostic) {
+    return fail(arityDiagnostic);
+  }
+  const inputNode = arg(node, 0);
+  const inputResult = evaluate(inputNode, environment);
+  if (!inputResult.ok) {
+    return inputResult;
+  }
+  const value = inputResult.value;
+  if (typeof value !== "string") {
+    return fail(
+      runtimeDiag.listReporterType(inputNode.source_span, {
+        expected: "word",
+        actual: typeNameOf(value),
+        value,
+        operation,
+      }),
+    );
+  }
+  return ok(
+    operation === "uppercase" ? value.toUpperCase() : value.toLowerCase(),
+  );
 }
 
 /**
