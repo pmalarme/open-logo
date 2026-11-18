@@ -4,7 +4,7 @@
 
 Back to the [specification index](README.md).
 
-This guide is about writing OpenLogo that a learner can read again tomorrow. The grammar accepts more than one spelling in a few places, but examples, lessons, and shared libraries should prefer the clearest form. Each rule below is keyed to a style linter check defined by [tooling](tooling.md), using the `ol-style-*` family of warnings.
+This guide is about writing OpenLogo that a learner can read again tomorrow. The grammar accepts more than one spelling in a few places, but examples, lessons, and shared libraries should prefer the clearest form. Where advice has a corresponding style linter check, it is identified below; [tooling](tooling.md#layer-3-style-lints) defines the normative `ol-style-*` registry. Choosing descriptive procedure names, writing helpful comments, and deciding when to teach an abstraction are author guidance, not lint rules.
 
 ## Quick checklist
 
@@ -16,8 +16,8 @@ This guide is about writing OpenLogo that a learner can read again tomorrow. The
 | Line shape | one command per line | squeezed command chains | `ol-style-one-command-per-line` |
 | Block body | `[ ]` inline, `… end` for multi-line | a sprawling multi-line `[ ]` block | `ol-style-prefer-block` |
 | Predicate names | `empty?`, `is_square?` | `empty`, `check_square` | `ol-style-predicate-name` |
-| Procedure names | `draw_star`, `is_inside?` | vague verbs like `do_it` | `ol-style-procedure-name` |
-| Comments | `#` for normal notes | `//` everywhere | `ol-style-comment-style` |
+| Procedure names | `draw_star`, `is_inside?` | vague verbs like `do_it` | Author guidance |
+| Comments | `#` for normal notes | comments that merely repeat code | Author guidance |
 | Values in effect blocks | commands for effects | unused final values | `ol-style-useless-value` |
 
 ## Names use `snake_case`
@@ -216,11 +216,9 @@ define do_it :x
 end
 ```
 
-Linter check: `ol-style-procedure-name` warns on vague teaching examples, non-snake-case procedure names, and predicate procedures that do not follow the `is_*?` or `*?` pattern.
-
 ## Use `#` comments first
 
-Use `#` for normal comments. It is the clearest comment marker for lessons and should be the style used in examples. Use `//` only when showing compatibility with another environment, and use `/* */` only for a short block note that would be noisier as several line comments.
+Prefer `#` for normal comments in lessons and examples. `//` line comments and `/* */` block comments are equally valid syntax; choosing them does not warrant a style warning.
 
 ```logo
 # turn once after each side
@@ -233,8 +231,6 @@ Keep comments close to the idea they explain. Prefer why-comments over comments 
 # 72 degrees closes a five-sided polygon
 right 72
 ```
-
-Linter check: `ol-style-comment-style` suggests `#` for ordinary line comments and warns when comments restate code without adding learner value.
 
 ## Keep assignment and comparison visually distinct
 
@@ -282,8 +278,6 @@ define draw_square :size
   end repeat
 end
 ```
-
-Linter check: `ol-style-hidden-abstraction` warns in early-level teaching examples when a shape helper appears before the repeated construction it represents.
 
 ### Undelimited bodies
 

@@ -1,5 +1,5 @@
 /**
- * The Layer-3 style-lint rules (issue #115, slices 1, 2a, and 2b of the 15-code `ol-style-*`
+ * The Layer-3 style-lint rules (issue #115, slices 1, 2a, and 2b of the `ol-style-*`
  * family `spec/tooling.md#layer-3-style-lints` registers, sourced from `spec/style-guide.md`). Every finding
  * here reuses the C10 diagnostic shape with `severity: "warning"` and `stage: "semantic"` — a
  * style lint never changes program meaning, unlike a Layer-2 `ol-*` error.
@@ -9,8 +9,8 @@
  * (`check.ts`'s module doc explains why unconditional style-checking is unsafe).
  *
  * These three slices — together with the `ol-style-nested-handler` and
- * `ol-style-ambiguous-continuation` rules added by later issues — implement eleven of the fifteen registered codes; the rest are tracked in
- * the #169 follow-up issue:
+ * `ol-style-ambiguous-continuation` rules added by later issues — implement the rules described
+ * below. The remaining `ol-style-full-name` rule is tracked in #169.
  *
  * - `ol-style-useless-value` — a control block (`if`/`while`/`repeat`/`forever`/`for … in`/
  *   `for … from … to`) whose body's final statement statically produces a value that the block
@@ -112,22 +112,6 @@
  *   `BlockNode` does not record its own surface delimiter, but {@link isBracketBlock} recovers it
  *   reliably from spans alone — see its doc comment for the exact parser invariant this exploits.
  *   See {@link preferBlockRule}.
- *
- * Two candidates from the #169 remainder were assessed and deliberately **not** attempted in any
- * slice so far, each for a concrete write-set/infrastructure reason (not merely difficulty):
- *
- * - `ol-style-comment-style` needs comment *trivia* to exist somewhere in the token/AST stream to
- *   inspect at all. `tokens.ts`'s lexer treats every `#`/`//`/`/* … *\/` comment as pure whitespace
- *   and discards its text entirely before the parser ever sees a token — there is nothing for an
- *   additive `checker-style.ts` rule to read. Doing this would require the reader/lexer to start
- *   retaining comment spans, which is out of this slice's additive-only write-set; tracked as
- *   blocker issue #175.
- * - `ol-style-procedure-name`'s normatively-decidable parts (non-snake-case naming; the `is_*?`/
- *   `*?` predicate-suffix pattern) are already fully covered by `ol-style-name-case` and
- *   `ol-style-predicate-name` above — implementing it separately would either duplicate those two
- *   findings verbatim or require inventing an un-normative "vague verb" word list the spec never
- *   supplies (`spec/style-guide.md` gives no such list, only illustrative examples like `do_it`).
- *   Left to the #169 follow-up pending that clarification.
  */
 
 import type { Diagnostic, Position, SourceSpan } from "@openlogo/core";

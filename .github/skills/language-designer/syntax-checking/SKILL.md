@@ -27,7 +27,7 @@ It is a separate concern from `syntax-highlighting`.
    `-in-comprehension`, `ol-duplicate-binder`. Also report *statically knowable* runtime codes
    (`ol-type`, `ol-range`, `ol-not-boolean`) — but never speculate on unknown dynamic values.
 3. **Layer 3 — style lints** (`severity=warning`, `ol-style-*`): `ol-style-full-name`,
-   `ol-style-equality-confusion`, `ol-style-magic-number`, `ol-style-hidden-abstraction`, etc., sourced
+   `ol-style-equality-confusion`, `ol-style-magic-number`, etc., sourced
    from `spec/style-guide.md`. May be user-disabled; code identity stays stable when enabled.
 
 ## Rules

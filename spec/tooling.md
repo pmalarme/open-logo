@@ -238,6 +238,10 @@ and an `ol-style-*` code. The source of each rule is [style-guide.md](style-guid
 are the normative registry for v0.1. A conforming linter MAY allow users to disable style rules, but
 it MUST keep the code identity stable when the rule is enabled.
 
+Comment form alone (`#`, `//`, or `/* ... */`) MUST NOT produce a style warning. Advice about
+descriptive procedure names and when a lesson introduces an abstraction remains author guidance
+in [style-guide.md](style-guide.md), not a lint rule.
+
 | Code | Rule |
 |---|---|
 | `ol-style-useless-value` | An expression statement whose value is discarded: either the final expression of a control block body, or a top-level/procedure-body statement that is a value-producing expression with no consumer. |
@@ -247,12 +251,9 @@ it MUST keep the code identity stable when the rule is enabled.
 | `ol-style-block-indentation` | Indent the contents of `[ ]` and long `... end` blocks consistently. |
 | `ol-style-prefer-block` | Suggest a `... end` block when a bracketed `[ ]` control body spans multiple lines. |
 | `ol-style-predicate-name` | Procedures that return booleans should end in `?`, such as `is_ready?`. |
-| `ol-style-procedure-name` | Procedure names should describe the learner-visible action or question, often `draw_*`, `make_*`, or `is_*?`. |
-| `ol-style-comment-style` | Prefer `#` comments in examples; `//` and `/* ... */` remain valid syntax. |
 | `ol-style-magic-number` | Repeated unexplained numeric literals should be named with a variable. |
 | `ol-style-equality-confusion` | A standalone comparison statement such as `:x == :y` whose boolean result is discarded, which usually means an assignment `=` was intended. `=` inside a condition is a parse error, not a style warning. |
 | `ol-style-deep-nesting` | Deep unlabeled nesting should be refactored or labeled with matching `end <form>` where long blocks are used. |
-| `ol-style-hidden-abstraction` | A shortcut procedure such as `draw_square 100` hides a concept that the surrounding lesson expects the learner to build from `repeat`. |
 | `ol-style-nested-handler` | An `every` handler whose block lexically contains another handler registration, which accumulates handlers without bound: each firing can add one more. Handlers registered inside `on_key`/`on_click` blocks are not flagged, because a key press or click is bounded by the user. The check is lexical, so a registration reached only through a procedure call is not reported. |
 | `ol-style-ambiguous-continuation` | A continuation line begins with an arithmetic operator (`+`, `-`, `*`, `/`, `mod`), or a new statement begins with a negative literal (such as `-5`) directly after a statement that would accept `- 5` as continuation. For `-` before a digit the message names both readings (subtraction vs negative literal) and states which one the parser chose; for the other operators it warns that the line continues the previous statement rather than starting a new one (`spec/grammar.md#lexical-form-and-encoding`). |
 
