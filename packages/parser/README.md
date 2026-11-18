@@ -18,9 +18,10 @@ and the syntax + semantic **checker** (parse/semantic lint + `ol-style-*` style 
 `ol-style-full-name` warning points at an active primitive alias and includes its source spelling
 in `params.alias` and the available canonical replacement in `params.preferred`
 (`spec/tooling.md#layer-3-style-lints`).
-The `fd 100` / `rt 90` calls in that section illustrate the warning; Core and Turtle & Rendering
-suffice, with no Heritage profile needed. When style checks are on, each call warns. An uppercase
-alias may also receive `ol-style-name-case`, since the rules check different properties.
+The `fd 100` / `rt 90` calls in that section are Heritage aliases for Turtle commands, so their
+warnings require Heritage and its Data and Turtle & Rendering dependencies. For a Turtle-only alias,
+`setcolor` warns in favor of `set_color` with Core and Turtle & Rendering. An uppercase alias may
+also receive `ol-style-name-case`, since the rules check different properties.
 
 ## Semantic tokens (LSP contract) for studio
 

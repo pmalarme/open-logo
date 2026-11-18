@@ -2264,6 +2264,17 @@ test("ol-style-full-name: Heritage form heads are not primitive alias calls", ()
 
 test("ol-style-full-name: aliases outside their active profile or without an active canonical stay clean", () => {
   assert.deepEqual(checkStyle("fd 40").filter(isFullName), []);
+  const withoutHeritageTurtle = checkStyle("fd 40\nrt 90", [
+    "core-language",
+    "turtle-rendering",
+  ]);
+  assert.deepEqual(
+    withoutHeritageTurtle
+      .filter((diagnostic) => diagnostic.code === "ol-unknown-command")
+      .map(({ params }) => params.name),
+    ["fd", "rt"],
+  );
+  assert.deepEqual(withoutHeritageTurtle.filter(isFullName), []);
   const withoutHeritage = checkStyle("bf 1", ["core-language", "data"]);
   assert.ok(
     withoutHeritage.some(
