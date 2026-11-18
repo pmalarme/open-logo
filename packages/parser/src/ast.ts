@@ -292,8 +292,20 @@ export interface AssignNode extends NodeBase {
  * parenthesized multi-name form takes none, so a node with two or more
  * `names` never carries one. It stays an optional field rather than a second node kind because
  * `local count` and `local count = 0` are one production and one declaration; only the initializer
- * differs (`spec/execution-model.md#local`). The initializer is evaluated before the new binding
- * is created, so it can read the previously visible binding of the same name.
+ * differs (`spec/execution-model.md#local`).
+ *
+ * Issue #824 shipped the scoping runtime, so the declaration and its initializer both take effect.
+ * Away from the root scope `local name` creates a fresh binding holding no value, shadowing
+ * anything of that name that was visible, so reading it before anything assigns it is an ordinary
+ * `ol-undefined-var` — and an enclosing binding of the same name keeps its own value untouched. At
+ * the **root** scope it instead names the root scope's own binding
+ * (`spec/execution-model.md#local`), so `:count = 0` / `local count = 5` / `print :count` prints
+ * `5`: the initializer is assigned to the binding already there rather than to a second one beside
+ * it. Either way the initializer is evaluated *before* the new binding exists, with exactly the
+ * visibility the `local` statement itself has (`spec/execution-model.md#local`). None of this is
+ * asserted here — `packages/runtime/src/scoping.test.mjs` pins each case, so changing the behaviour
+ * reddens a test instead of outliving a comment. {@link GlobalNode} is the same shape; see its own
+ * note.
  */
 export interface LocalNode extends NodeBase {
   readonly kind: "Local";
@@ -317,8 +329,15 @@ export interface LocalNode extends NodeBase {
  * checker never raises `ol-reserved-word` for it (`spec/grammar.md#keywords-primitives-and-built-in-names`), and its own span is what
  * `ol-global-outside-root`'s `name` param and diagnostics point at.
  *
- * A root binding can already exist: "`:count = 5` followed by `global count = 0` leaves one
- * binding, now shared and holding `0`" (`spec/execution-model.md#global`).
+ * Issue #824 shipped the scoping runtime here too, so the declaration both binds and initializes.
+ * `spec/execution-model.md#global` lets a root binding of the name already exist — "`:count = 5`
+ * followed by `global count = 0` leaves one binding, now shared and holding `0`" — and the runtime
+ * does exactly that: `:count = 5` / `global count = 0` / `print :count` prints `0`. With no prior
+ * binding the declaration simply creates the shared binding, so `global count = 0` / `print :count`
+ * prints `0` as well; there is no case in which the initializer is dropped. Being shared is what
+ * the form exists to record, so a procedure's own `:count = 5` afterwards updates that same binding
+ * rather than a procedure-local one. `packages/runtime/src/scoping.test.mjs` pins each of these, so
+ * they stay measured rather than asserted.
  */
 export interface GlobalNode extends NodeBase {
   readonly kind: "Global";

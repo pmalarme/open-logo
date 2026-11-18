@@ -44,11 +44,13 @@ classifies nothing *inside* the string, so `spec/tooling.md#normative-token-clas
 program only **declares** — `global count = 0`, `local count` — carries nothing, because those
 tokens introduce a binding rather than resolve to one.
 
-**Consume it through `semanticTokens()`.** `highlight()` also exposes the same answer as
-`Token.global`, but only for a caller that keeps the whole `Token`: a consumer that reduces a token
-to its class — which is exactly what `packages/studio/src/highlighter.ts` does today, mapping class
-to a CSS name and discarding every other field, `role` included — cannot see it, and **no renderer
-in this repository consumes it yet** (issue #1106 is the studio slice that will).
+**Studio renders it through `semanticTokens()`.** `highlight()` also exposes the answer as
+`Token.global`; `semanticTokens()` carries it as a `global` modifier. The browser editor's
+`packages/studio/src/highlighter.ts` consumes `semanticTokens()` and maps that modifier to
+`ol-mod-global` plus `OL_GLOBAL_VARIABLE_DESCRIPTION`. `packages/studio/src/editor-cm6.ts` applies
+the modifier class and description as the mark's `title`; `packages/studio/web/styles.css` provides
+the visual treatment. The studio adapter preserves the token's base class while adding the modifier,
+so both visual and descriptive cues reach the learner (issue #1106).
 
 It follows **resolution, not spelling**: a `local` that shadows a global does not carry it, a
 procedure parameter of the same name does not, and a root-scope `local` — which

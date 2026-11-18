@@ -32,12 +32,14 @@
  * bullet — name every category the runtime names.
  *
  * **What these lessons may not promise.** The studio's diagnostics pane does not yet run the
- * semantic checker while a learner types (issue #814), so `ol-var-not-visible` reaches a learner
- * only after they press Run, as the runtime's copy of the message — not as they write. The
- * `global` lesson therefore teaches the boundary and the one-word fix, and never an editor
- * experience. For the same reason nothing here says a shared value *looks* different: the
- * `global` semantic-token modifier exists (#1115) but the studio drops modifiers when mapping
- * tokens to CSS (issue #1106).
+ * semantic checker while a learner types (issue #814, still open), so `ol-var-not-visible` reaches
+ * a learner only after they press Run, as the runtime's copy of the message — not as they write.
+ * The `global` lesson therefore teaches the boundary and the one-word fix, and never an editor
+ * experience. Nothing here says a shared value *looks* different either, but the reason has
+ * changed and is no longer the same one: #1106 landed in this saga, so the studio does now render
+ * the `global` semantic-token modifier (#1115) as an `ol-mod-*` class plus a hover description.
+ * The silence is therefore an open curriculum question, not a consequence of the pipeline, and is
+ * owned by `@curriculum` as issue #1184.
  *
  * **Two things deliberately deferred, so the next author knows they are owed.**
  *

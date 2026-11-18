@@ -760,14 +760,14 @@ export function checkExecutionLimits(
  * makes the accumulation terminate: with each firing charged, the quadratic growth burns the budget
  * and trips the ordinary `ol-limit` instead of running away silently. Registrations are never
  * collapsed, deduped, or replaced — each stays a distinct handler. That is collapse-freedom ONLY.
- * Registration captures the live lexical environment; it neither snapshots values nor creates fresh
- * bindings. So two registrations made in genuinely different environments do keep them
+ * Registration captures the live lexical environment; it does not snapshot values. So two
+ * registrations made in genuinely different environments do keep them
  * (`define setup :v ; every 3 [ print :v ] ; end` called as `setup 7` then `setup 8` prints `7 8`),
  * while two registrations sharing ONE binding both read it live at firing time
- * (`:n = 10 ; every 3 [ print :n ] ; :n = 20 ; every 3 [ print :n ]` prints `20 20`). What is missing
- * is fresh per-iteration bindings, which is why a loop body still reuses one binding
- * (issue #821's E-A prints `30 30 30`). That is #821's separate ruling and is NOT repaired here;
- * #828 only guarantees the collapse-freedom that repair will build on is not taken away.
+ * (`:n = 10 ; every 3 [ print :n ] ; :n = 20 ; every 3 [ print :n ]` prints `20 20`). Separate
+ * loop turns capture their own bindings, as pinned by `packages/runtime/src/scoping.test.mjs` and
+ * `tests/conformance/core-language/scoping/a-handler-captures-the-turns-own-derived-name`.
+ * #828 guarantees collapse-freedom: every registration stays distinct.
  *
  * ## Why the halt predicate has two arms
  *
