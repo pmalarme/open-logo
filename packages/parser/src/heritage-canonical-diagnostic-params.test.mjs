@@ -787,7 +787,14 @@ test("Heritage/Core semantic diagnostics match while full-name warns only on ali
 
     if (alias !== undefined) {
       const preferred = canonicalOfHeritageAlias(alias);
-      const expectedFindings = heritageAliasArity(alias) === 0 ? 3 : 2;
+      const aliasPattern = alias.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const expectedFindings =
+        twin.heritage.match(new RegExp(`\\b${aliasPattern}\\b`, "gi"))
+          ?.length ?? 0;
+      assert.ok(
+        expectedFindings > 0,
+        `${twin.note}: the Heritage program must contain an alias call site`,
+      );
       assert.equal(
         fullNameFindings.length,
         expectedFindings,
