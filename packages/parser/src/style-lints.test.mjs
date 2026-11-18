@@ -2255,7 +2255,9 @@ test("ol-style-full-name: aliases outside their active profile or without an act
 });
 
 test("ol-style-full-name: an alias spelling cannot be declared as a user procedure", () => {
-  const diagnostics = checkStyle("define fd\n  return 1\nend define");
+  const diagnostics = checkStyle("define fd\n  return 1\nend define", [
+    "core-language",
+  ]);
   assert.ok(
     diagnostics.some((diagnostic) => diagnostic.code === "ol-reserved-word"),
     "declaring the alias spelling must remain a reserved-word error",

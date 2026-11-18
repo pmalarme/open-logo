@@ -2187,6 +2187,7 @@ export function ambiguousContinuationRule(
 function preferredPrimitiveName(
   name: string,
   profiles: readonly CheckProfile[],
+  heritageCanonical: string | undefined,
 ): string | undefined {
   const turtleCanonical = canonicalOfTurtleAlias(name);
   if (turtleCanonical !== undefined) {
@@ -2199,7 +2200,6 @@ function preferredPrimitiveName(
   if (!profiles.includes("heritage")) {
     return undefined;
   }
-  const heritageCanonical = canonicalOfHeritageAlias(name);
   if (
     heritageCanonical === undefined ||
     activeProfilePrimitiveArityRange(heritageCanonical, profiles) === undefined
@@ -2221,7 +2221,7 @@ export function fullNameRule(
       return;
     }
     const alias = node.callee.name;
-    const preferred = preferredPrimitiveName(alias, profiles);
+    const preferred = preferredPrimitiveName(alias, profiles, node.canonical);
     if (preferred === undefined) {
       return;
     }
