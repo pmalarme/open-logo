@@ -1,0 +1,7 @@
+:i = 0
+repeat 3 [
+  :i = :i + 1
+  :n = :i * 10
+  every 5 [ print :n ]
+]
+wait 8

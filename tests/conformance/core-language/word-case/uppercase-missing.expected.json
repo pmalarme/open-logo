@@ -1,0 +1,30 @@
+{
+  "description": "Executing uppercase without an input reports the missing input at the callable.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/word-case/uppercase-missing",
+        "start": [1, 1],
+        "end": [1, 18]
+      },
+      "payload": { "statement_kind": "Call" }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-not-enough-inputs",
+      "source_span": {
+        "document": "core-language/word-case/uppercase-missing",
+        "start": [1, 8],
+        "end": [1, 17]
+      },
+      "params": { "callable": "uppercase", "expected": 1, "actual": 0 },
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

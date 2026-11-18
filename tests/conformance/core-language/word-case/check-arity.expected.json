@@ -1,0 +1,30 @@
+{
+  "description": "The checker reports the same missing and extra inputs as the execution fixtures, without running the calls.",
+  "profiles": ["core-language"],
+  "check": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-not-enough-inputs",
+      "source_span": {
+        "document": "core-language/word-case/check-arity",
+        "start": [1, 8],
+        "end": [1, 17]
+      },
+      "params": { "callable": "uppercase", "expected": 1, "actual": 0 },
+      "stage": "semantic",
+      "severity": "error"
+    },
+    {
+      "code": "ol-too-many-inputs",
+      "source_span": {
+        "document": "core-language/word-case/check-arity",
+        "start": [2, 8],
+        "end": [2, 17]
+      },
+      "params": { "callable": "lowercase", "expected": 1, "actual": 2 },
+      "stage": "semantic",
+      "severity": "error"
+    }
+  ]
+}

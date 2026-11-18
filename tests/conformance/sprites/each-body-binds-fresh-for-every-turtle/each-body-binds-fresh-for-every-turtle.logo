@@ -1,0 +1,9 @@
+:a = new_turtle
+:b = new_turtle
+tell [ :a :b ]
+:seen = 0
+each [
+  :seen = :seen + 1
+  if :seen > 1 [ print :carried ]
+  :carried = 7
+]

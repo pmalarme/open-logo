@@ -1,11 +1,11 @@
-> OpenLogo Specification v0.1.0 — Draft (Status: Normative)
+> OpenLogo Specification v0.2.0 — Draft (Status: Normative)
 
 # Conformance
 
 [Back to the specification index.](README.md)
 
 **Status: Normative.** This document defines how an implementation declares conformance to
-OpenLogo v0.1.0, which profiles are required, how optional profiles compose, and how extensions
+OpenLogo v0.2.0, which profiles are required, how optional profiles compose, and how extensions
 are named and detected. The canonical primitive names, aliases, kinds, arities, arguments, results,
 and errors are defined in the C3 primitive matrix in [commands.md](commands.md) and the owning
 profile documents; this document assigns features to profiles and does not redefine signatures.
@@ -24,12 +24,12 @@ requirements.
 **Status: Normative.** A conformance claim MUST identify:
 
 - the implementation name and version;
-- the supported OpenLogo specification version, exactly `0.1.0` for this draft;
+- the supported OpenLogo specification version, exactly `0.2.0` for this draft;
 - the supported profiles, using the profile names in this document;
 - the supported rendering target or targets when claiming **Turtle & Rendering**;
 - any implementation extensions, named in the extension namespace defined below.
 
-A v0.1.0 minimal conforming OpenLogo implementation is **Core Language + Turtle & Rendering**.
+A v0.2.0 minimal conforming OpenLogo implementation is **Core Language + Turtle & Rendering**.
 A Core-only evaluator MAY claim support for the **Core Language** profile, but it MUST NOT call
 itself a minimal conforming OpenLogo implementation.
 
@@ -327,19 +327,19 @@ host APIs, those names MUST use the same `<vendor>.<feature>` namespace.
 
 Implementations MUST expose feature detection metadata to hosts and tools. The metadata MUST include:
 
-- `openlogo.version`, with value `0.1.0` for this draft;
+- `openlogo.version`, with value `0.2.0` for this draft;
 - a list of supported profiles by the profile names in this document;
 - a list of supported extension feature names;
 - rendering targets when Turtle & Rendering is claimed.
 
-OpenLogo v0.1.0 does not define a Core language primitive for feature detection. An implementation
+OpenLogo v0.2.0 does not define a Core language primitive for feature detection. An implementation
 MAY expose feature detection through a host API, command-line flag, editor integration, or a
 vendor-namespaced reporter, but such a reporter is an extension and MUST NOT be required by portable
 Core programs.
 
 ## Versioning
 
-**Status: Normative.** A v0.1.0 conformance claim applies only to this draft specification. Patch
+**Status: Normative.** A v0.2.0 conformance claim applies only to this draft specification. Patch
 updates MAY clarify text without changing required behavior. Minor or major versions MAY add,
 remove, or change profile requirements; implementations MUST NOT claim conformance to a different
 version without checking that version's conformance document.

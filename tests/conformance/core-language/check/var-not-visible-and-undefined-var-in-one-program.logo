@@ -1,0 +1,6 @@
+:count = 0
+define draw_steps
+  forward :count * 10
+end
+repeat 2 [ :multiplier = 3 ]
+print :multiplier

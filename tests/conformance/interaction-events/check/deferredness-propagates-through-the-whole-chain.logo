@@ -1,0 +1,2 @@
+repeat 3 [ every 5 [ print :label ] ]
+:label = "hi"

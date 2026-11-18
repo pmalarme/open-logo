@@ -52,7 +52,7 @@ import {
 import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
 import type { Diagnostic, DiagnosticSeverity, Position } from "@openlogo/core";
 import { REPL_FOCUS_ORDER, type FocusStop } from "./a11y.js";
-import type { HighlightProvider } from "./editor.js";
+import type { HighlightProvider, HighlightToken } from "./editor.js";
 import { offsetFromPosition, positionFromOffset } from "./editor.js";
 import { computeFoldRanges, type FoldRange } from "./fold-ranges.js";
 import type { Selection } from "./state-model.js";
@@ -328,6 +328,16 @@ function resolvePositionOffset(
 }
 
 /**
+ * The full CSS class string one {@link HighlightToken} paints: its normative token class first,
+ * then each of its semantic-token modifier classes (#1106), space-separated the way a `class`
+ * attribute takes them. A token with no modifiers yields exactly its own class, unchanged — the
+ * modifier channel is purely additive, so nothing about the #285 coloring contract moves.
+ */
+export function highlightTokenClass(token: HighlightToken): string {
+  return [token.class, ...(token.modifiers ?? [])].join(" ");
+}
+
+/**
  * Build the `Decoration.mark` range set #285's syntax coloring paints: classify `state`'s current
  * document via `highlighter` (`@openlogo/parser`'s token classifier, wired in by
  * `highlighter.ts`'s {@link createParserHighlighter}) and map each resulting
@@ -340,9 +350,14 @@ function resolvePositionOffset(
  * whose column overruns its own line's actual length (e.g. a stale span computed against text the
  * highlighter hasn't re-classified yet) is REJECTED outright instead of silently spilling past the
  * line's end and decorating the *next* line's text. A zero-width or inverted span is skipped too.
- * Coloring is purely a `class` attribute on a `mark` decoration: it never replaces, hides, or
- * reorders any text node, so it cannot change the accessible text, DOM reading order, or focus
- * model CM6's `contenteditable` host already provides (the #285 a11y hard gate).
+ * Coloring is purely a `class` (plus, for a token carrying a `description`, a `title`) attribute on
+ * a `mark` decoration: it never replaces, hides, or reorders any text node, so it cannot change the
+ * accessible text, DOM reading order, or focus model CM6's `contenteditable` host already provides
+ * (the #285 a11y hard gate).
+ *
+ * A token's `modifiers` (#1106) are appended to its own class, never substituted for it — see
+ * {@link highlightTokenClass} — so a modified token still carries the `ol-tok-*` rule its normative
+ * class earns, and a theme styling no `ol-mod-*` rule renders it exactly like any other token.
  */
 function buildHighlightDecorations(
   state: EditorState,
@@ -356,7 +371,16 @@ function buildHighlightDecorations(
     if (from === undefined || to === undefined || from >= to) {
       continue;
     }
-    builder.add(from, to, Decoration.mark({ class: token.class }));
+    builder.add(
+      from,
+      to,
+      Decoration.mark({
+        class: highlightTokenClass(token),
+        ...(token.description === undefined
+          ? {}
+          : { attributes: { title: token.description } }),
+      }),
+    );
   }
   return builder.finish();
 }

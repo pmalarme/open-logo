@@ -90,12 +90,12 @@ test("an addressing form reached from a per-turtle command's ARGUMENT is still n
     [
       ":a = new_turtle",
       ":b = new_turtle",
-      "define nudge",
-      "  ask :a [ right 1 ]",
+      "define nudge :t",
+      "  ask :t [ right 1 ]",
       "  return 3",
       "end",
       "tell [ :a :b ]",
-      "forward nudge",
+      "forward nudge :a",
     ].join("\n"),
     "main.logo",
   );
@@ -380,13 +380,13 @@ test("who inside the argument still reports the acting turtle while the snapshot
     [
       ":a = new_turtle",
       ":b = new_turtle",
-      "define nudge",
-      "  ask :a [ right 1 ]",
+      "define nudge :t",
+      "  ask :t [ right 1 ]",
       "  print who",
       "  return 3",
       "end",
       "tell [ :a :b ]",
-      "forward nudge",
+      "forward nudge :a",
     ].join("\n"),
     "main.logo",
   );
@@ -418,12 +418,12 @@ test("current_turtle_id follows the addressed set, never the per-turtle loop's t
     [
       ":a = new_turtle",
       ":b = new_turtle",
-      "define nudge",
-      "  ask :a [ right 1 ]",
+      "define nudge :t",
+      "  ask :t [ right 1 ]",
       "  return 3",
       "end",
       "tell [ :a :b ]",
-      "forward nudge",
+      "forward nudge :a",
       "print who",
     ].join("\n"),
     "main.logo",
@@ -549,7 +549,7 @@ test("a stop unwinding each still publishes the restored set", () => {
 
 test("a return unwinding ask still publishes the restored set", () => {
   const result = execute(
-    "define first_x\n  ask :b [ forward 10 return xcor ]\nend\n:a = new_turtle\n:b = new_turtle\ntell :a\nprint first_x",
+    "define first_x :t\n  ask :t [ forward 10 return xcor ]\nend\n:a = new_turtle\n:b = new_turtle\ntell :a\nprint first_x :b",
     "main.logo",
   );
   assert.deepEqual(result.diagnostics, []);

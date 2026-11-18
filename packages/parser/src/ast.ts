@@ -38,6 +38,7 @@ export const OL_NODE_KINDS = [
   "PostfixExpression",
   "Assign",
   "Local",
+  "Global",
   "Call",
   "ParenCall",
   "ComparisonChain",
@@ -281,14 +282,67 @@ export interface AssignNode extends NodeBase {
 }
 
 /**
- * A `local name` or `(local name {name})` — declare one or more names in the current scope. The
- * names carry their own spans so the checker can point `ol-duplicate-binder`
+ * A `local name`, `local name = value`, or `(local name {name})` — declare one or more names in the
+ * current scope. The names carry their own spans so the checker can point `ol-duplicate-binder`
  * at each one. (`local` is a **binding** form, not a declaration slot, so it never raises
  * `ol-reserved-word` — maintainer ruling #833, `spec/grammar.md#keywords-primitives-and-built-in-names`.)
+ *
+ * `value` is the optional initializer of the **single-name** form — `spec/grammar.md#ebnf-notation` reads
+ * `local-statement ::= "local" name [ "=" expression ] | "(" "local" name { name } ")"`. The
+ * parenthesized multi-name form takes none, so a node with two or more
+ * `names` never carries one. It stays an optional field rather than a second node kind because
+ * `local count` and `local count = 0` are one production and one declaration; only the initializer
+ * differs (`spec/execution-model.md#local`).
+ *
+ * Issue #824 shipped the scoping runtime, so the declaration and its initializer both take effect.
+ * Away from the root scope `local name` creates a fresh binding holding no value, shadowing
+ * anything of that name that was visible, so reading it before anything assigns it is an ordinary
+ * `ol-undefined-var` — and an enclosing binding of the same name keeps its own value untouched. At
+ * the **root** scope it instead names the root scope's own binding
+ * (`spec/execution-model.md#local`), so `:count = 0` / `local count = 5` / `print :count` prints
+ * `5`: the initializer is assigned to the binding already there rather than to a second one beside
+ * it. Either way the initializer is evaluated *before* the new binding exists, with exactly the
+ * visibility the `local` statement itself has (`spec/execution-model.md#local`). None of this is
+ * asserted here — `packages/runtime/src/scoping.test.mjs` pins each case, so changing the behaviour
+ * reddens a test instead of outliving a comment. {@link GlobalNode} is the same shape; see its own
+ * note.
  */
 export interface LocalNode extends NodeBase {
   readonly kind: "Local";
   readonly names: readonly SpannedName[];
+  readonly value?: ExpressionNode;
+}
+
+/**
+ * A `global name = value` — declare a **shared** binding in the root scope and give it an initial
+ * value (`global-statement ::= "global" name "=" expression`, `spec/grammar.md#ebnf-notation`).
+ *
+ * It is deliberately **not** an {@link AssignNode}. An assignment targets a *place* — a
+ * colon-form `:name`, possibly postfixed — and updates the nearest visible binding; a `global`
+ * declaration takes a **bare** name, requires its initializer, and states that the root scope's
+ * binding of that name is shared across the sealed procedure boundary
+ * (`spec/execution-model.md#global`). Folding it into `Assign` would erase exactly the fact the
+ * form exists to record, and would make the `ol-global-outside-root` placement rule unable to see
+ * its own subject.
+ *
+ * The name is a {@link SpannedName} rather than a {@link PlaceNode}: it is a binding, so the
+ * checker never raises `ol-reserved-word` for it (`spec/grammar.md#keywords-primitives-and-built-in-names`), and its own span is what
+ * `ol-global-outside-root`'s `name` param and diagnostics point at.
+ *
+ * Issue #824 shipped the scoping runtime here too, so the declaration both binds and initializes.
+ * `spec/execution-model.md#global` lets a root binding of the name already exist — "`:count = 5`
+ * followed by `global count = 0` leaves one binding, now shared and holding `0`" — and the runtime
+ * does exactly that: `:count = 5` / `global count = 0` / `print :count` prints `0`. With no prior
+ * binding the declaration simply creates the shared binding, so `global count = 0` / `print :count`
+ * prints `0` as well; there is no case in which the initializer is dropped. Being shared is what
+ * the form exists to record, so a procedure's own `:count = 5` afterwards updates that same binding
+ * rather than a procedure-local one. `packages/runtime/src/scoping.test.mjs` pins each of these, so
+ * they stay measured rather than asserted.
+ */
+export interface GlobalNode extends NodeBase {
+  readonly kind: "Global";
+  readonly name: SpannedName;
+  readonly value: ExpressionNode;
 }
 
 /**
@@ -589,6 +643,7 @@ export type StatementNode =
   | ExpressionNode
   | AssignNode
   | LocalNode
+  | GlobalNode
   | BlockNode
   | IfNode
   | WhileNode
@@ -693,8 +748,21 @@ export const ast = {
   ): AssignNode {
     return { kind: "Assign", source_span: span, place, value, form };
   },
-  local(names: readonly SpannedName[], span: SourceSpan): LocalNode {
-    return { kind: "Local", source_span: span, names };
+  local(
+    names: readonly SpannedName[],
+    span: SourceSpan,
+    value?: ExpressionNode,
+  ): LocalNode {
+    return value === undefined
+      ? { kind: "Local", source_span: span, names }
+      : { kind: "Local", source_span: span, names, value };
+  },
+  global(
+    name: SpannedName,
+    value: ExpressionNode,
+    span: SourceSpan,
+  ): GlobalNode {
+    return { kind: "Global", source_span: span, name, value };
   },
   comparisonChain(
     operands: readonly ExpressionNode[],
@@ -990,6 +1058,15 @@ export function childrenOf(node: AnyNode): readonly AnyNode[] {
     }
     case "Assign":
       return [node.place, node.value];
+    case "Local":
+      // The single-name form's optional initializer (`local count = 0`) is the only walkable child
+      // a `Local` ever has; the names themselves are `SpannedName` metadata, and the parenthesized
+      // multi-name form carries no initializer at all (`spec/grammar.md#ebnf-notation`).
+      return node.value === undefined ? [] : [node.value];
+    case "Global":
+      // The declared name is `SpannedName` metadata, like `Local`'s; the required initializer is
+      // the one walkable child (`spec/grammar.md#ebnf-notation`).
+      return [node.value];
     case "Place":
       return node.segments.flatMap(segmentChildren);
     case "PostfixExpression":
@@ -1065,7 +1142,6 @@ export function childrenOf(node: AnyNode): readonly AnyNode[] {
     case "WordLit":
     case "BooleanLit":
     case "VarRef":
-    case "Local":
     case "Stop":
     case "StructDef":
       return [];

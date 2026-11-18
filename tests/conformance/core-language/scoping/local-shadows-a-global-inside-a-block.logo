@@ -1,0 +1,6 @@
+global count = 0
+repeat 1 [
+  local count = 5
+  print :count
+]
+print :count

@@ -454,7 +454,7 @@ test("the three words with no reader production keep the bare message", () => {
  * this set: only their parenthesized spellings are callable, so they are still rejected elsewhere.
  *
  * The first six are `reserved-word-value-position.test.mjs`'s own `EXPRESSION_INITIAL` set, restated
- * here rather than shared: neither file exports it, and the `asserted === 34` pin below fails on any
+ * here rather than shared: neither file exports it, and the `asserted === 35` pin below fails on any
  * behavioural drift, so a copy cannot rot silently.
  */
 const NEVER_REJECTED_IN_A_VALUE_POSITION = new Set([
@@ -511,7 +511,7 @@ test("every Core keyword the reader rejects earns the sentence, and nothing else
     asserted,
     earned.length - NEVER_REJECTED_IN_A_VALUE_POSITION.size,
   );
-  assert.equal(asserted, 34);
+  assert.equal(asserted, 35);
 
   // Paired negative control: ordinary names and lexical garbage never gain the sentence.
   for (const text of ["forward", "]", "end of file", "fowad"]) {

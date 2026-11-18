@@ -1,0 +1,5 @@
+:k = 99
+for k in [ 1 2 3 ]
+  print :k
+end
+print :k

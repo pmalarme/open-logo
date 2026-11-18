@@ -1,0 +1,6 @@
+:global = 1
+local global
+set global to 2
+for global in [ 1 2 ]
+  print :global
+end

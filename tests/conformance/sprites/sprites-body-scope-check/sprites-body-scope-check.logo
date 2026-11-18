@@ -1,0 +1,6 @@
+:t = new_turtle
+ask :t [ :asked = 7 ]
+print :asked
+tell [ :t ]
+each [ :eached = 7 ]
+print :eached

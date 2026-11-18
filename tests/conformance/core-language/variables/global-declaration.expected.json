@@ -1,0 +1,7 @@
+{
+  "description": "The global-statement (global name = value) parses clean at the root scope, per spec/grammar.md#ebnf-notation (`global-statement ::= \"global\" name \"=\" expression`). The name is bare and the initializer is required; spec/execution-model.md#global states both.",
+  "profiles": ["core-language"],
+  "expect": "match",
+  "events": [],
+  "diagnostics": []
+}

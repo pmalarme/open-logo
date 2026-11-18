@@ -18,12 +18,12 @@
  *   with Enter and Space and which a screen reader announces as a button.
  *
  * A separate control rather than Enter/Space on the focused canvas, because the canvas is also the
- * keyboard surface: `"enter"` and `"space"` are two of the key words `spec/interaction-events.md#every-n-block` names, so a learner
+ * keyboard surface: `"enter"` and `"space"` are two of the key words `spec/interaction-events.md#on_key-key-word-block` names, so a learner
  * writing `on_key "space"` must receive a space press, not an activation. The two affordances stay
  * distinct so neither has to guess which the learner meant.
  *
  * Nothing about a click's *position* is carried, and that is not a shortcut: OpenLogo v0.1
- * "does not standardize click coordinate reporters" (`spec/interaction-events.md#on_key-key-word-block`), so a click has no payload for a
+ * "does not standardize click coordinate reporters" (`spec/interaction-events.md#on_click-block`), so a click has no payload for a
  * button to be unable to supply — which is precisely what makes a keyboard activation an *equal*
  * click rather than a degraded one.
  *

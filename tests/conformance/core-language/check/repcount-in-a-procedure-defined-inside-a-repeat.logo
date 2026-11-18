@@ -1,0 +1,10 @@
+repeat 2
+  define show_turn
+    print repcount
+  end
+  define offset (:by repcount)
+    print :by
+  end
+  show_turn
+  offset
+end repeat

@@ -4,7 +4,7 @@ import * as OL from "@openlogo/core";
 
 test("getHostMetadata exposes the exact spec version", () => {
   const metadata = OL.getHostMetadata();
-  assert.equal(metadata.openlogo.version, "0.1.0");
+  assert.equal(metadata.openlogo.version, "0.2.0");
   assert.equal(metadata.openlogo.version, OL.OPENLOGO_VERSION);
 });
 

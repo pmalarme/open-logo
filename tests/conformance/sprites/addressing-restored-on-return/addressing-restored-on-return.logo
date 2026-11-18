@@ -1,7 +1,7 @@
-define first_x
-  ask :b [ forward 10 return xcor ]
+define first_x :t
+  ask :t [ forward 10 return xcor ]
 end
 :a = new_turtle
 :b = new_turtle
 tell :a
-print first_x
+print first_x :b

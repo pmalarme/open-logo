@@ -1,0 +1,3 @@
+repeat 3 [ every 5 [ print repcount ] ]
+every 5 [ repeat 3 [ print repcount ] ]
+repeat 3 [ every repcount [ print 1 ] ]

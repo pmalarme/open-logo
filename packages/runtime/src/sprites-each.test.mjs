@@ -283,15 +283,15 @@ test("after a `stop` unwinds each, `who`, `xcor`, and the addressed set report t
   // `tell [ :a :b ]` set (both turtles), confirming the set — not just the pointer — is intact too.
   const result = execute(
     [
-      "define once",
-      "  each [ if who == :b [ stop ] ]",
+      "define once :target",
+      "  each [ if who == :target [ stop ] ]",
       "end",
       ":a = new_turtle",
       ":b = new_turtle",
       "ask :a [ set_xy 11 0 ]",
       "ask :b [ set_xy 22 0 ]",
       "tell [ :a :b ]",
-      "once",
+      "once :b",
       "print who == :a",
       "print who == :b",
       "print xcor",

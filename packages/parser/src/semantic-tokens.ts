@@ -3,10 +3,18 @@
  * {@link highlight}'s token-class + delimiter-role output — the "Informative LSP-style editor
  * integration" section of `spec/tooling.md#informative-lsp-style-editor-integration`. It never re-lexes or re-classifies: every
  * {@link SemanticToken} carries {@link highlight}'s own `class`/`text`/`source_span`/`role`
- * unchanged, plus a `modifiers` array populated from that section's exact modifier vocabulary —
+ * unchanged, plus a `modifiers` array populated from that section's modifier vocabulary —
  * `declaration`, `reference`, `readonly`, `defaultLibrary`, `listRole`, `blockRole`, and
- * `selectorRole`. Owned by `@language-designer`; consumed by the studio editor/LSP successor
- * (`packages/studio`) and any external editor integration.
+ * `selectorRole` — **plus one extension of our own, `global`** (issue #826). That section lists its
+ * seven "optional modifiers **such as** …", so the vocabulary is open rather than exact; see
+ * {@link OL_TOKEN_MODIFIERS} for why the eighth is there. Owned by `@language-designer`; consumed
+ * by the studio editor/LSP successor (`packages/studio`) and any external editor integration.
+ * **`packages/studio` renders it** — issue #1106 landed in this saga and maps the modifier to an
+ * `ol-mod-*` CSS class plus a plain-language description surfaced as the mark's `title`
+ * (`highlighter.ts`'s `OL_HIGHLIGHT_MODIFIER_CSS_CLASS` and `OL_GLOBAL_VARIABLE_DESCRIPTION`). That
+ * mapping is deliberately partial, and an unmapped modifier is still simply dropped while the token
+ * keeps its own `ol-tok-*` class, so this stays a contract a consumer may ignore rather than a
+ * field every consumer must paint.
  *
  * Modifier derivation, by class:
  *  - `procedure-name` / `type-name` / `field-name` — {@link highlight} already resolves each of
@@ -32,6 +40,16 @@
  *    mark those inner reads `readonly` again for its own binder.
  *  - `primitive` — every Core primitive/alias call is a call into the standard library, so it
  *    always gets `defaultLibrary` (`spec/tooling.md#informative-lsp-style-editor-integration`'s literal example).
+ *  - `:variable` occurrences that resolve to a name the program declared `global` get `global`
+ *    (issue #826) — read straight through from {@link Token.global}, which `highlight.ts` resolves
+ *    with a scope-aware walk (`global-variable-resolution.ts`). This is the modifier that lets a
+ *    reader tell `:private = 1` from `:shared = 1` at the assignment site, the one case
+ *    `spec/execution-model.md#what-a-scope-can-see` rules is correct and therefore never diagnoses. It follows
+ *    **resolution, not spelling**: a `local` shadowing a global does not carry it. It is **not tied
+ *    to one class** — a `set` target's bare place head (`primitive`) and a `make`/`thing` word
+ *    literal (`word/string`) carry it too, because a modifier decorates whatever class a token
+ *    already has, and `spec/execution-model.md#what-an-assignment-targets` makes all three assignment spellings
+ *    resolve identically.
  *  - any class — a `[`/`]` carrying {@link Token.role} `"list"`, `"instruction-block"`, or
  *    `"selector"` gets `listRole`, `blockRole`, or `selectorRole` respectively; `"pattern"` and
  *    `"field-list"` have no named LSP modifier in `spec/tooling.md#informative-lsp-style-editor-integration` and so contribute none.
@@ -53,8 +71,21 @@ import type {
 import { assertDocumentArgument, highlight } from "./highlight.js";
 
 /**
- * The LSP-style semantic-token modifiers from `spec/tooling.md#informative-lsp-style-editor-integration`, in the document's own
- * order.
+ * The LSP-style semantic-token modifiers this parser emits: the seven from `spec/tooling.md#informative-lsp-style-editor-integration`
+ * in the document's own order, then `global` (issue #826).
+ *
+ * `global` is an **extension**, and a permitted one: that section is Informative and lists its seven
+ * "optional modifiers **such as** …", so the list is open. It is appended **last** on purpose — the
+ * seven keep their positions, so a consumer that encodes a modifier as a bit index is unaffected.
+ *
+ * It carries the one thing a learner cannot otherwise see — whether a `:name` inside a procedure
+ * reaches shared state or creates a private binding — on the modifier channel rather than as a
+ * sixteenth token class, following `spec/tooling.md#delimiter-roles`'s own treatment of the bracket roles:
+ * **five** roles spread over **two** classes (a selector's `[`/`]` is `index/dot`, not `bracket` —
+ * `spec/tooling.md#normative-token-class-model`), none of which the spec gives a class of its own, exposed instead "as semantic-token
+ * modifiers where possible, even when the visible theme maps all roles to the same bracket color".
+ * The normative 15-class table is therefore unchanged, and `spec/` is untouched. ADR-0032 records
+ * that decision, its limits, and the acceptance-criterion wording it supersedes.
  */
 export const OL_TOKEN_MODIFIERS = [
   "declaration",
@@ -64,6 +95,7 @@ export const OL_TOKEN_MODIFIERS = [
   "listRole",
   "blockRole",
   "selectorRole",
+  "global",
 ] as const;
 
 /** One LSP-style semantic-token modifier. */
@@ -124,13 +156,18 @@ function modifiersFor(
   readonlyReads: ReadonlySet<string>,
 ): TokenModifier[] {
   const modifiers: TokenModifier[] = [];
-  if (token.class === "primitive") {
+  if (token.class === "primitive" && token.global === undefined) {
     // KNOWN DEVIATION (#831): `spec/tooling.md#normative-token-class-model` makes `primitive` the grammar-safe **fallback**
     // for any bare name no other row claims, and says that fallback "is not a claim of matrix
     // membership, and tools MUST NOT infer one from it". This branch infers exactly that, so an
     // unresolved name (`fowad`, `zzz`) or a contextual word outside its structural positions
     // (`local empty`) is decorated `defaultLibrary` despite being in no C3 table. Narrowing this to
     // confirmed built-ins is #831's; the fallback CLASS itself is now normative and correct.
+    //
+    // The `global === undefined` guard narrows it for the one case this parser now has positive
+    // evidence for (issue #826): a `set` target's bare place head is a `primitive`-classed token
+    // that the resolver has *identified as naming a variable*, so it is provably not a call into
+    // the standard library. That is a strict improvement within #831's scope, not a new rule.
     modifiers.push("defaultLibrary");
   }
   const roleModifier =
@@ -146,6 +183,9 @@ function modifiersFor(
     readonlyReads.has(posKey(token.source_span.start))
   ) {
     modifiers.push("readonly");
+  }
+  if (token.global === true) {
+    modifiers.push("global");
   }
   return modifiers;
 }

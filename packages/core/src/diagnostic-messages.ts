@@ -4,7 +4,7 @@
  * boundaries, and a sentence written out independently in several places drifts.
  *
  * **This is prose, not identity, and nothing here changes that.** `spec/error-model.md#localization-boundary`
- * makes diagnostic identity `code` plus `params` and calls prose presentation, and `spec/error-model.md#localization-boundary`
+ * makes diagnostic identity `code` plus `params`, calls prose presentation, and
  * positively permits a template author to "reorder, inflect, or soften" a message for another
  * language. A localized pack may replace what this module returns; what it may not do is make the
  * two stages disagree, or reintroduce a word the spec forbids. So almost no diagnostic prose belongs

@@ -1,6 +1,6 @@
-define mutate
-  add 2 to :l
+define mutate :items
+  add 2 to :items
   return 0
 end
 :l = [1]
-(print :l mutate)
+(print :l mutate :l)

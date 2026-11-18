@@ -1,0 +1,28 @@
+{
+  "description": "`int` truncates toward zero: 3.8 and -3.8 report 3 and -3, distinguishing truncation from rounding or flooring (spec/commands.md#int).",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/int-truncates-toward-zero",
+        "start": [1, 1],
+        "end": [1, 29]
+      },
+      "payload": { "statement_kind": "ParenCall" }
+    },
+    {
+      "seq": 1,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/execution/int-truncates-toward-zero",
+        "start": [1, 1],
+        "end": [1, 29]
+      },
+      "payload": { "values": [3, -3] }
+    }
+  ],
+  "diagnostics": []
+}

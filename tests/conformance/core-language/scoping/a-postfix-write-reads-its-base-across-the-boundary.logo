@@ -1,0 +1,5 @@
+:d = { k: 1 }
+define f
+  :d.k = 5
+end
+f

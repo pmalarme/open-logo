@@ -1,0 +1,2 @@
+if 1 > 0 [ :inside = 1   print :inside ]
+print :inside

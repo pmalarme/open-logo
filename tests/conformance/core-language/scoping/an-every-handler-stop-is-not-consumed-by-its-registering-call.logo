@@ -1,0 +1,6 @@
+define setup
+  every 3 [ stop ]
+  wait 3
+  print 99
+end
+setup

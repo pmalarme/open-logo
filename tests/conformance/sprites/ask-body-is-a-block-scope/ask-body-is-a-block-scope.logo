@@ -1,0 +1,3 @@
+:t = new_turtle
+ask :t [ :tmp = 7   print :tmp ]
+print :tmp

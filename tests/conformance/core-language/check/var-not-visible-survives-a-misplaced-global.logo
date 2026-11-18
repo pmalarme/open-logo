@@ -1,0 +1,5 @@
+:count = 0
+define f
+  global count = 0
+  print :count
+end

@@ -289,6 +289,23 @@ test("hint()'s level 5 skeleton puts the parameter on the define header (‹name
   assert.doesNotMatch(skeleton, /local\s*:/);
 });
 
+// Issue #829 gave Level 5 a second concept — `global`, for a value several calls must share —
+// and round 2 of the review gate found the concept string measured by nothing: a reviewer
+// reverted it and all 110 hint tests stayed green. A learner stuck on `ol-var-not-visible` was
+// previously escalated toward `define`, away from the fix; the concept stage must now name both.
+// The last-resort skeleton deliberately still shows only the `define` shape, because prepending
+// a `global` line would misdirect the polygon/triangle/house exercises that need no shared state
+// — making the escalation depend on the learner's own diagnostic is issue #1126.
+test("hint()'s level 5 concept names global alongside define, so a shared-value bug is not misdirected", () => {
+  const output = OL.hint(
+    makeHintContext({ level: "5", priorHintStage: "nudge" }),
+  );
+  assert.equal(output.stage, "concept");
+  const concept = output.segments.join(" ");
+  assert.match(concept, /procedures \(`define … end`\)/);
+  assert.match(concept, /`global` when calls must share a value/);
+});
+
 test("hint()'s level 7c record skeleton declares fields with brackets (struct … [ … ]), not dict braces", () => {
   const skeleton = skeletonFragment("7c");
   assert.match(skeleton, /^struct ‹TypeName› \[ ‹field› \]$/);

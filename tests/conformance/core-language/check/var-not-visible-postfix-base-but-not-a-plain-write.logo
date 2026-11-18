@@ -1,0 +1,11 @@
+:d = { k: 1 }
+:lst = [ 1 2 ]
+define silent
+  :d = 5
+end
+define loud
+  :d.k = 5
+end
+define louder
+  :lst[1] = 9
+end

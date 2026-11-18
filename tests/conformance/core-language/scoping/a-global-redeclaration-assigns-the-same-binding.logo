@@ -1,0 +1,4 @@
+:count = 5
+global count = 0
+global count = 2
+print :count

@@ -62,8 +62,7 @@ layer got fancy — like sketching a stick figure before adding muscle and skin.
   number without writing the loop yourself.
 - **Words, lists, and math** — Core **reporters** (an instruction handing back an answer instead of
   doing something):
-  - text and lists: `word`/`sentence`/`first`/`last`/`butfirst`/`butlast`/`fput`/`lput`/`count`/
-    `uppercase`/`lowercase`
+  - text and lists: `word`/`sentence`/`first`/`last`/`butfirst`/`butlast`/`fput`/`lput`/`count`
   - math: `abs`/`sqrt`/`round`/`power`/`random`
   - **predicates** — yes/no tests like `empty?`/`member?`
   - `print`/`show` let your program talk back
@@ -80,18 +79,18 @@ could draw too (see below).
 
 ## What's real today
 
-✅ **The full Core language runs, end to end** — lexing, the tree, the interpreter, `define … end`
-procedures, every control form, all three comprehensions, and the full Core reporter set, proven by
-real fixtures, runnable in the studio REPL.
+✅ **Core programs run end to end** — lexing, the tree, the interpreter, `define … end`
+procedures, every control form, and all three comprehensions, with fixtures you can run in the
+studio REPL. The Core reporters
+[`uppercase`](../../spec/commands.md#uppercase) and [`lowercase`](../../spec/commands.md#lowercase)
+convert letters in a word using Unicode casing.
 
 ✅ **The turtle draws too** — `forward`/`right`/pen/color are Turtle & Rendering (M2), not Core, and
 they shipped in the same release as Core — the turtle draws today.
 
 ✅ **0.1.0 is tagged** — Core Language and Turtle & Rendering shipped **together** as
 [the tagged release `v0.1.0`](https://github.com/pmalarme/open-logo/releases/tag/v0.1.0),
-OpenLogo's first conformant saga. `package.json` says `"version": "0.1.0"` for a reason: this
-is real, released software, not a work-in-progress checkpoint — and it supersedes the earlier
-`0.1.0-core` pre-release name above.
+which superseded the earlier `0.1.0-core` pre-release name above.
 
 ## Try it yourself
 

@@ -113,9 +113,8 @@ With it, saga #572's four M5 profiles are all claimed and no example in the corp
   (`every 3 [ every 3 [ … ] ]`) fires exactly **6** times over 12 ticks against exactly **4** for its
   twin `every-single-registration-baseline`, so each registration provably survives as a **distinct
   handler**. Note the narrow scope of that claim: the bodies print a literal, so the pair proves
-  collapse-freedom only — it says nothing about *capture*, which is issue #821's separate ruling and
-  is **not** repaired here (E-A still prints `30 30 30`). Collapse-freedom is the property #821's
-  repair will build on; #828 only guarantees it is not taken away. Second, that growth is bounded by the **ordinary
+  collapse-freedom only — it says nothing about *capture*, which is issue #821's separate ruling.
+  #828 only guarantees collapse-freedom is not taken away. Second, that growth is bounded by the **ordinary
   instruction budget** rather than by a mechanism of its own, because each firing is a charged
   instruction: `every-nested-registration-budgeted` raises `ol-limit` where its control twin
   `every-single-registration-budgeted` — one non-accumulating `every`, same 12 ticks, same budget of
@@ -128,8 +127,7 @@ With it, saga #572's four M5 profiles are all claimed and no example in the corp
   it fires. It registers inside `define setup :v` and fires from the top-level `wait`, after `setup`
   has returned, so printing `7` is only possible if that environment was captured — resolving against
   the firing-time scope raises `ol-undefined-var` instead. Note this pins capture of the *environment*,
-  which is weaker than capturing *values*: nothing is snapshotted and no fresh bindings are made,
-  which is why #821's loop case is still open.
+  which is weaker than capturing *values*: nothing is snapshotted.
   Maintainer ruling **#984** adds the fixtures that pin how an **overrunning** handler behaves, a
   region the corpus had left entirely open. `every-missed-occurrence-is-queued-and-runs` proves
   coalescing is **required** and that the queued occurrence runs as soon as the handler is free,

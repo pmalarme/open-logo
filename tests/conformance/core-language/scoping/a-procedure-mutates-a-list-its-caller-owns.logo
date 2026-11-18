@@ -1,0 +1,6 @@
+define push_last :items
+  add 99 to :items
+end
+:numbers = [ 1 2 ]
+push_last :numbers
+print :numbers

@@ -1,0 +1,19 @@
+{
+  "description": "The initializer is REQUIRED (spec/grammar.md#ebnf-notation gives `global-statement ::= \"global\" name \"=\" expression`; spec/execution-model.md#global says so in words), so a bare global count reports ol-bad-token at the end of the line rather than declaring an uninitialised shared name.",
+  "profiles": ["core-language"],
+  "expect": "match",
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-bad-token",
+      "source_span": {
+        "document": "core-language/variables/global-missing-initializer-diagnostic",
+        "start": [1, 13],
+        "end": [2, 1]
+      },
+      "params": { "text": "end of line" },
+      "stage": "parse",
+      "severity": "error"
+    }
+  ]
+}

@@ -1,5 +1,6 @@
 // Unit tests for procedure-call execution: scope, arity, return/stop/throw (issue #97,
-// spec/execution-model.md#variables-scoping-and-procedures, spec/execution-model.md#trace-and-event-registry). Conformance fixtures under
+// spec/execution-model.md#variables-scoping-and-procedures, spec/execution-model.md#procedures,
+// spec/execution-model.md#trace-and-event-registry). Conformance fixtures under
 // tests/conformance/core-language/execution/procedure-*.expected.json cover the primary
 // event/diagnostic shapes end to end (basic call+return, optional-param defaults in both call
 // forms, both arity diagnostics, stop escaping a nested loop, return/stop outside any procedure,

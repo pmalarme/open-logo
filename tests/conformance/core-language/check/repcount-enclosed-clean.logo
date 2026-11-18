@@ -1,0 +1,8 @@
+repeat 3
+  print repcount
+  repeat 2 [ print repcount ]
+  repeat repcount [ print 1 ]
+  if repcount > 1 [ print repcount ]
+  for n in [1 2] [ print repcount ]
+  print map n in [1] [ repcount ]
+end repeat

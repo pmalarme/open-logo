@@ -155,6 +155,12 @@ const KNOWN_COMMAND_DESCRIPTIONS: Readonly<Record<string, CommandDescription>> =
       effect: "declares a new variable in the current scope",
       inputs: "the variable name(s) to declare",
     },
+    global: {
+      kind: "special-form",
+      effect:
+        "shares one variable with the procedures in this program, so they can read and change it",
+      inputs: "the variable name and its starting value",
+    },
     set: {
       kind: "special-form",
       effect: "changes the value stored in a place",
@@ -176,6 +182,7 @@ const SPECIAL_FORM_NAMES: Readonly<Partial<Record<AnyNode["kind"], string>>> = {
   ProcedureDef: "define",
   Return: "return",
   Local: "local",
+  Global: "global",
   Assign: "set",
 };
 

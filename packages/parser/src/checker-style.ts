@@ -693,6 +693,9 @@ function checkNamesIn(node: AnyNode, diagnostics: Diagnostic[]): void {
         checkNameCase(name, diagnostics);
       }
       return;
+    case "Global":
+      checkNameCase(node.name, diagnostics);
+      return;
     case "DestructuringBinder":
       for (const name of node.names) {
         checkNameCase(name, diagnostics);

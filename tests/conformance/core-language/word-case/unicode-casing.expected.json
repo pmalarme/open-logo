@@ -1,0 +1,48 @@
+{
+  "description": "The Core word reporters apply Unicode casing and preserve punctuation.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/word-case/unicode-casing",
+        "start": [1, 1],
+        "end": [1, 26]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 1,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/word-case/unicode-casing",
+        "start": [1, 1],
+        "end": [1, 26]
+      },
+      "payload": { "values": ["STRASSE!"] }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/word-case/unicode-casing",
+        "start": [2, 1],
+        "end": [2, 25]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 3,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/word-case/unicode-casing",
+        "start": [2, 1],
+        "end": [2, 25]
+      },
+      "payload": { "values": ["école!"] }
+    }
+  ],
+  "diagnostics": []
+}

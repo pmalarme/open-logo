@@ -1,4 +1,4 @@
-> OpenLogo Specification v0.1.0 — Draft (Status: Informative)
+> OpenLogo Specification v0.2.0 — Draft (Status: Informative)
 
 # AI Tutor
 
