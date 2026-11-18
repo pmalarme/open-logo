@@ -786,13 +786,16 @@ test("Heritage/Core semantic diagnostics match while full-name warns only on ali
     );
 
     if (alias !== undefined) {
-      assert.ok(
-        fullNameFindings.length > 0,
-        `${twin.note}: the Heritage spelling must trigger ol-style-full-name`,
+      const preferred = canonicalOfHeritageAlias(alias);
+      const expectedFindings = heritageAliasArity(alias) === 0 ? 3 : 2;
+      assert.equal(
+        fullNameFindings.length,
+        expectedFindings,
+        `${twin.note}: each alias call in the twin program must trigger ol-style-full-name`,
       );
       assert.deepEqual(
         fullNameFindings.map(({ params }) => [params.alias, params.preferred]),
-        fullNameFindings.map(() => [alias, canonicalOfHeritageAlias(alias)]),
+        Array.from({ length: expectedFindings }, () => [alias, preferred]),
         `${twin.note}: the full-name warning must identify the alias and canonical replacement`,
       );
       assert.deepEqual(

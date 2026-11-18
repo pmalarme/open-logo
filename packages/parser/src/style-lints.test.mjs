@@ -2212,6 +2212,34 @@ test("ol-style-full-name: Heritage aliases resolve to canonical command and repo
   );
 });
 
+test("ol-style-full-name: nested Heritage aliases in arguments are visited", () => {
+  const diagnostics = checkStyle(":items = [1 2]\nprint (bf :items)", [
+    "core-language",
+    "data",
+    "heritage",
+  ]).filter(isFullName);
+  assert.equal(diagnostics.length, 1);
+  assert.deepEqual(diagnostics[0].params, {
+    alias: "bf",
+    preferred: "butfirst",
+  });
+  assert.deepEqual(diagnostics[0].source_span, {
+    document: doc,
+    start: [2, 8],
+    end: [2, 10],
+  });
+});
+
+test("ol-style-full-name: Heritage form heads are not primitive alias calls", () => {
+  const diagnostics = checkStyle(
+    "to first_value\n  output 1\nend\n" +
+      "to second_value\n  op 2\nend\n" +
+      'make "stored_value" 3',
+    ["core-language", "data", "heritage"],
+  ).filter(isFullName);
+  assert.deepEqual(diagnostics, []);
+});
+
 test("ol-style-full-name: aliases outside their active profile or without an active canonical stay clean", () => {
   assert.deepEqual(checkStyle("fd 40").filter(isFullName), []);
   assert.deepEqual(
@@ -2224,6 +2252,15 @@ test("ol-style-full-name: aliases outside their active profile or without an act
     ),
     [],
   );
+});
+
+test("ol-style-full-name: an alias spelling cannot be declared as a user procedure", () => {
+  const diagnostics = checkStyle("define fd\n  return 1\nend define");
+  assert.ok(
+    diagnostics.some((diagnostic) => diagnostic.code === "ol-reserved-word"),
+    "declaring the alias spelling must remain a reserved-word error",
+  );
+  assert.deepEqual(diagnostics.filter(isFullName), []);
 });
 
 test("ol-style-full-name: a user-defined procedure call is not treated as an alias", () => {
