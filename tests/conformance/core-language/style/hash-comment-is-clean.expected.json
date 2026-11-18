@@ -1,0 +1,8 @@
+{
+  "description": "spec/tooling.md#layer-3-style-lints: a # comment produces no diagnostic with style checking enabled.",
+  "profiles": ["core-language"],
+  "check": true,
+  "style": true,
+  "events": [],
+  "diagnostics": []
+}
