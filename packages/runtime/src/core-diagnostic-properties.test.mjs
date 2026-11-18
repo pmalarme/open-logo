@@ -75,28 +75,36 @@ test("negative square roots carry the evaluated value and call span across input
 });
 
 // spec/commands.md#random: "a non-whole bound raises `ol-type`; then ... `a` greater than `b` raises `ol-range`."
-test("random rejects a fractional upper bound before checking range order", () => {
+test("random rejects either fractional bound before checking range order", () => {
   for (let sample = 0; sample < sampleCount; sample += 1) {
     const low = sample + 10;
     const high = sample + 1;
-    const fractionalHigh = high + 0.5;
-    assertRuntimeError(
-      sample,
-      `(random ${low} ${fractionalHigh})`,
-      String(fractionalHigh),
-      "ol-type",
-      {
-        expected: "whole number",
-        actual: "number",
-        value: fractionalHigh,
-        operation: "random",
-      },
-    );
-    const reversedRange = `(random ${low} ${high})`;
-    assertRuntimeError(sample, reversedRange, reversedRange, "ol-range", {
+    for (const [left, right, value] of [
+      [low + 0.5, high, low + 0.5],
+      [low, high + 0.5, high + 0.5],
+    ]) {
+      assertRuntimeError(
+        sample,
+        `(random ${left} ${right})`,
+        String(value),
+        "ol-type",
+        {
+          expected: "whole number",
+          actual: "number",
+          value,
+          operation: "random",
+        },
+      );
+    }
+  }
+});
+
+test("random reports the offending whole-number bound below one", () => {
+  for (let sample = 0; sample < sampleCount; sample += 1) {
+    const value = 0 - sample;
+    assertRuntimeError(sample, `random ${value}`, String(value), "ol-range", {
       operation: "random",
-      low,
-      high,
+      value,
     });
   }
 });

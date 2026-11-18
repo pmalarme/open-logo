@@ -2,8 +2,8 @@
 // spec/commands.md's "random"/"randomize" entries). `random`'s own sequence is only
 // "deterministic within an implementation" (not portable across implementations), so exact
 // draws are asserted here — proving OUR generator's own determinism — rather than in a
-// stack-neutral conformance fixture (`tests/conformance/`), which only asserts the portable
-// negative (`ol-type`/`ol-range`) facts.
+// stack-neutral conformance fixture (`tests/conformance/`), which asserts bounds and integrality
+// without pinning a particular draw from a non-singleton range.
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
@@ -68,16 +68,20 @@ test("(random 1 6) reports a whole number in [1, 6] across many draws", () => {
   }
 });
 
-test("(random :lo :hi) supports a negative inclusive range via variables (avoiding the -5 -1 unary/binary-minus lexical ambiguity)", () => {
+test("(random :lo :hi) reaches both endpoints of a negative range with a pinned seed", () => {
   const result = execute(
     ":lo = -5\n:hi = -1\nrepeat 20 [ print (random :lo :hi) ]",
     doc,
+    { randomSeed: 123 },
   );
   assert.deepEqual(result.diagnostics, []);
-  for (const value of printedValues(result)) {
+  const values = printedValues(result);
+  for (const value of values) {
     assert.equal(Number.isInteger(value), true);
     assert.equal(value >= -5 && value <= -1, true);
   }
+  assert.ok(values.includes(-5));
+  assert.ok(values.includes(-1));
 });
 
 // --- randomize / (randomize seed) determinism: OUR generator's own exact sequence -------------
