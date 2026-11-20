@@ -79,7 +79,7 @@ jobs:
           # `--proposed` compares the manifest against its merge base to decide which labels this
           # branch genuinely adds, so the base ref must be present in the clone.
           fetch-depth: 0
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.x"
       - run: pip install pyyaml
