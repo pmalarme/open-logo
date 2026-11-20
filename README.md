@@ -68,3 +68,7 @@ gh-aw --version                 # add the install dir to your PATH first
 ```
 
 See [`AGENTS.md` §gh-aw bootstrap](AGENTS.md#gh-aw-bootstrap) for details and the compile step.
+Workflow sources live under [`.github/workflows/*.md`](.github/workflows) (none exist yet); the
+`.lock.yml` each compiles to is generated, never hand-edited. Operating rules — recompile-and-commit
+in the same PR, `safe-outputs`-only writes, who may change them — are in
+[`workflows.instructions.md`](.github/instructions/workflows.instructions.md#agentic-workflows-githubworkflowsmd).
